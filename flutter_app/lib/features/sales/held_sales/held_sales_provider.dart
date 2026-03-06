@@ -101,12 +101,15 @@ class HeldSalesController extends StateNotifier<List<HeldSale>> {
     required double total,
   }) async {
     final trimmedName = name.trim();
-    if (trimmedName.isEmpty) return;
     if (items.isEmpty) return;
+
+    final resolvedName = trimmedName.isEmpty
+        ? 'Bekleyen Satış #${_box.length + 1}'
+        : trimmedName;
 
     final heldSale = HeldSale(
       id: _uuid.v4(),
-      name: trimmedName,
+      name: resolvedName,
       createdAt: DateTime.now(),
       items: items,
       total: total,
