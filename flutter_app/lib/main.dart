@@ -19,6 +19,7 @@ Future<void> main() async {
   await Hive.openBox('stock_entries');
   await Hive.openBox('barcode_cache');
   await Hive.openBox('sales');
+  await Hive.openBox('held_sales');
 
   await HiveMigrations.runAll();
 
