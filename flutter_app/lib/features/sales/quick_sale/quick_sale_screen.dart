@@ -87,6 +87,9 @@ class QuickSaleScreen extends ConsumerStatefulWidget {
   ConsumerState<QuickSaleScreen> createState() => _QuickSaleScreenState();
 }
 
+final holdSaleNameDraftProvider = StateProvider<String>((ref) => '');
+final quickSaleCustomerQueryProvider = StateProvider<String>((ref) => '');
+
 class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   final TextEditingController _barcodeController = TextEditingController();
   final FocusNode _barcodeFocusNode = FocusNode();
@@ -94,6 +97,8 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
       MobileScannerController();
 
   bool _isCameraMode = false;
+  bool _suppressBarcodeRefocus = false;
+  FocusNode? _modalCustomerFocusNode;
 
   String? _lastCameraBarcode;
   DateTime? _lastCameraScanAt;
@@ -108,9 +113,11 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   }
 
   void _handleFocusChange() {
+    if (_suppressBarcodeRefocus) return;
+
     if (!_barcodeFocusNode.hasFocus && !_isCameraMode) {
       Future.microtask(() {
-        if (mounted && !_isCameraMode) {
+        if (mounted && !_isCameraMode && !_suppressBarcodeRefocus) {
           FocusScope.of(context).requestFocus(_barcodeFocusNode);
         }
       });
@@ -383,7 +390,16 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   ) async {
     if (!posState.hasItems) return false;
 
-    final controller = TextEditingController();
+    _suppressBarcodeRefocus = true;
+    FocusScope.of(context).unfocus();
+
+    final controller =
+        TextEditingController(text: ref.read(holdSaleNameDraftProvider));
+    void listener() {
+      ref.read(holdSaleNameDraftProvider.notifier).state = controller.text;
+    }
+
+    controller.addListener(listener);
 
     final confirmed = await showDialog<String>(
       context: context,
@@ -400,7 +416,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                 autofocus: true,
                 textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(
-                  labelText: 'Satış adı',
+                  labelText: 'Satış adı (opsiyonel)',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -420,28 +436,23 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
       },
     );
 
+    controller.removeListener(listener);
     controller.dispose();
+
+    _suppressBarcodeRefocus = false;
+    if (mounted && !_isCameraMode) {
+      FocusScope.of(context).requestFocus(_barcodeFocusNode);
+    }
 
     if (confirmed == null) return false;
 
-    final name = confirmed.trim();
-    if (name.isEmpty) {
-      if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Satış adı boş olamaz'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return false;
-    }
-
     await ref.read(heldSalesControllerProvider.notifier).holdSale(
-          name: name,
+          name: confirmed,
           items: posState.items,
           total: posState.total,
         );
+
+    ref.read(holdSaleNameDraftProvider.notifier).state = '';
 
     if (!context.mounted) return true;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -461,6 +472,9 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     PosController posController,
   ) async {
     if (!posState.hasItems) return;
+
+    _suppressBarcodeRefocus = true;
+    FocusScope.of(context).unfocus();
 
     ref.read(quickSalePaymentProvider.notifier).reset();
 
@@ -535,7 +549,21 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                                 'Veresiye için önce müşteri ekleyin');
                           }
 
+                          final draftQuery =
+                              ref.watch(quickSaleCustomerQueryProvider);
+
+                          if (paymentState.type ==
+                              QuickSalePaymentType.credit) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              final focusNode = _modalCustomerFocusNode;
+                              if (focusNode != null && !focusNode.hasFocus) {
+                                FocusScope.of(context).requestFocus(focusNode);
+                              }
+                            });
+                          }
+
                           return Autocomplete<Customer>(
+                            initialValue: TextEditingValue(text: draftQuery),
                             displayStringForOption: (c) => c.name,
                             optionsBuilder: (value) {
                               final query = value.text.trim().toLowerCase();
@@ -553,13 +581,25 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                               ref
                                   .read(quickSalePaymentProvider.notifier)
                                   .setCustomer(customer);
+                              ref
+                                  .read(
+                                      quickSaleCustomerQueryProvider.notifier)
+                                  .state = customer.name;
                             },
                             fieldViewBuilder:
                                 (context, textController, focusNode, onSubmit) {
+                              _modalCustomerFocusNode = focusNode;
+
                               return TextField(
                                 controller: textController,
                                 focusNode: focusNode,
                                 textInputAction: TextInputAction.done,
+                                onChanged: (value) {
+                                  ref
+                                      .read(quickSaleCustomerQueryProvider
+                                          .notifier)
+                                      .state = value;
+                                },
                                 decoration: const InputDecoration(
                                   labelText: 'Müşteri ara / seç',
                                   border: OutlineInputBorder(),
@@ -609,6 +649,11 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
         );
       },
     );
+
+    _suppressBarcodeRefocus = false;
+    if (mounted && !_isCameraMode) {
+      FocusScope.of(context).requestFocus(_barcodeFocusNode);
+    }
   }
 
   Future<bool> _completeSaleFromModal(
