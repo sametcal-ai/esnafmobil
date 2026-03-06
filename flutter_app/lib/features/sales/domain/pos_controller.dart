@@ -107,6 +107,14 @@ class PosController extends StateNotifier<PosState> {
     state = state.copyWith(items: <CartItem>[]);
   }
 
+  void loadCartItems(List<CartItem> items) {
+    state = state.copyWith(
+      items: items,
+      discountType: DiscountType.none,
+      discountValue: 0,
+    );
+  }
+
   void removeItem(CartItem item) {
     final updated = state.items.where((i) => i != item).toList();
     state = state.copyWith(items: updated);

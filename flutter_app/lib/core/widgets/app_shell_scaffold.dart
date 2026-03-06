@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import 'bottom_navigation_bar.dart';
+
 class AppShellScaffold extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -20,11 +22,9 @@ class AppShellScaffold extends StatelessWidget {
   void _handleSwipe(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
 
-    // Sağdan sola (sonraki tab)
     if (velocity < -300) {
       final nextIndex = navigationShell.currentIndex + 1;
-      // 0: Dashboard, 1: Sales, 2: Account
-      if (nextIndex <= 2) {
+      if (nextIndex <= 3) {
         navigationShell.goBranch(
           nextIndex,
           initialLocation: false,
@@ -33,7 +33,6 @@ class AppShellScaffold extends StatelessWidget {
       return;
     }
 
-    // Soldan sağa (önceki tab)
     if (velocity > 300) {
       final prevIndex = navigationShell.currentIndex - 1;
       if (prevIndex >= 0) {
@@ -56,19 +55,16 @@ class AppShellScaffold extends StatelessWidget {
 
         final navigator = Navigator.of(context);
 
-        // Önce iç sayfa stack'inde geri gidilebiliyorsa onu yap.
         if (navigator.canPop()) {
           navigator.pop();
           return;
         }
 
-        // İç sayfa yok ve Sales / Account sekmesindeyiz -> Dashboard'a dön.
         if (navigationShell.currentIndex != 0) {
           navigationShell.goBranch(0, initialLocation: false);
           return;
         }
 
-        // Dashboard root'tayız, uygulamadan çık.
         SystemNavigator.pop();
       },
       child: Scaffold(
@@ -77,23 +73,9 @@ class AppShellScaffold extends StatelessWidget {
           onHorizontalDragEnd: _handleSwipe,
           child: navigationShell,
         ),
-        bottomNavigationBar: BottomNavigationBar(
+        bottomNavigationBar: EsnafBottomNavigationBar(
           currentIndex: navigationShell.currentIndex,
           onTap: _onTabTapped,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined),
-              label: 'Ana Menü',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.point_of_sale_outlined),
-              label: 'Hızlı Satış',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: 'Hesabım',
-            ),
-          ],
         ),
       ),
     );

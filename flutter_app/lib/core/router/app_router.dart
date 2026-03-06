@@ -23,7 +23,8 @@ import '../../features/customers/presentation/customer_balances_page.dart';
 import '../../features/customers/presentation/customer_collections_page.dart';
 import '../../features/customers/presentation/customer_statement_page.dart';
 import '../../features/pricing/presentation/pricing_page.dart';
-import '../../features/sales/presentation/sales_page.dart';
+import '../../features/sales/quick_sale/quick_sale_screen.dart';
+import '../../features/sales/held_sales/held_sales_tab.dart';
 import '../../features/scanner/presentation/barcode_scanner_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
 import '../../features/settings/presentation/system_settings_page.dart';
@@ -208,7 +209,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/sales',
                 name: 'sales',
-                builder: (context, state) => const SalesPage(),
+                builder: (context, state) => const QuickSaleScreen(),
               ),
               GoRoute(
                 path: '/scan',
@@ -217,7 +218,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Branch 2: Account (Hesabım)
+          // Branch 2: Bekleyen Satışlar
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/held-sales',
+                name: 'held_sales',
+                builder: (context, state) => const HeldSalesTab(),
+              ),
+            ],
+          ),
+          // Branch 3: Account (Hesabım)
           StatefulShellBranch(
             routes: [
               GoRoute(
