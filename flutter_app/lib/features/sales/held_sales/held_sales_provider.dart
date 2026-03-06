@@ -51,7 +51,7 @@ class HeldSale {
             final product = Product(
               id: (productMap['id'] ?? '').toString(),
               name: (productMap['name'] ?? '').toString(),
-              barcode: (productMap['barcode'] as String?),
+              barcode: (productMap['barcode'] ?? '').toString(),
               unitPrice: (productMap['unitPrice'] as num?)?.toDouble() ?? 0,
             );
             return CartItem(
