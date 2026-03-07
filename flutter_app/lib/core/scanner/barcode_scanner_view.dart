@@ -26,6 +26,8 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
     with WidgetsBindingObserver {
   bool _permissionDenied = false;
 
+  late final ScannerSessionManager _sessionManager;
+
   String? _lastBarcode;
   DateTime? _lastScanAt;
 
@@ -33,6 +35,8 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    _sessionManager = ref.read(scannerSessionManagerProvider.notifier);
 
     if (widget.enabled) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -52,7 +56,7 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
         _initAndStart();
       });
     } else if (oldWidget.enabled && !widget.enabled) {
-      ref.read(scannerSessionManagerProvider.notifier).release(widget.ownerId);
+      _sessionManager.release(widget.ownerId);
     }
   }
 
@@ -69,20 +73,18 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
       setState(() {
         _permissionDenied = true;
       });
-      await ref
-          .read(scannerSessionManagerProvider.notifier)
-          .release(widget.ownerId);
+      await _sessionManager.release(widget.ownerId);
       return;
     }
 
-    await ref.read(scannerSessionManagerProvider.notifier).acquire(widget.ownerId);
+    await _sessionManager.acquire(widget.ownerId);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!widget.enabled) return;
 
-    final manager = ref.read(scannerSessionManagerProvider.notifier);
+    final manager = _sessionManager;
 
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
@@ -98,7 +100,8 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    ref.read(scannerSessionManagerProvider.notifier).release(widget.ownerId);
+    _sessionManager.release(widget.ownerId);
+    super.dispose();et.ownerId);
     super.dispose();
   }
 
