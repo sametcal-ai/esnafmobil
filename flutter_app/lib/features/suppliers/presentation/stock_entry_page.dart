@@ -46,8 +46,6 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
   bool _isSaving = false;
 
   final List<_PurchaseLine> _lines = [];
-  String? _lastScannedBarcode;
-  DateTime? _lastScanAt;
 
   @override
   void initState() {
@@ -168,9 +166,6 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
 
                       final trimmed = value.trim();
                       if (trimmed.isEmpty) return;
-
-                      _lastScannedBarcode = trimmed;
-                      _lastScanAt = DateTime.now();
 
                       isPopping = true;
                       Navigator.of(context).pop(trimmed);

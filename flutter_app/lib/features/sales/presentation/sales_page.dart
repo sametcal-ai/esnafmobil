@@ -32,13 +32,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
   final FocusNode _barcodeFocusNode = FocusNode();
   bool _isCameraMode = false;
 
-  // Kamera tarayıcısı için tekrar kontrolü / gecikme yönetimi.
-  String? _lastCameraBarcode;
-  DateTime? _lastCameraScanAt;
-
-  // Manuel barkod girişleri için tekrar kontrolü.
-  String? _lastManualBarcode;
-  DateTime? _lastManualScanAt;
+  
 
   PaymentType _paymentType = PaymentType.cash;
   List<Customer> _customers = const [];
@@ -70,37 +64,10 @@ class _SalesPageState extends ConsumerState<SalesPage> {
     super.dispose();
   }
 
-  Future<void> _handleBarcode(String value, {required bool fromCamera}) async {
+  Future<void> _handleBarcode(String value) async {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       return;
-    }
-
-    final settings = ref.read(appSettingsProvider);
-    final delayMillis =
-        (settings.barcodeScanDelaySeconds * 1000).clamp(500, 10000).toInt();
-    final minDiff = Duration(milliseconds: delayMillis);
-
-    final now = DateTime.now();
-
-    if (fromCamera) {
-      if (_lastCameraBarcode == trimmed &&
-          _lastCameraScanAt != null &&
-          now.difference(_lastCameraScanAt!) < minDiff) {
-        // Kamera akışından gelen tekrarlar, gecikme süresi dolmadan yok sayılır.
-        return;
-      }
-      _lastCameraBarcode = trimmed;
-      _lastCameraScanAt = now;
-    } else {
-      if (_lastManualBarcode == trimmed &&
-          _lastManualScanAt != null &&
-          now.difference(_lastManualScanAt!) < minDiff) {
-        // Manuel barkod girişleri için de aynı gecikme uygulanır.
-        return;
-      }
-      _lastManualBarcode = trimmed;
-      _lastManualScanAt = now;
     }
 
     final posController = ref.read(posControllerProvider.notifier);
@@ -143,7 +110,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
 
   void _onBarcodeSubmitted(String value) {
     // TextField callback'i async olamadığı için, sonuç beklenmeden tetiklenir.
-    _handleBarcode(value, fromCamera: false);
+    _handleBarcode(value);
   }
 
   @override
@@ -220,7 +187,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
                     enabled: _isCameraMode,
                     onBarcode: (value) async {
                       if (!_isCameraMode) return;
-                      await _handleBarcode(value, fromCamera: true);
+                      await _handleBarcode(value);
                     },
                   ),
                 ),
