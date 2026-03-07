@@ -62,14 +62,16 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
       return;
     }
 
+    final previousController = state.controller;
+
     state = state.copyWith(
       ownerId: ownerId,
       status: ScannerSessionStatus.acquiring,
       errorMessage: null,
-      controller: state.controller,
+      controller: null,
     );
 
-    await _disposeController();
+    await _disposeController(previousController);
 
     final controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
@@ -110,9 +112,10 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
   Future<void> release(String ownerId) async {
     if (state.ownerId != ownerId) return;
 
-    await _disposeController();
-
+    final controller = state.controller;
     state = ScannerSessionState.initial();
+
+    await _disposeController(controller);
   }
 
   Future<void> pause(String ownerId) async {
@@ -150,7 +153,10 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
         controller: state.controller,
       );
     } catch (e) {
-      await _disposeController();
+      final controller = state.controller;
+      state = state.copyWith(controller: null);
+
+      await _disposeController(controller);
 
       if (state.ownerId != ownerId) return;
 
@@ -163,8 +169,7 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
     }
   }
 
-  Future<void> _disposeController() async {
-    final controller = state.controller;
+  Future<void> _disposeController(MobileScannerController? controller) async {
     if (controller == null) return;
 
     try {

@@ -104,11 +104,11 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(scannerSessionManagerProvider);
-
     if (!widget.enabled) {
       return const SizedBox.shrink();
     }
+
+    final session = ref.watch(scannerSessionManagerProvider);
 
     if (_permissionDenied) {
       return _ScannerInfoCard(
@@ -143,6 +143,7 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
     return MobileScanner(
       controller: controller,
       onDetect: (capture) {
+        if (!mounted) return;
         if (!widget.enabled) return;
         if (capture.barcodes.isEmpty) return;
 
