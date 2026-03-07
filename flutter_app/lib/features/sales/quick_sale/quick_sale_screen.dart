@@ -604,6 +604,16 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     return true;
   }
 
+  double _parseMoneyInput(String raw) {
+    final cleaned = raw
+        .trim()
+        .replaceAll(' ', '')
+        .replaceAll(',', '.')
+        .replaceAll(RegExp(r'[^0-9\.]'), '');
+    if (cleaned.isEmpty) return 0;
+    return double.tryParse(cleaned) ?? 0;
+  }
+
   Future<void> _showPaymentModal(
     BuildContext context,
     WidgetRef ref,
@@ -617,6 +627,9 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
 
     ref.read(quickSalePaymentProvider.notifier).reset();
 
+    final cashReceivedController = TextEditingController();
+    double cashReceived = 0;
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -627,170 +640,243 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
             final paymentState = ref.watch(quickSalePaymentProvider);
             final customersAsync = ref.watch(quickSaleCustomersProvider);
 
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Ödeme Seç',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                final change = cashReceived - posState.total;
+
+                return Padding(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 16,
+                    bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Ödeme Seç',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                            Chip(
+                              label: Text(
+                                'Sepet: ${formatMoney(posState.total)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        RadioListTile<QuickSalePaymentType>(
+                          value: QuickSalePaymentType.cash,
+                          groupValue: paymentState.type,
+                          title: const Text('Nakit'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            ref
+                                .read(quickSalePaymentProvider.notifier)
+                                .setType(value);
+                          },
+                        ),
+                        if (paymentState.type == QuickSalePaymentType.cash) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                TextField(
+                                  controller: cashReceivedController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Müşteriden alınan',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (value) {
+                                    setModalState(() {
+                                      cashReceived = _parseMoneyInput(value);
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  change >= 0
+                                      ? 'Para üstü: ${formatMoney(change)}'
+                                      : 'Eksik: ${formatMoney(-change)}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: change >= 0
+                                            ? Colors.green.shade800
+                                            : Colors.red.shade700,
+                                      ),
+                                ),
+                              ],
+                            ),
                           ),
-                    ),
-                    const SizedBox(height: 12),
-                    RadioListTile<QuickSalePaymentType>(
-                      value: QuickSalePaymentType.cash,
-                      groupValue: paymentState.type,
-                      title: const Text('Nakit'),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        ref
-                            .read(quickSalePaymentProvider.notifier)
-                            .setType(value);
-                      },
-                    ),
-                    RadioListTile<QuickSalePaymentType>(
-                      value: QuickSalePaymentType.card,
-                      groupValue: paymentState.type,
-                      title: const Text('Kredi Kartı'),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        ref
-                            .read(quickSalePaymentProvider.notifier)
-                            .setType(value);
-                      },
-                    ),
-                    RadioListTile<QuickSalePaymentType>(
-                      value: QuickSalePaymentType.credit,
-                      groupValue: paymentState.type,
-                      title: const Text('Veresiye'),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        ref
-                            .read(quickSalePaymentProvider.notifier)
-                            .setType(value);
-                      },
-                    ),
-                    if (paymentState.type == QuickSalePaymentType.credit) ...[
-                      const SizedBox(height: 8),
-                      customersAsync.when(
-                        data: (customers) {
-                          if (customers.isEmpty) {
-                            return const Text(
-                                'Veresiye için önce müşteri ekleyin');
-                          }
-
-                          final draftQuery =
-                              ref.watch(quickSaleCustomerQueryProvider);
-
-                          if (paymentState.type ==
-                              QuickSalePaymentType.credit) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              final focusNode = _modalCustomerFocusNode;
-                              if (focusNode != null && !focusNode.hasFocus) {
-                                FocusScope.of(context).requestFocus(focusNode);
+                          const SizedBox(height: 12),
+                        ],
+                        RadioListTile<QuickSalePaymentType>(
+                          value: QuickSalePaymentType.card,
+                          groupValue: paymentState.type,
+                          title: const Text('Kredi Kartı'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            ref
+                                .read(quickSalePaymentProvider.notifier)
+                                .setType(value);
+                          },
+                        ),
+                        RadioListTile<QuickSalePaymentType>(
+                          value: QuickSalePaymentType.credit,
+                          groupValue: paymentState.type,
+                          title: const Text('Veresiye'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            ref
+                                .read(quickSalePaymentProvider.notifier)
+                                .setType(value);
+                          },
+                        ),
+                        if (paymentState.type == QuickSalePaymentType.credit) ...[
+                          const SizedBox(height: 8),
+                          customersAsync.when(
+                            data: (customers) {
+                              if (customers.isEmpty) {
+                                return const Text(
+                                    'Veresiye için önce müşteri ekleyin');
                               }
-                            });
-                          }
 
-                          return Autocomplete<Customer>(
-                            initialValue: TextEditingValue(text: draftQuery),
-                            displayStringForOption: (c) => c.name,
-                            optionsBuilder: (value) {
-                              final query = value.text.trim().toLowerCase();
-                              if (query.isEmpty) {
-                                return const Iterable<Customer>.empty();
+                              final draftQuery =
+                                  ref.watch(quickSaleCustomerQueryProvider);
+
+                              if (paymentState.type ==
+                                  QuickSalePaymentType.credit) {
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
+                                  final focusNode = _modalCustomerFocusNode;
+                                  if (focusNode != null &&
+                                      !focusNode.hasFocus) {
+                                    FocusScope.of(context)
+                                        .requestFocus(focusNode);
+                                  }
+                                });
                               }
-                              return customers.where((c) {
-                                final name = c.name.toLowerCase();
-                                final phone = (c.phone ?? '').toLowerCase();
-                                return name.contains(query) ||
-                                    phone.contains(query);
-                              });
-                            },
-                            onSelected: (customer) {
-                              ref
-                                  .read(quickSalePaymentProvider.notifier)
-                                  .setCustomer(customer);
-                              ref
-                                  .read(
-                                      quickSaleCustomerQueryProvider.notifier)
-                                  .state = customer.name;
-                            },
-                            fieldViewBuilder:
-                                (context, textController, focusNode, onSubmit) {
-                              _modalCustomerFocusNode = focusNode;
 
-                              // Autocomplete creates and disposes its own controller.
-                              // Don't keep a reference beyond this build.
-
-                              return TextField(
-                                controller: textController,
-                                focusNode: focusNode,
-                                textInputAction: TextInputAction.done,
-                                onChanged: (value) {
+                              return Autocomplete<Customer>(
+                                initialValue: TextEditingValue(text: draftQuery),
+                                displayStringForOption: (c) => c.name,
+                                optionsBuilder: (value) {
+                                  final query =
+                                      value.text.trim().toLowerCase();
+                                  if (query.isEmpty) {
+                                    return const Iterable<Customer>.empty();
+                                  }
+                                  return customers.where((c) {
+                                    final name = c.name.toLowerCase();
+                                    final phone =
+                                        (c.phone ?? '').toLowerCase();
+                                    return name.contains(query) ||
+                                        phone.contains(query);
+                                  });
+                                },
+                                onSelected: (customer) {
+                                  ref
+                                      .read(quickSalePaymentProvider.notifier)
+                                      .setCustomer(customer);
                                   ref
                                       .read(quickSaleCustomerQueryProvider
                                           .notifier)
-                                      .state = value;
+                                      .state = customer.name;
                                 },
-                                decoration: const InputDecoration(
-                                  labelText: 'Müşteri ara / seç',
-                                  border: OutlineInputBorder(),
-                                ),
+                                fieldViewBuilder: (context, textController,
+                                    focusNode, onSubmit) {
+                                  _modalCustomerFocusNode = focusNode;
+
+                                  // Autocomplete creates and disposes its own controller.
+                                  // Don't keep a reference beyond this build.
+
+                                  return TextField(
+                                    controller: textController,
+                                    focusNode: focusNode,
+                                    textInputAction: TextInputAction.done,
+                                    onChanged: (value) {
+                                      ref
+                                          .read(quickSaleCustomerQueryProvider
+                                              .notifier)
+                                          .state = value;
+                                    },
+                                    decoration: const InputDecoration(
+                                      labelText: 'Müşteri ara / seç',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  );
+                                },
                               );
                             },
-                          );
-                        },
-                        loading: () => const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: LinearProgressIndicator(),
+                            loading: () => const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: LinearProgressIndicator(),
+                            ),
+                            error: (_, __) =>
+                                const Text('Müşteriler yüklenemedi'),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onPressed: () async {
+                            final ok = await _completeSaleFromModal(
+                              context,
+                              ref,
+                              posState,
+                              posController,
+                              cashReceived: cashReceived,
+                            );
+                            if (ok && context.mounted) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                          child: const Text('Satışı Tamamla'),
                         ),
-                        error: (_, __) =>
-                            const Text('Müşteriler yüklenemedi'),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () async {
-                        final ok = await _completeSaleFromModal(
-                          context,
-                          ref,
-                          posState,
-                          posController,
-                        );
-                        if (ok && context.mounted) {
-                          Navigator.of(context).pop();
-                        }
-                      },
-                      child: const Text('Satışı Tamamla'),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Vazgeç'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Vazgeç'),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
         );
       },
     );
+
+    cashReceivedController.dispose();
 
     _suppressBarcodeRefocus = false;
     if (mounted && !_isCameraMode) {
@@ -805,13 +891,26 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     BuildContext context,
     WidgetRef ref,
     PosState posState,
-    PosController posController,
-  ) async {
+    PosController posController, {
+    required double cashReceived,
+  }) async {
     if (!posState.hasItems) return false;
 
     final paymentState = ref.read(quickSalePaymentProvider);
 
     if (paymentState.type == QuickSalePaymentType.cash) {
+      if (cashReceived > 0 && cashReceived < posState.total) {
+        if (!context.mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Müşteriden alınan tutar yetersiz'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return false;
+      }
+
       final saleId = await posController.completeSale(
         paymentMethod: 'cash',
       );
