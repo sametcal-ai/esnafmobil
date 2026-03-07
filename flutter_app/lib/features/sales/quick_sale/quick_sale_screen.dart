@@ -10,9 +10,12 @@ import '../../../core/widgets/app_scaffold.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../customers/data/customer_ledger_repository.dart';
 import '../../customers/domain/customer.dart';
+import '../../products/data/product_repository.dart';
+import '../../products/domain/product.dart' as catalog;
 import '../domain/pos_controller.dart';
 import '../domain/pos_models.dart';
 import '../held_sales/held_sales_provider.dart';
+import 'product_search.dart';
 
 enum QuickSalePaymentType {
   cash,
@@ -80,6 +83,11 @@ final quickSaleCustomersProvider = FutureProvider<List<Customer>>((ref) async {
   return repo.getAllCustomers();
 });
 
+final quickSaleProductsProvider = FutureProvider<List<catalog.Product>>((ref) async {
+  final repo = ProductRepository();
+  return repo.getAllProducts();
+});
+
 class QuickSaleScreen extends ConsumerStatefulWidget {
   const QuickSaleScreen({super.key});
 
@@ -100,6 +108,8 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   bool _suppressBarcodeRefocus = false;
   FocusNode? _modalCustomerFocusNode;
 
+  String _productSearchQuery = '';
+
   String? _lastCameraBarcode;
   DateTime? _lastCameraScanAt;
 
@@ -110,6 +120,15 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   void initState() {
     super.initState();
     _barcodeFocusNode.addListener(_handleFocusChange);
+    _barcodeController.addListener(_handleBarcodeTextChanged);
+  }
+
+  void _handleBarcodeTextChanged() {
+    final text = _barcodeController.text;
+    if (text == _productSearchQuery) return;
+    setState(() {
+      _productSearchQuery = text;
+    });
   }
 
   void _handleFocusChange() {
@@ -133,6 +152,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   @override
   void dispose() {
     _barcodeFocusNode.removeListener(_handleFocusChange);
+    _barcodeController.removeListener(_handleBarcodeTextChanged);
     _barcodeController.dispose();
     _barcodeFocusNode.dispose();
     _mobileScannerController.dispose();
@@ -195,16 +215,30 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     _handleBarcode(value, fromCamera: false);
   }
 
+  Future<void> _addProductToCart(catalog.Product product) async {
+    final posController = ref.read(posControllerProvider.notifier);
+    posController.addProduct(product);
+
+    _barcodeController.clear();
+
+    if (mounted && !_isCameraMode) {
+      FocusScope.of(context).requestFocus(_barcodeFocusNode);
+    }
+
+    await FlutterBeep.success();
+  }
+
   @override
   Widget build(BuildContext context) {
     final posState = ref.watch(posControllerProvider);
     final posController = ref.read(posControllerProvider.notifier);
+    final productsAsync = ref.watch(quickSaleProductsProvider);
 
     return AppScaffold(
       title: 'Hızlı Satış',
       body: Column(
         children: [
-          if (!_isCameraMode)
+          if (!_isCameraMode) ...[
             Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
@@ -232,6 +266,70 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: productsAsync.when(
+                data: (products) {
+                  final suggestions = filterProductsForQuickSale(
+                    products,
+                    _productSearchQuery,
+                  );
+
+                  if (suggestions.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    clipBehavior: Clip.antiAlias,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 260),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, __) => const Divider(height: 0),
+                        itemBuilder: (context, index) {
+                          final p = suggestions[index];
+                          final subtitleParts = <String>[];
+                          if (p.brand.trim().isNotEmpty) {
+                            subtitleParts.add(p.brand.trim());
+                          }
+                          if (p.tags.isNotEmpty) {
+                            subtitleParts
+                                .add("Etiket: ${p.tags.join(', ')}");
+                          }
+                          if (p.barcode.trim().isNotEmpty) {
+                            subtitleParts.add('Barkod: ${p.barcode.trim()}');
+                          }
+
+                          return ListTile(
+                            title: Text(
+                              p.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: subtitleParts.isEmpty
+                                ? null
+                                : Text(
+                                    subtitleParts.join(' • '),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                            onTap: () => _addProductToCart(p),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
+                loading: () => const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: LinearProgressIndicator(),
+                ),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+            ),
+          ],
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(

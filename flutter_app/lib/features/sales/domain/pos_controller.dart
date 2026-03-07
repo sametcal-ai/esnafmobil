@@ -39,18 +39,7 @@ class PosController extends StateNotifier<PosState> {
     );
   }
 
-  /// Barkodu işler ve sepete ürün ekler ya da miktarını artırır.
-  ScanResult handleBarcode(String rawBarcode) {
-    final barcode = rawBarcode.trim();
-    if (barcode.isEmpty) {
-      return ScanResult.notFound;
-    }
-
-    final catalogProduct = _productRepository.getProductByBarcode(barcode);
-    if (catalogProduct == null) {
-      return ScanResult.notFound;
-    }
-
+  ScanResult _addCatalogProduct(catalog.Product catalogProduct) {
     // Sepette aynı ürün varsa miktarını artırırken güncel fiyatı da uygula.
     final existingIndex =
         state.items.indexWhere((item) => item.product.id == catalogProduct.id);
@@ -86,6 +75,26 @@ class PosController extends StateNotifier<PosState> {
     state = state.copyWith(items: [...state.items, newItem]);
 
     return ScanResult.added;
+  }
+
+  /// Barkodu işler ve sepete ürün ekler ya da miktarını artırır.
+  ScanResult handleBarcode(String rawBarcode) {
+    final barcode = rawBarcode.trim();
+    if (barcode.isEmpty) {
+      return ScanResult.notFound;
+    }
+
+    final catalogProduct = _productRepository.getProductByBarcode(barcode);
+    if (catalogProduct == null) {
+      return ScanResult.notFound;
+    }
+
+    return _addCatalogProduct(catalogProduct);
+  }
+
+  /// Ürün seçimi ile sepete ekler ya da miktarını artırır.
+  ScanResult addProduct(catalog.Product product) {
+    return _addCatalogProduct(product);
   }
 
   void setPercentageDiscount(double percent) {
