@@ -404,34 +404,64 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     final confirmed = await showDialog<String>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Satışı Beklet'),
-          content: SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: TextField(
-                controller: controller,
-                autofocus: true,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Satış adı (opsiyonel)',
-                  border: OutlineInputBorder(),
+        return AnimatedPadding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          child: Center(
+            child: Material(
+              borderRadius: BorderRadius.circular(16),
+              clipBehavior: Clip.antiAlias,
+              color: Theme.of(context).dialogBackgroundColor,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Satışı Beklet',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        labelText: 'Satış adı (opsiyonel)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(null),
+                          child: const Text('İptal'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () =>
+                              Navigator.of(context).pop(controller.text),
+                          child: const Text('Kaydet'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(null),
-              child: const Text('İptal'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Kaydet'),
-            ),
-          ],
         );
       },
     );
