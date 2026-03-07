@@ -575,7 +575,10 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
 
     _suppressBarcodeRefocus = false;
     if (mounted && !_isCameraMode) {
-      FocusScope.of(context).requestFocus(_barcodeFocusNode);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isCameraMode) return;
+        FocusScope.of(context).requestFocus(_barcodeFocusNode);
+      });
     }
 
     if (confirmed == null) return false;
@@ -786,7 +789,10 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
 
     _suppressBarcodeRefocus = false;
     if (mounted && !_isCameraMode) {
-      FocusScope.of(context).requestFocus(_barcodeFocusNode);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isCameraMode) return;
+        FocusScope.of(context).requestFocus(_barcodeFocusNode);
+      });
     }
   }
 
