@@ -116,10 +116,16 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     if (_suppressBarcodeRefocus) return;
 
     if (!_barcodeFocusNode.hasFocus && !_isCameraMode) {
-      Future.microtask(() {
-        if (mounted && !_isCameraMode && !_suppressBarcodeRefocus) {
-          FocusScope.of(context).requestFocus(_barcodeFocusNode);
-        }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_isCameraMode || _suppressBarcodeRefocus) return;
+
+        // When a dialog/bottom-sheet is presented, this route is no longer current.
+        // Avoid forcing focus while the current route is being covered/transitioning.
+        final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? true;
+        if (!isCurrentRoute) return;
+
+        FocusScope.of(context).requestFocus(_barcodeFocusNode);
       });
     }
   }
