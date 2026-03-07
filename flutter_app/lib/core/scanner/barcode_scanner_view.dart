@@ -143,7 +143,12 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _sessionManager.release(widget.ownerId);
+
+    // Avoid async notifier state updates while the widget tree is being unmounted.
+    Future.microtask(() {
+      _sessionManager.release(widget.ownerId);
+    });
+
     super.dispose();
   }
 
