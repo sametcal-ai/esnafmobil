@@ -79,6 +79,14 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
 
     try {
       await controller.start();
+
+      // The view that requested this session may have been disposed or another
+      // screen may have taken ownership while we were awaiting permission/start.
+      if (state.ownerId != ownerId || state.status != ScannerSessionStatus.acquiring) {
+        controller.dispose();
+        return;
+      }
+
       state = state.copyWith(
         ownerId: ownerId,
         status: ScannerSessionStatus.active,
@@ -87,6 +95,9 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
       );
     } catch (e) {
       controller.dispose();
+
+      if (state.ownerId != ownerId) return;
+
       state = state.copyWith(
         ownerId: ownerId,
         status: ScannerSessionStatus.error,
@@ -112,6 +123,7 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
     try {
       await state.controller!.stop();
     } finally {
+      if (state.ownerId != ownerId) return;
       state = state.copyWith(
         ownerId: ownerId,
         status: ScannerSessionStatus.paused,
@@ -128,6 +140,9 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
 
     try {
       await state.controller!.start();
+
+      if (state.ownerId != ownerId) return;
+
       state = state.copyWith(
         ownerId: ownerId,
         status: ScannerSessionStatus.active,
@@ -136,6 +151,9 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
       );
     } catch (e) {
       await _disposeController();
+
+      if (state.ownerId != ownerId) return;
+
       state = state.copyWith(
         ownerId: ownerId,
         status: ScannerSessionStatus.error,
