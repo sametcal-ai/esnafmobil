@@ -47,11 +47,12 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
     super.didUpdateWidget(oldWidget);
 
     if (!oldWidget.enabled && widget.enabled) {
-      _initAndStart();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _initAndStart();
+      });
     } else if (oldWidget.enabled && !widget.enabled) {
-      ref
-          .read(scannerSessionManagerProvider.notifier)
-          .release(widget.ownerId);
+      ref.read(scannerSessionManagerProvider.notifier).release(widget.ownerId);
     }
   }
 
