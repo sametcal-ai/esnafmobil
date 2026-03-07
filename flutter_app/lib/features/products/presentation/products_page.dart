@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../../core/scanner/barcode_scanner_view.dart';
 
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
@@ -229,7 +229,6 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
   final TextEditingController _salePriceController = TextEditingController();
   final TextEditingController _marginController = TextEditingController();
 
-  final MobileScannerController _scannerController = MobileScannerController();
   final JojapiExternalSearchService _externalSearchService =
       JojapiExternalSearchService();
   bool _isSaving = false;
@@ -292,11 +291,12 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     _purchasePriceController.dispose();
     _salePriceController.dispose();
     _marginController.dispose();
-    _scannerController.dispose();
     super.dispose();
   }
 
   Future<void> _openBarcodeScanner() async {
+    var isPopping = false;
+
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -315,13 +315,16 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: MobileScanner(
-                    controller: _scannerController,
-                    onDetect: (capture) {
-                      if (capture.barcodes.isEmpty) return;
-                      final value = capture.barcodes.first.rawValue;
-                      if (value == null || value.isEmpty) return;
-                      Navigator.of(context).pop(value);
+                  child: BarcodeScannerView(
+                    ownerId: 'edit_product_scanner',
+                    enabled: true,
+                    onBarcode: (value) {
+                      if (isPopping) return;
+                      final trimmed = value.trim();
+                      if (trimmed.isEmpty) return;
+
+                      isPopping = true;
+                      Navigator.of(context).pop(trimmed);
                     },
                   ),
                 ),

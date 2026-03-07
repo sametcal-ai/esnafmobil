@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/scanner/barcode_scanner_view.dart';
 import '../../../core/widgets/app_scaffold.dart';
 
-class BarcodeScannerPage extends StatefulWidget {
+class BarcodeScannerPage extends ConsumerStatefulWidget {
   const BarcodeScannerPage({super.key});
 
   @override
-  State<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
+  ConsumerState<BarcodeScannerPage> createState() => _BarcodeScannerPageState();
 }
 
-class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
+class _BarcodeScannerPageState extends ConsumerState<BarcodeScannerPage> {
   String? _lastScanned;
 
   @override
@@ -25,18 +26,19 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
               padding: const EdgeInsets.all(16),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: MobileScanner(
-                  onDetect: (capture) {
-                    final barcode = capture.barcodes.first;
-                    final value = barcode.rawValue;
-                    if (value == null) return;
+                child: BarcodeScannerView(
+                  ownerId: 'scanner_page',
+                  enabled: true,
+                  onBarcode: (value) {
+                    final trimmed = value.trim();
+                    if (trimmed.isEmpty) return;
 
                     setState(() {
-                      _lastScanned = value;
+                      _lastScanned = trimmed;
                     });
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Scanned: $value')),
+                      SnackBar(content: Text('Scanned: $trimmed')),
                     );
                   },
                 ),

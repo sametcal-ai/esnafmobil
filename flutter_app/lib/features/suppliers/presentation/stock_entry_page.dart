@@ -1,8 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+
+import '../../../core/scanner/barcode_scanner_view.dart';
 
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
@@ -38,7 +37,6 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _unitCostController = TextEditingController();
   final TextEditingController _marginController = TextEditingController();
-  final MobileScannerController _scannerController = MobileScannerController();
 
   List<Supplier> _suppliers = const [];
   List<Product> _products = const [];
@@ -50,8 +48,6 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
   final List<_PurchaseLine> _lines = [];
   String? _lastScannedBarcode;
   DateTime? _lastScanAt;
-  Timer? _scannerRestartTimer;
-  bool _isScannerProcessing = false;
 
   @override
   void initState() {
@@ -86,8 +82,6 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
     _quantityController.dispose();
     _unitCostController.dispose();
     _marginController.dispose();
-    _scannerController.dispose();
-    _scannerRestartTimer?.cancel();
     super.dispose();
   }
 
@@ -146,6 +140,8 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
   }
 
   Future<void> _openBarcodeScanner() async {
+    var isPopping = false;
+
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -164,13 +160,14 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: MobileScanner(
-                    controller: _scannerController,
-                    onDetect: (capture) async {
-                      if (_isScannerProcessing) return;
-                      if (capture.barcodes.isEmpty) return;
-                      final value = capture.barcodes.first.rawValue;
-                      if (value == null || value.isEmpty) return;
+                  child: BarcodeScannerView(
+                    ownerId: 'stock_entry_scanner',
+                    enabled: true,
+                    onBarcode: (value) {
+                      if (isPopping) return;
+
+                      final trimmed = value.trim();
+                      if (trimmed.isEmpty) return;
 
                       final settings = ref.read(appSettingsProvider);
                       final delayMillis =
@@ -180,25 +177,17 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
                       final minDiff = Duration(milliseconds: delayMillis);
                       final now = DateTime.now();
 
-                      if (_lastScannedBarcode == value &&
+                      if (_lastScannedBarcode == trimmed &&
                           _lastScanAt != null &&
                           now.difference(_lastScanAt!) < minDiff) {
                         return;
                       }
 
-                      _lastScannedBarcode = value;
+                      _lastScannedBarcode = trimmed;
                       _lastScanAt = now;
 
-                      _isScannerProcessing = true;
-                      await _scannerController.stop();
-
-                      Navigator.of(context).pop(value);
-
-                      _scannerRestartTimer?.cancel();
-                      _scannerRestartTimer = Timer(minDiff, () async {
-                        _isScannerProcessing = false;
-                        await _scannerController.start();
-                      });
+                      isPopping = true;
+                      Navigator.of(context).pop(trimmed);
                     },
                   ),
                 ),
