@@ -106,7 +106,6 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
 
   bool _isCameraMode = false;
   bool _suppressBarcodeRefocus = false;
-  FocusNode? _modalCustomerFocusNode;
 
   String _productSearchQuery = '';
 
@@ -839,19 +838,6 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                                 final draftQuery =
                                     ref.watch(quickSaleCustomerQueryProvider);
 
-                                if (paymentState.type ==
-                                    QuickSalePaymentType.credit) {
-                                  WidgetsBinding.instance
-                                      .addPostFrameCallback((_) {
-                                    final focusNode = _modalCustomerFocusNode;
-                                    if (focusNode != null &&
-                                        !focusNode.hasFocus) {
-                                      FocusScope.of(context)
-                                          .requestFocus(focusNode);
-                                    }
-                                  });
-                                }
-
                                 return Autocomplete<Customer>(
                                   initialValue:
                                       TextEditingValue(text: draftQuery),
@@ -881,14 +867,10 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                                   },
                                   fieldViewBuilder: (context, textController,
                                       focusNode, onSubmit) {
-                                    _modalCustomerFocusNode = focusNode;
-
-                                    // Autocomplete creates and disposes its own controller.
-                                    // Don't keep a reference beyond this build.
-
                                     return TextField(
                                       controller: textController,
                                       focusNode: focusNode,
+                                      autofocus: true,
                                       textInputAction: TextInputAction.done,
                                       onChanged: (value) {
                                         ref
@@ -1054,14 +1036,6 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                                 final draftQuery =
                                     ref.watch(quickSaleCustomerQueryProvider);
 
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  final focusNode = _modalCustomerFocusNode;
-                                  if (focusNode != null && !focusNode.hasFocus) {
-                                    FocusScope.of(context)
-                                        .requestFocus(focusNode);
-                                  }
-                                });
-
                                 return Autocomplete<Customer>(
                                   initialValue:
                                       TextEditingValue(text: draftQuery),
@@ -1091,11 +1065,10 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                                   },
                                   fieldViewBuilder: (context, textController,
                                       focusNode, onSubmit) {
-                                    _modalCustomerFocusNode = focusNode;
-
                                     return TextField(
                                       controller: textController,
                                       focusNode: focusNode,
+                                      autofocus: true,
                                       textInputAction: TextInputAction.done,
                                       onChanged: (value) {
                                         ref
