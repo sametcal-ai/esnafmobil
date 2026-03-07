@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_beep/flutter_beep.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../../../core/config/app_settings.dart';
+import '../../../core/scanner/barcode_scanner_view.dart';
+
+
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_scaffold.dart';
@@ -101,8 +102,6 @@ final quickSaleCustomerQueryProvider = StateProvider<String>((ref) => '');
 class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   final TextEditingController _barcodeController = TextEditingController();
   final FocusNode _barcodeFocusNode = FocusNode();
-  final MobileScannerController _mobileScannerController =
-      MobileScannerController();
 
   bool _isCameraMode = false;
   bool _suppressBarcodeRefocus = false;
@@ -154,39 +153,13 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     _barcodeController.removeListener(_handleBarcodeTextChanged);
     _barcodeController.dispose();
     _barcodeFocusNode.dispose();
-    _mobileScannerController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleBarcode(String value, {required bool fromCamera}) async {
+  Future<void> _handleBarcode(String value) async {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       return;
-    }
-
-    final settings = ref.read(appSettingsProvider);
-    final delayMillis =
-        (settings.barcodeScanDelaySeconds * 1000).clamp(500, 10000).toInt();
-    final minDiff = Duration(milliseconds: delayMillis);
-
-    final now = DateTime.now();
-
-    if (fromCamera) {
-      if (_lastCameraBarcode == trimmed &&
-          _lastCameraScanAt != null &&
-          now.difference(_lastCameraScanAt!) < minDiff) {
-        return;
-      }
-      _lastCameraBarcode = trimmed;
-      _lastCameraScanAt = now;
-    } else {
-      if (_lastManualBarcode == trimmed &&
-          _lastManualScanAt != null &&
-          now.difference(_lastManualScanAt!) < minDiff) {
-        return;
-      }
-      _lastManualBarcode = trimmed;
-      _lastManualScanAt = now;
     }
 
     final posController = ref.read(posControllerProvider.notifier);
@@ -211,7 +184,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   }
 
   void _onBarcodeSubmitted(String value) {
-    _handleBarcode(value, fromCamera: false);
+    _handleBarcode(value);
   }
 
   Future<void> _addProductToCart(catalog.Product product) async {
@@ -359,26 +332,11 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                 height: 220,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: MobileScanner(
-                    controller: _mobileScannerController,
-                    onDetect: (capture) async {
+                  child: BarcodeScannerView(
+                    ownerId: 'quick_sale_camera',
+                    enabled: _isCameraMode,
+                    onBarcode: (value) async {
                       if (!_isCameraMode) return;
-                      if (capture.barcodes.isEmpty) return;
-
-                      String? value;
-                      for (final barcode in capture.barcodes) {
-                        final candidate =
-                            barcode.rawValue ?? barcode.displayValue;
-                        if (candidate != null && candidate.trim().isNotEmpty) {
-                          value = candidate;
-                          break;
-                        }
-                      }
-
-                      if (value == null) {
-                        return;
-                      }
-
                       await _handleBarcode(value, fromCamera: true);
                     },
                   ),

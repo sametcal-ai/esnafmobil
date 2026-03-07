@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_beep/flutter_beep.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../core/scanner/barcode_scanner_view.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/config/app_settings.dart';
@@ -30,17 +30,9 @@ class SalesPage extends ConsumerStatefulWidget {
 class _SalesPageState extends ConsumerState<SalesPage> {
   final TextEditingController _barcodeController = TextEditingController();
   final FocusNode _barcodeFocusNode = FocusNode();
-  final MobileScannerController _mobileScannerController =
-      MobileScannerController();
   bool _isCameraMode = false;
 
-  // Kamera tarayıcısı için tekrar kontrolü / gecikme yönetimi.
-  String? _lastCameraBarcode;
-  DateTime? _lastCameraScanAt;
-
-  // Manuel barkod girişleri için tekrar kontrolü.
-  String? _lastManualBarcode;
-  DateTime? _lastManualScanAt;
+  
 
   PaymentType _paymentType = PaymentType.cash;
   List<Customer> _customers = const [];
@@ -69,41 +61,13 @@ class _SalesPageState extends ConsumerState<SalesPage> {
     _barcodeFocusNode.removeListener(_handleFocusChange);
     _barcodeController.dispose();
     _barcodeFocusNode.dispose();
-    _mobileScannerController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleBarcode(String value, {required bool fromCamera}) async {
+  Future<void> _handleBarcode(String value) async {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       return;
-    }
-
-    final settings = ref.read(appSettingsProvider);
-    final delayMillis =
-        (settings.barcodeScanDelaySeconds * 1000).clamp(500, 10000).toInt();
-    final minDiff = Duration(milliseconds: delayMillis);
-
-    final now = DateTime.now();
-
-    if (fromCamera) {
-      if (_lastCameraBarcode == trimmed &&
-          _lastCameraScanAt != null &&
-          now.difference(_lastCameraScanAt!) < minDiff) {
-        // Kamera akışından gelen tekrarlar, gecikme süresi dolmadan yok sayılır.
-        return;
-      }
-      _lastCameraBarcode = trimmed;
-      _lastCameraScanAt = now;
-    } else {
-      if (_lastManualBarcode == trimmed &&
-          _lastManualScanAt != null &&
-          now.difference(_lastManualScanAt!) < minDiff) {
-        // Manuel barkod girişleri için de aynı gecikme uygulanır.
-        return;
-      }
-      _lastManualBarcode = trimmed;
-      _lastManualScanAt = now;
     }
 
     final posController = ref.read(posControllerProvider.notifier);
@@ -146,7 +110,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
 
   void _onBarcodeSubmitted(String value) {
     // TextField callback'i async olamadığı için, sonuç beklenmeden tetiklenir.
-    _handleBarcode(value, fromCamera: false);
+    _handleBarcode(value);
   }
 
   @override
@@ -218,29 +182,12 @@ class _SalesPageState extends ConsumerState<SalesPage> {
                 height: 220,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: MobileScanner(
-                    controller: _mobileScannerController,
-                    onDetect: (capture) async {
+                  child: BarcodeScannerView(
+                    ownerId: 'sales_camera',
+                    enabled: _isCameraMode,
+                    onBarcode: (value) async {
                       if (!_isCameraMode) return;
-                      if (capture.barcodes.isEmpty) return;
-
-                      String? value;
-                      for (final barcode in capture.barcodes) {
-                        final candidate =
-                            barcode.rawValue ?? barcode.displayValue;
-                        if (candidate != null &&
-                            candidate.trim().isNotEmpty) {
-                          value = candidate;
-                          break;
-                        }
-                      }
-
-                      if (value == null) {
-                        // Geçerli bir barkod değeri yok; sessizce yok say.
-                        return;
-                      }
-
-                      await _handleBarcode(value, fromCamera: true);
+                      await _handleBarcode(value);
                     },
                   ),
                 ),
