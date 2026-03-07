@@ -27,6 +27,7 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
   bool _permissionDenied = false;
 
   late final ScannerSessionManager _sessionManager;
+  bool _effectiveEnabled = false;
 
   String? _lastBarcode;
   DateTime? _lastScanAt;
@@ -38,25 +39,61 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
 
     _sessionManager = ref.read(scannerSessionManagerProvider.notifier);
 
-    if (widget.enabled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _initAndStart();
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncEffectiveEnabled(force: true);
+    });
   }
 
   @override
   void didUpdateWidget(covariant BarcodeScannerView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (!oldWidget.enabled && widget.enabled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _initAndStart();
-      });
-    } else if (oldWidget.enabled && !widget.enabled) {
+    // enabled/ownerId changes can affect whether we should hold the camera.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncEffectiveEnabled();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // ModalRoute/TickerMode changes don't always trigger didUpdateWidget.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncEffectiveEnabled();
+    });
+  }
+
+  bool _computeEffectiveEnabled() {
+    if (!widget.enabled) return false;
+
+    final isTicking = TickerMode.of(context);
+    if (!isTicking) return false;
+
+    final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? true;
+    if (!isCurrentRoute) return false;
+
+    return true;
+  }
+
+  void _syncEffectiveEnabled({bool force = false}) {
+    final next = _computeEffectiveEnabled();
+    if (!force && next == _effectiveEnabled) return;
+
+    final previous = _effectiveEnabled;
+    _effectiveEnabled = next;
+
+    if (!previous && next) {
+      _initAndStart();
+    } else if (previous && !next) {
       _sessionManager.release(widget.ownerId);
+    }
+
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -68,6 +105,12 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
     final status = await Permission.camera.request();
 
     if (!mounted) return;
+
+    // While waiting for permission, this view may have become non-current.
+    if (!_computeEffectiveEnabled()) {
+      await _sessionManager.release(widget.ownerId);
+      return;
+    }
 
     if (!status.isGranted) {
       setState(() {
@@ -82,7 +125,7 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!widget.enabled) return;
+    if (!_effectiveEnabled) return;
 
     final manager = _sessionManager;
 
@@ -101,13 +144,12 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _sessionManager.release(widget.ownerId);
-    super.dispose();et.ownerId);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.enabled) {
+    if (!_effectiveEnabled) {
       return const SizedBox.shrink();
     }
 
@@ -147,7 +189,7 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
       controller: controller,
       onDetect: (capture) {
         if (!mounted) return;
-        if (!widget.enabled) return;
+        if (!_effectiveEnabled) return;
         if (capture.barcodes.isEmpty) return;
 
         String? value;
