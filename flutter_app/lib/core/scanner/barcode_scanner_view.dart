@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../config/app_settings.dart';
 import 'barcode_scanner_controller.dart';
 
 class BarcodeScannerView extends ConsumerStatefulWidget {
@@ -24,6 +25,9 @@ class BarcodeScannerView extends ConsumerStatefulWidget {
 class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
     with WidgetsBindingObserver {
   bool _permissionDenied = false;
+
+  String? _lastBarcode;
+  DateTime? _lastScanAt;
 
   @override
   void initState() {
@@ -145,12 +149,28 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
         for (final barcode in capture.barcodes) {
           final candidate = barcode.rawValue ?? barcode.displayValue;
           if (candidate != null && candidate.trim().isNotEmpty) {
-            value = candidate;
+            value = candidate.trim();
             break;
           }
         }
 
         if (value == null) return;
+
+        final settings = ref.read(appSettingsProvider);
+        final delayMillis =
+            (settings.barcodeScanDelaySeconds * 1000).clamp(500, 10000).toInt();
+        final minDiff = Duration(milliseconds: delayMillis);
+
+        final now = DateTime.now();
+        if (_lastBarcode == value &&
+            _lastScanAt != null &&
+            now.difference(_lastScanAt!) < minDiff) {
+          return;
+        }
+
+        _lastBarcode = value;
+        _lastScanAt = now;
+
         widget.onBarcode(value);
       },
     );

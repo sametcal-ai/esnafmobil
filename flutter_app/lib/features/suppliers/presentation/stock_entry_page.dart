@@ -169,22 +169,8 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
                       final trimmed = value.trim();
                       if (trimmed.isEmpty) return;
 
-                      final settings = ref.read(appSettingsProvider);
-                      final delayMillis =
-                          (settings.barcodeScanDelaySeconds * 1000)
-                              .clamp(500, 10000)
-                              .toInt();
-                      final minDiff = Duration(milliseconds: delayMillis);
-                      final now = DateTime.now();
-
-                      if (_lastScannedBarcode == trimmed &&
-                          _lastScanAt != null &&
-                          now.difference(_lastScanAt!) < minDiff) {
-                        return;
-                      }
-
                       _lastScannedBarcode = trimmed;
-                      _lastScanAt = now;
+                      _lastScanAt = DateTime.now();
 
                       isPopping = true;
                       Navigator.of(context).pop(trimmed);

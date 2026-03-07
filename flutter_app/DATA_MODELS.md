@@ -393,7 +393,12 @@ Kaynak: `User.toMap()` / `User.fromMap` ve ortak audit meta (`AuditMeta.toMap()`
   "isLocked": false,
   "isVisible": true,
   "isActived": true,
-  "isDe</old_code><new_code>İlişkiler:
+  "isDeleted": false
+}
+```
+
+**İlişkiler:**
+
 - (N) StockEntry.productId → (1) Product.id
 - (opsiyonel) StockEntry.supplierId → Supplier.id
 
