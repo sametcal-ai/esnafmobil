@@ -571,7 +571,9 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     );
 
     controller.removeListener(listener);
-    controller.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+    });
 
     _suppressBarcodeRefocus = false;
     if (mounted && !_isCameraMode) {
@@ -726,6 +728,9 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                             fieldViewBuilder:
                                 (context, textController, focusNode, onSubmit) {
                               _modalCustomerFocusNode = focusNode;
+
+                              // Autocomplete creates and disposes its own controller.
+                              // Don't keep a reference beyond this build.
 
                               return TextField(
                                 controller: textController,
