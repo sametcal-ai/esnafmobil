@@ -156,16 +156,42 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     super.dispose();
   }
 
-  Future<void> _handleBarcode(String value) async {
+  Future<void> _handleBarcode(
+    String value, {
+    bool fromCamera = false,
+  }) async {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       return;
     }
 
+    // Camera scanners often emit the same barcode multiple times in quick
+    // succession. Debounce to avoid double-adding.
+    final now = DateTime.now();
+    if (fromCamera) {
+      if (_lastCameraBarcode == trimmed &&
+          _lastCameraScanAt != null &&
+          now.difference(_lastCameraScanAt!).inMilliseconds < 800) {
+        return;
+      }
+      _lastCameraBarcode = trimmed;
+      _lastCameraScanAt = now;
+    } else {
+      if (_lastManualBarcode == trimmed &&
+          _lastManualScanAt != null &&
+          now.difference(_lastManualScanAt!).inMilliseconds < 400) {
+        return;
+      }
+      _lastManualBarcode = trimmed;
+      _lastManualScanAt = now;
+    }
+
     final posController = ref.read(posControllerProvider.notifier);
     final result = posController.handleBarcode(trimmed);
 
-    _barcodeController.clear();
+    if (!fromCamera) {
+      _barcodeController.clear();
+    }
 
     if (result == ScanResult.notFound) {
       if (mounted) {
