@@ -636,9 +636,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     bool splitCardEnabled = false;
     bool splitCreditEnabled = false;
 
-    final splitCashAmountController = TextEditingController();
     final splitCardAmountController = TextEditingController();
-    final splitCreditAmountController = TextEditingController();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -654,20 +652,30 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
               builder: (context, setModalState) {
                 final change = cashReceived - posState.total;
 
-                final splitCashAmount =
-                    _parseMoneyInput(splitCashAmountController.text);
                 final splitCardAmount =
                     _parseMoneyInput(splitCardAmountController.text);
-                final splitCreditAmount =
-                    _parseMoneyInput(splitCreditAmountController.text);
 
-                final splitTotal =
-                    (splitCashEnabled ? splitCashAmount : 0) +
-                        (splitCardEnabled ? splitCardAmount : 0) +
-                        (splitCreditEnabled ? splitCreditAmount : 0);
+                final splitRemainingAfterCard = posState.total -
+                    (splitCardEnabled ? splitCardAmount : 0);
+
+                final splitCashApplied = splitCashEnabled
+                    ? splitRemainingAfterCard
+                        .clamp(0, cashReceived)
+                        .toDouble()
+                    : 0.0;
+
+                final splitCreditApplied = splitCreditEnabled
+                    ? (splitRemainingAfterCard - splitCashApplied)
+                        .clamp(0, posState.total)
+                        .toDouble()
+                    : 0.0;
+
+                final splitTotal = (splitCardEnabled ? splitCardAmount : 0) +
+                    splitCashApplied +
+                    splitCreditApplied;
 
                 final splitRemaining = posState.total - splitTotal;
-                final splitCashChange = cashReceived - splitCashAmount;
+                final splitCashChange = cashReceived - splitCashApplied;
 
                 return Padding(
                   padding: EdgeInsets.only(
@@ -718,10 +726,13 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                                 splitCardEnabled = false;
                                 splitCreditEnabled = false;
 
-                                splitCashAmountController.text =
-                                    posState.total.toStringAsFixed(2);
                                 splitCardAmountController.clear();
-                                splitCreditAmountController.clear();
+                                ref
+                                    .read(quickSalePaymentProvider.notifier)
+                                    .setCustomer(null);
+                                ref
+                                    .read(quickSaleCustomerQueryProvider.notifier)
+                                    .state = '';
 
                                 cashReceivedController.clear();
                                 cashReceived = 0;
@@ -926,7 +937,6 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                               setModalState(() {
                                 splitCashEnabled = value ?? false;
                                 if (!splitCashEnabled) {
-                                  splitCashAmountController.clear();
                                   cashReceivedController.clear();
                                   cashReceived = 0;
                                 }
@@ -939,19 +949,6 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  TextField(
-                                    controller: splitCashAmountController,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                    decoration: const InputDecoration(
-                                      labelText: 'Nakit tutar',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (_) => setModalState(() {}),
-                                  ),
-                                  const SizedBox(height: 8),
                                   TextField(
                                     controller: cashReceivedController,
                                     keyboardType:
@@ -1025,7 +1022,12 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                               setModalState(() {
                                 splitCreditEnabled = value ?? false;
                                 if (!splitCreditEnabled) {
-                                  splitCreditAmountController.clear();
+                                  ref
+                                      .read(quickSalePaymentProvider.notifier)
+                                      .setCustomer(null);
+                                  ref
+                                      .read(quickSaleCustomerQueryProvider.notifier)
+                                      .state = '';
                                 }
                               });
                             },
@@ -1033,17 +1035,12 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                           if (splitCreditEnabled) ...[
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                              child: TextField(
-                                controller: splitCreditAmountController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                ),
-                                decoration: const InputDecoration(
-                                  labelText: 'Veresiye tutar',
-                                  border: OutlineInputBorder(),
-                                ),
-                                onChanged: (_) => setModalState(() {}),
+                              child: Text(
+                                'Kalan bakiye veresiye: ${formatMoney(splitCreditApplied)}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -1141,12 +1138,8 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                               splitCashEnabled: splitCashEnabled,
                               splitCardEnabled: splitCardEnabled,
                               splitCreditEnabled: splitCreditEnabled,
-                              splitCashAmount:
-                                  _parseMoneyInput(splitCashAmountController.text),
                               splitCardAmount:
                                   _parseMoneyInput(splitCardAmountController.text),
-                              splitCreditAmount: _parseMoneyInput(
-                                  splitCreditAmountController.text),
                             );
                             if (ok && context.mounted) {
                               Navigator.of(context).pop();
@@ -1176,9 +1169,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     );
 
     cashReceivedController.dispose();
-    splitCashAmountController.dispose();
     splitCardAmountController.dispose();
-    splitCreditAmountController.dispose();
 
     _suppressBarcodeRefocus = false;
     if (mounted && !_isCameraMode) {
@@ -1199,9 +1190,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     required bool splitCashEnabled,
     required bool splitCardEnabled,
     required bool splitCreditEnabled,
-    required double splitCashAmount,
     required double splitCardAmount,
-    required double splitCreditAmount,
   }) async {
     if (!posState.hasItems) return false;
 
@@ -1220,13 +1209,11 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
         return false;
       }
 
-      if (splitCashEnabled && splitCashAmount <= 0 ||
-          splitCardEnabled && splitCardAmount <= 0 ||
-          splitCreditEnabled && splitCreditAmount <= 0) {
+      if (splitCardEnabled && splitCardAmount <= 0) {
         if (!context.mounted) return false;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Seçilen ödeme türleri için tutar girin'),
+            content: Text('Kart tutarını girin'),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 2),
           ),
@@ -1234,11 +1221,48 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
         return false;
       }
 
-      final splitTotal = (splitCashEnabled ? splitCashAmount : 0) +
-          (splitCardEnabled ? splitCardAmount : 0) +
-          (splitCreditEnabled ? splitCreditAmount : 0);
+      if (splitCashEnabled && cashReceived <= 0) {
+        if (!context.mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Müşteriden alınan tutarı girin'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return false;
+      }
 
-      if ((splitTotal - posState.total).abs() > 0.01) {
+      final remainingAfterCard = posState.total -
+          (splitCardEnabled ? splitCardAmount : 0);
+
+      if (remainingAfterCard < -0.01) {
+        if (!context.mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kart tutarı sepet tutarını geçemez'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return false;
+      }
+
+      final cashApplied = splitCashEnabled
+          ? remainingAfterCard.clamp(0, cashReceived).toDouble()
+          : 0.0;
+
+      final creditApplied = splitCreditEnabled
+          ? (remainingAfterCard - cashApplied)
+              .clamp(0, posState.total)
+              .toDouble()
+          : 0.0;
+
+      final splitTotal = (splitCardEnabled ? splitCardAmount : 0) +
+          cashApplied +
+          creditApplied;
+
+      if (!splitCreditEnabled && (splitTotal - posState.total).abs() > 0.01) {
         if (!context.mounted) return false;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1250,7 +1274,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
         return false;
       }
 
-      if (splitCashEnabled && cashReceived < splitCashAmount) {
+      if (!splitCreditEnabled && splitCashEnabled && cashReceived < remainingAfterCard) {
         if (!context.mounted) return false;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1263,7 +1287,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
       }
 
       Customer? customer;
-      if (splitCreditEnabled && splitCreditAmount > 0) {
+      if (splitCreditEnabled && creditApplied > 0) {
         final customers = await ref.read(quickSaleCustomersProvider.future);
         if (customers.isEmpty) {
           if (!context.mounted) return false;
@@ -1310,11 +1334,11 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
         return false;
       }
 
-      if (customer != null && splitCreditAmount > 0) {
+      if (customer != null && creditApplied > 0) {
         final ledgerRepo = CustomerLedgerRepository(CustomerRepository());
         await ledgerRepo.addSaleEntry(
           customer: customer,
-          amount: splitCreditAmount,
+          amount: creditApplied,
           note: 'POS parçalı satış (veresiye)',
           saleId: saleId,
         );
