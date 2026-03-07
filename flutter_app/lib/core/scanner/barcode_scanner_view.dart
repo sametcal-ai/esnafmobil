@@ -26,6 +26,9 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
     with WidgetsBindingObserver {
   bool _permissionDenied = false;
 
+  late final ScannerSessionManager _sessionManager;
+  bool _effectiveEnabled = false;
+
   String? _lastBarcode;
   DateTime? _lastScanAt;
 
@@ -34,25 +37,63 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    if (widget.enabled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _initAndStart();
-      });
-    }
+    _sessionManager = ref.read(scannerSessionManagerProvider.notifier);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncEffectiveEnabled(force: true);
+    });
   }
 
   @override
   void didUpdateWidget(covariant BarcodeScannerView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (!oldWidget.enabled && widget.enabled) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _initAndStart();
-      });
-    } else if (oldWidget.enabled && !widget.enabled) {
-      ref.read(scannerSessionManagerProvider.notifier).release(widget.ownerId);
+    // enabled/ownerId changes can affect whether we should hold the camera.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncEffectiveEnabled();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // ModalRoute/TickerMode changes don't always trigger didUpdateWidget.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncEffectiveEnabled();
+    });
+  }
+
+  bool _computeEffectiveEnabled() {
+    if (!widget.enabled) return false;
+
+    final isTicking = TickerMode.of(context);
+    if (!isTicking) return false;
+
+    final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? true;
+    if (!isCurrentRoute) return false;
+
+    return true;
+  }
+
+  void _syncEffectiveEnabled({bool force = false}) {
+    final next = _computeEffectiveEnabled();
+    if (!force && next == _effectiveEnabled) return;
+
+    final previous = _effectiveEnabled;
+    _effectiveEnabled = next;
+
+    if (!previous && next) {
+      _initAndStart();
+    } else if (previous && !next) {
+      _sessionManager.release(widget.ownerId);
+    }
+
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -65,24 +106,28 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
 
     if (!mounted) return;
 
+    // While waiting for permission, this view may have become non-current.
+    if (!_computeEffectiveEnabled()) {
+      await _sessionManager.release(widget.ownerId);
+      return;
+    }
+
     if (!status.isGranted) {
       setState(() {
         _permissionDenied = true;
       });
-      await ref
-          .read(scannerSessionManagerProvider.notifier)
-          .release(widget.ownerId);
+      await _sessionManager.release(widget.ownerId);
       return;
     }
 
-    await ref.read(scannerSessionManagerProvider.notifier).acquire(widget.ownerId);
+    await _sessionManager.acquire(widget.ownerId);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!widget.enabled) return;
+    if (!_effectiveEnabled) return;
 
-    final manager = ref.read(scannerSessionManagerProvider.notifier);
+    final manager = _sessionManager;
 
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
@@ -98,13 +143,13 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    ref.read(scannerSessionManagerProvider.notifier).release(widget.ownerId);
+    _sessionManager.release(widget.ownerId);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.enabled) {
+    if (!_effectiveEnabled) {
       return const SizedBox.shrink();
     }
 
@@ -144,7 +189,7 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
       controller: controller,
       onDetect: (capture) {
         if (!mounted) return;
-        if (!widget.enabled) return;
+        if (!_effectiveEnabled) return;
         if (capture.barcodes.isEmpty) return;
 
         String? value;
