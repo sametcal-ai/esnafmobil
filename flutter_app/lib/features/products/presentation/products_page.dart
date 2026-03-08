@@ -80,7 +80,7 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
 
   void _onSearchChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(const Duration(milliseconds: 250), () {
       setState(() {
         _searchQuery = value;
       });
@@ -92,6 +92,56 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
     _searchController.clear();
     setState(() {
       _searchQuery = '';
+    });
+  }
+
+  Future<void> _openBarcodeScanner() async {
+    var isPopping = false;
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SizedBox(
+          height: 320,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Barkodu kameraya hizalayın',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BarcodeScannerView(
+                    ownerId: 'products_page_scanner',
+                    enabled: true,
+                    onBarcode: (value) {
+                      if (isPopping) return;
+                      final trimmed = value.trim();
+                      if (trimmed.isEmpty) return;
+
+                      isPopping = true;
+                      Navigator.of(context).pop(trimmed);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || result == null || result.isEmpty) return;
+
+    _searchController.text = result;
+    setState(() {
+      _searchQuery = result;
     });
   }
 
@@ -167,14 +217,25 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                       textInputAction: TextInputAction.search,
                       onChanged: _onSearchChanged,
                       decoration: InputDecoration(
-                        hintText: 'Ürünlerde ara',
+                        hintText: 'Ürünlerde ara...',
                         prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: _openBarcodeScanner,
+                              icon: const Icon(
+                                Icons.qr_code_scanner_outlined,
+                              ),
+                              tooltip: 'Barkod Oku',
+                            ),
+                            if (_searchQuery.isNotEmpty)
+                              IconButton(
                                 icon: const Icon(Icons.clear),
                                 onPressed: _clearSearch,
-                              )
-                            : null,
+                              ),
+                          ],
+                        ),
                         border: const OutlineInputBorder(),
                         filled: true,
                       ),
@@ -197,8 +258,10 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                       }
 
                       final product = filteredProducts[index ~/ 2];
+                      final brandText =
+                          product.brand.isEmpty ? '-' : product.brand;
                       final tagsText =
-                          product.tags.isEmpty ? '' : product.tags.join(', ');
+                          product.tags.isEmpty ? '-' : product.tags.join(', ');
 
                       final resolvedSalePrice =
                           PriceResolver.resolveSellPrice(
@@ -208,6 +271,10 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
 
                       final salePriceText = resolvedSalePrice > 0
                           ? formatMoney(resolvedSalePrice)
+                          : '-';
+
+                      final purchasePriceText = product.lastPurchasePrice > 0
+                          ? formatMoney(product.lastPurchasePrice)
                           : '-';
 
                       return Card(
@@ -240,67 +307,54 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'Marka: ${product.brand.isNotEmpty ? product.brand : '-'}',
+                                          'Marka: $brandText',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          'Etiket: ${tagsText.isNotEmpty ? tagsText : '-'}',
+                                          'Etiket: $tagsText',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  SizedBox(
-                                    width: 110,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Expanded(
-                                          flex: 1,
-                                          child: Align(
-                                            alignment: Alignment.centerRight,
-                                            child: Text(
-                                              salePriceText,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.copyWith(
-                                                    fontWeight:
-                                                        FontWeight.w700,
-                                                  ),
-                                            ),
-                                          ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Son alış fiyatı: $purchasePriceText',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Align(
-                                            alignment: Alignment.centerRight,
-                                            child: Text(
-                                              'Stok: ${product.stockQuantity}',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium,
-                                            ),
-                                          ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Satış fiyatı: $salePriceText',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Stok: ${product.stockQuantity}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium,
                                         ),
                                       ],
                                     ),
                                   ),
                                   if (isAdmin) ...[
                                     const SizedBox(width: 8),
-                                    IconButton(
-                                      icon:
-                                          const Icon(Icons.delete_outline),
-                                      onPressed: () async {
-                                        final repo = ProductRepository();
-                                        await repo.deleteProduct(product.id);
-                                        ref.invalidate(productsProvider);
-                                      },
+                                    Center(
+                                      child: IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                        ),
+                                        onPressed: () async {
+                                          final repo = ProductRepository();
+                                          await repo
+                                              .deleteProduct(product.id);
+                                          ref.invalidate(productsProvider);
+                                        },
+                                      ),
                                     ),
                                   ],
                                 ],
