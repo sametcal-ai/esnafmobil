@@ -22,6 +22,10 @@ class EsnafBottomNavigationBar extends StatelessWidget {
           label: 'Anasayfa',
         ),
         BottomNavigationBarItem(
+          icon: Icon(Icons.list_alt_outlined),
+          label: 'Ürünler',
+        ),
+        BottomNavigationBarItem(
           icon: Icon(Icons.point_of_sale_outlined),
           label: 'Hızlı Satış',
         ),
