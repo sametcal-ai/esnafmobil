@@ -125,23 +125,16 @@ class _ProductsLookupPageState extends ConsumerState<ProductsLookupPage> {
                 }).toList()
               : products;
 
-          return ListView.separated(
+          return Padding(
             padding: const EdgeInsets.only(
               left: 16,
               right: 16,
               top: 16,
               bottom: 80,
             ),
-            itemCount: filteredProducts.length + 1,
-            separatorBuilder: (context, index) {
-              if (index == 0) {
-                return const SizedBox(height: 12);
-              }
-              return const SizedBox(height: 10);
-            },
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return TextField(
+            child: Column(
+              children: [
+                TextField(
                   controller: _searchController,
                   textInputAction: TextInputAction.search,
                   onChanged: _onSearchChanged,
@@ -165,15 +158,25 @@ class _ProductsLookupPageState extends ConsumerState<ProductsLookupPage> {
                     ),
                     border: const OutlineInputBorder(),
                   ),
-                );
-              }
-
-              final product = filteredProducts[index - 1];
-              return _ProductLookupCard(
-                product: product,
-                settings: settings,
-              );
-            },
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: filteredProducts.length,
+                    separatorBuilder: (context, index) {
+                      return const SizedBox(height: 10);
+                    },
+                    itemBuilder: (context, index) {
+                      final product = filteredProducts[index];
+                      return _ProductLookupCard(
+                        product: product,
+                        settings: settings,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -196,15 +199,8 @@ class _ProductLookupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tagsText = product.tags.isEmpty ? '' : product.tags.join(', ');
-
-    final subtitleParts = <String>[];
-    if (product.brand.isNotEmpty) {
-      subtitleParts.add(product.brand);
-    }
-    if (tagsText.isNotEmpty) {
-      subtitleParts.add(tagsText);
-    }
+    final brandText = product.brand.isEmpty ? '-' : product.brand;
+    final tagsText = product.tags.isEmpty ? '-' : product.tags.join(', ');
 
     final resolvedSalePrice = PriceResolver.resolveSellPrice(
       product: product,
@@ -214,65 +210,84 @@ class _ProductLookupCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Stack(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (subtitleParts.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          subtitleParts.join(' • '),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 110,
-                  child: Center(
-                    child: Text(
-                      'Stok: ${product.stockQuantity}',
-                      textAlign: TextAlign.center,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      product.name,
                       style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            if (resolvedSalePrice > 0)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Text(
-                  formatMoney(resolvedSalePrice),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Colors.green.shade700,
-                    fontSize: 16,
-                  ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Marka: $brandText',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    Text(
+                      'Etiket: $tagsText',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-          ],
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 120,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Center(
+                        child: Text(
+                          'Stok: ${product.stockQuantity}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: Center(
+                        child: resolvedSalePrice > 0
+                            ? Text(
+                                formatMoney(resolvedSalePrice),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.green.shade700,
+                                  fontSize: 16,
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
