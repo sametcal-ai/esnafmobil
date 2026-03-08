@@ -24,7 +24,7 @@ class AppShellScaffold extends StatelessWidget {
 
     if (velocity < -300) {
       final nextIndex = navigationShell.currentIndex + 1;
-      if (nextIndex <= 3) {
+      if (nextIndex <= 4) {
         navigationShell.goBranch(
           nextIndex,
           initialLocation: false,

@@ -8,6 +8,7 @@ import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/user_management_page.dart';
 import '../../features/auth/presentation/account_page.dart';
 import '../../features/products/presentation/products_page.dart';
+import '../../features/products/presentation/products_lookup_page.dart';
 import '../../features/products/presentation/product_detail_page.dart';
 import '../../features/products/presentation/product_purchases_page.dart';
 import '../../features/products/presentation/product_movements_page.dart';
@@ -203,7 +204,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Branch 1: Sales (Hızlı Satış) ve ilgili sayfalar
+          // Branch 1: Ürünler (salt okunur)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/products-lookup',
+                name: 'products_lookup',
+                builder: (context, state) => const ProductsLookupPage(),
+              ),
+            ],
+          ),
+          // Branch 2: Sales (Hızlı Satış) ve ilgili sayfalar
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -218,7 +229,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Branch 2: Bekleyen Satışlar
+          // Branch 3: Bekleyen Satışlar
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -228,7 +239,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Branch 3: Account (Hesabım)
+          // Branch 4: Account (Hesabım)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -276,6 +287,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         '/customers',
         '/scan',
         '/users',
+        '/products',
       ];
 
       if (user != null && user.role == UserRole.cashier) {
