@@ -29,6 +29,43 @@ class ProductsPage extends ConsumerStatefulWidget {
   ConsumerState<ProductsPage> createState() => _ProductsPageState();
 }
 
+class _SearchBarHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double minHeight;
+  final double maxHeight;
+  final Widget child;
+
+  _SearchBarHeaderDelegate({
+    required this.minHeight,
+    required this.maxHeight,
+    required this.child,
+  });
+
+  @override
+  double get minExtent => minHeight;
+
+  @override
+  double get maxExtent => maxHeight;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SearchBarHeaderDelegate oldDelegate) {
+    return minHeight != oldDelegate.minHeight ||
+        maxHeight != oldDelegate.maxHeight ||
+        child != oldDelegate.child;
+  }
+}
+
 class _ProductsPageState extends ConsumerState<ProductsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -112,89 +149,174 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                 }).toList()
               : products;
 
-          return ListView.separated(
-            padding: const EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 16,
-              bottom: 80,
-            ),
-            itemCount: filteredProducts.length + 1,
-            separatorBuilder: (context, index) {
-              if (index == 0) {
-                return const SizedBox(height: 12);
-              }
-              return const SizedBox(height: 8);
-            },
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return TextField(
-                  controller: _searchController,
-                  textInputAction: TextInputAction.search,
-                  onChanged: _onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Ürünlerde ara',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: _clearSearch,
-                          )
-                        : null,
-                    border: const OutlineInputBorder(),
-                  ),
-                );
-              }
-
-              final product = filteredProducts[index - 1];
-              final tagsText =
-                  product.tags.isEmpty ? '' : product.tags.join(', ');
-
-              final resolvedSalePrice = PriceResolver.resolveSellPrice(
-                product: product,
-                settings: settings,
-              );
-
-              return Card(
-                child: ListTile(
-                  title: Text(product.name),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (product.brand.isNotEmpty)
-                        Text('Marka: ${product.brand}'),
-                      if (product.barcode.isNotEmpty)
-                        Text('Barkod: ${product.barcode}'),
-                      Text('Stok: ${product.stockQuantity}'),
-                      if (product.lastPurchasePrice > 0)
-                        Text(
-                          'Son alış fiyatı: ${formatMoney(product.lastPurchasePrice)}',
-                        ),
-                      if (resolvedSalePrice > 0)
-                        Text(
-                          'Satış fiyatı: ${formatMoney(resolvedSalePrice)}',
-                        ),
-                      if (tagsText.isNotEmpty) Text('Etiketler: $tagsText'),
-                    ],
-                  ),
-                  onTap: isAdmin
-                      ? () {
-                          context.push('/products/${product.id}');
-                        }
-                      : null,
-                  trailing: isAdmin
-                      ? IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: () async {
-                            final repo = ProductRepository();
-                            await repo.deleteProduct(product.id);
-                            ref.invalidate(productsProvider);
-                          },
-                        )
-                      : null,
+          return CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
                 ),
-              );
-            },
+                sliver: SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SearchBarHeaderDelegate(
+                    minHeight: 56,
+                    maxHeight: 56,
+                    child: TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onChanged: _onSearchChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Ürünlerde ara',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: _clearSearch,
+                              )
+                            : null,
+                        border: const OutlineInputBorder(),
+                        filled: true,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              SliverPadding(
+                padding: const EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  bottom: 80,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (index.isOdd) {
+                        return const SizedBox(height: 8);
+                      }
+
+                      final product = filteredProducts[index ~/ 2];
+                      final tagsText =
+                          product.tags.isEmpty ? '' : product.tags.join(', ');
+
+                      final resolvedSalePrice =
+                          PriceResolver.resolveSellPrice(
+                        product: product,
+                        settings: settings,
+                      );
+
+                      final salePriceText = resolvedSalePrice > 0
+                          ? formatMoney(resolvedSalePrice)
+                          : '-';
+
+                      return Card(
+                        child: InkWell(
+                          onTap: isAdmin
+                              ? () {
+                                  context.push('/products/${product.id}');
+                                }
+                              : null,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: IntrinsicHeight(
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          product.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Marka: ${product.brand.isNotEmpty ? product.brand : '-'}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Etiket: ${tagsText.isNotEmpty ? tagsText : '-'}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  SizedBox(
+                                    width: 110,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Expanded(
+                                          flex: 1,
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: Text(
+                                              salePriceText,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.copyWith(
+                                                    fontWeight:
+                                                        FontWeight.w700,
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: Text(
+                                              'Stok: ${product.stockQuantity}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isAdmin) ...[
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon:
+                                          const Icon(Icons.delete_outline),
+                                      onPressed: () async {
+                                        final repo = ProductRepository();
+                                        await repo.deleteProduct(product.id);
+                                        ref.invalidate(productsProvider);
+                                      },
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: filteredProducts.isEmpty
+                        ? 0
+                        : (filteredProducts.length * 2) - 1,
+                  ),
+                ),
+              ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
