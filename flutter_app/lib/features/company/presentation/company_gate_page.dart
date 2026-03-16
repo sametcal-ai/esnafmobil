@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/migration/migration_state_provider.dart';
+import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../auth/domain/firebase_auth_controller.dart';
 import '../domain/active_company_provider.dart';
 import '../domain/company_gate_logic.dart';
 import '../domain/company_memberships_provider.dart';
@@ -29,6 +32,17 @@ class CompanyGatePage extends ConsumerWidget {
 
     final memberships = ref.watch(companyMembershipsProvider);
     final activeCompanyId = ref.watch(activeCompanyIdProvider);
+    final authUser = ref.watch(authStateProvider).value;
+    final migrationState = ref.watch(migrationStateProvider);
+
+    // Active company seçilmiş ve migrasyon tamamlanmamışsa gate içinde migrasyon UI'si göster.
+    if (authUser != null && activeCompanyId != null &&
+        migrationState.status != MigrationStatus.done) {
+      return AppScaffold(
+        title: 'Migrasyon',
+        body: _MigrationBody(companyId: activeCompanyId),
+      );
+    }
 
     return AppScaffold(
       title: 'Firma',
@@ -61,7 +75,6 @@ class CompanyGatePage extends ConsumerWidget {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ref.read(activeCompanyIdProvider.notifier).state =
                   decision.autoSelectCompanyId;
-              context.go('/dashboard');
             });
 
             return const Center(child: CircularProgressIndicator());
@@ -80,7 +93,6 @@ class CompanyGatePage extends ConsumerWidget {
                 companyIds: decision.activeCompanyIds,
                 onSelect: (companyId) {
                   ref.read(activeCompanyIdProvider.notifier).state = companyId;
-                  context.go('/dashboard');
                 },
               );
             case CompanyGateRoute.noCompany:
@@ -98,6 +110,78 @@ class CompanyGatePage extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
+}
+
+class _MigrationBody extends ConsumerWidget {
+  final String companyId;
+
+  const _MigrationBody({
+    required this.companyId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(migrationStateProvider);
+    final authUser = ref.watch(authStateProvider).value;
+
+    final progress = state.progress;
+    final phase = progress?.phase ?? 'starting';
+    final migrated = progress?.migrated ?? 0;
+    final total = progress?.total ?? 0;
+
+    Widget content;
+
+    switch (state.status) {
+      case MigrationStatus.error:
+        content = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Migrasyon tamamlanamadı.'),
+            const SizedBox(height: 12),
+            Text(state.errorMessage ?? 'Bilinmeyen hata'),
+            const SizedBox(height: 16),
+            AppButton(
+              label: 'Tekrar Dene',
+              onPressed: () {
+                ref.read(migrationStateProvider.notifier).retry(
+                      isLoggedIn: authUser != null,
+                      companyId: companyId,
+                    );
+              },
+            ),
+          ],
+        );
+        break;
+      case MigrationStatus.done:
+        content = const CircularProgressIndicator();
+        break;
+      case MigrationStatus.running:
+      case MigrationStatus.idle:
+        content = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Migrasyon yapılıyor...'),
+            const SizedBox(height: 12),
+            Text('$phase: $migrated / $total'),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 220,
+              child: LinearProgressIndicator(
+                value: progress == null ? null : progress.ratio,
+              ),
+            ),
+          ],
+        );
+        break;
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: content,
       ),
     );
   }

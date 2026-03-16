@@ -31,6 +31,7 @@ import '../../features/sales/held_sales/held_sales_tab.dart';
 import '../../features/scanner/presentation/barcode_scanner_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
 import '../../features/settings/presentation/system_settings_page.dart';
+import '../migration/migration_state_provider.dart';
 import '../widgets/app_shell_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -59,6 +60,10 @@ final routerRefreshNotifierProvider =
   });
 
   ref.listen(companyContextProvider, (_, __) {
+    notifier.refresh();
+  });
+
+  ref.listen(migrationStateProvider, (_, __) {
     notifier.refresh();
   });
 
@@ -284,6 +289,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final authUser = ref.read(authStateProvider).value;
       final isLoggedIn = authUser != null;
       final activeCompanyId = ref.read(activeCompanyIdProvider);
+      final migrationState = ref.read(migrationStateProvider);
 
       final location = state.matchedLocation;
       final loggingIn = location == '/login';
@@ -298,7 +304,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return inCompanyGate ? null : '/company-gate';
       }
 
-      // Auth + activeCompanyId hazırsa login/gate'e girişleri ana sayfaya al.
+      // Active company var ama migrasyon bitmediyse her şeyi gate'e çek.
+      if (migrationState.status != MigrationStatus.done) {
+        return inCompanyGate ? null : '/company-gate';
+      }
+
+      // Auth + activeCompanyId + migrasyon hazırsa login/gate'e girişleri ana sayfaya al.
       if (loggingIn || inCompanyGate) {
         return '/dashboard';
       }
