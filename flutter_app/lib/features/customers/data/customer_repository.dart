@@ -1,33 +1,77 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
+import '../../company/domain/company_memberships_provider.dart';
 import '../domain/customer.dart';
 
 class CustomerRepository {
-  static const String customersBoxName = 'customers';
   static const _uuid = Uuid();
 
-  Box get _customersBox => Hive.box(customersBoxName);
+  CustomerRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
 
-  Future<List<Customer>> getAllCustomers() async {
-    return _customersBox.values
-        .whereType<Map>()
-        .where(isActiveRecordMap)
-        .map((map) => Customer.fromMap(map))
+  final FirestoreRefs _refs;
+
+  Stream<List<Customer>> watchCustomers(String companyId) {
+    return _refs.customers(companyId).snapshots().map((snap) {
+      return snap.docs
+          .map((d) => d.data())
+          .whereType<Map<String, dynamic>>()
+          .map(Customer.fromMap)
+          .where((c) => !c.meta.isDeleted)
+          .toList(growable: false);
+    });
+  }
+
+  Stream<Customer?> watchCustomerById(
+    String companyId,
+    String customerId,
+  ) {
+    return _refs.customers(companyId).doc(customerId).snapshots().map((snap) {
+      final data = snap.data();
+      if (!snap.exists || data == null) return null;
+      final customer = Customer.fromMap(data);
+      return customer.meta.isDeleted ? null : customer;
+    });
+  }
+
+  Future<List<Customer>> getAllCustomers(String companyId) async {
+    final snap = await _refs.customers(companyId).get();
+    return snap.docs
+        .map((d) => d.data())
+        .whereType<Map<String, dynamic>>()
+        .map(Customer.fromMap)
+        .where((c) => !c.meta.isDeleted)
         .toList(growable: false);
   }
 
+  Future<Customer?> getCustomerById(
+    String companyId,
+    String id,
+  ) async {
+    final snap = await _refs.customers(companyId).doc(id).get();
+    final data = snap.data();
+    if (data == null) return null;
+    final customer = Customer.fromMap(data);
+    return customer.meta.isDeleted ? null : customer;
+  }
+
   Future<Customer> createCustomer({
+    required String companyId,
     String? code,
     required String name,
     String? phone,
     String? email,
     String? workplace,
     String? note,
+    String? currentUserId,
   }) async {
     final id = _uuid.v4();
-    final meta = AuditMeta.create(createdBy: 'system');
+    final actor = currentUserId ?? 'system';
+    final meta = AuditMeta.create(createdBy: actor);
+
     final customer = Customer(
       id: id,
       code: code,
@@ -38,46 +82,51 @@ class CustomerRepository {
       note: note,
       meta: meta,
     );
-    await _customersBox.put(id, customer.toMap());
+
+    await _refs.customers(companyId).doc(id).set(customer.toMap(), SetOptions(merge: true));
     return customer;
   }
 
-  Future<Customer?> getCustomerById(String id) async {
-    final raw = _customersBox.get(id);
-    if (raw is! Map) return null;
-    return Customer.fromMap(raw);
-  }
-
-  Future<Customer?> updateCustomer(Customer customer) async {
-    final raw = _customersBox.get(customer.id);
-    if (raw is! Map) return null;
-    final existing = Customer.fromMap(raw);
+  Future<Customer?> updateCustomer(
+    String companyId,
+    Customer customer, {
+    String? currentUserId,
+  }) async {
+    final existing = await getCustomerById(companyId, customer.id);
+    if (existing == null) return null;
 
     if (existing.meta.isLocked) {
       return null;
     }
 
+    final actor = currentUserId ?? 'system';
     final updatedMeta = existing.meta.touch(
-      modifiedBy: 'system',
+      modifiedBy: actor,
       bumpVersion: true,
     );
 
     final updated = customer.copyWith(meta: updatedMeta);
-    await _customersBox.put(customer.id, updated.toMap());
+    await _refs.customers(companyId).doc(updated.id).set(updated.toMap(), SetOptions(merge: true));
     return updated;
   }
 
-  /// Müşteriyi soft delete ile siler.
-  /// Kayıt Hive'da kalır ancak listelemelerde görünmez.
   Future<void> deleteCustomer(
+    String companyId,
     String id, {
     String? currentUserId,
   }) async {
-    final raw = _customersBox.get(id);
-    if (raw is! Map) return;
-    final existing = Customer.fromMap(raw);
-    final deletedMeta = existing.meta.softDelete(modifiedBy: 'system');
+    final existing = await getCustomerById(companyId, id);
+    if (existing == null) return;
+
+    final actor = currentUserId ?? 'system';
+    final deletedMeta = existing.meta.softDelete(modifiedBy: actor);
     final deleted = existing.copyWith(meta: deletedMeta);
-    await _customersBox.put(id, deleted.toMap());
+
+    await _refs.customers(companyId).doc(id).set(deleted.toMap(), SetOptions(merge: true));
   }
 }
+
+final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
+  final refs = ref.watch(firestoreRefsProvider);
+  return CustomerRepository(refs);
+});
