@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../data/supplier_ledger_repository.dart';
 import '../data/supplier_repository.dart';
 import '../domain/supplier.dart';
@@ -42,10 +43,13 @@ class _SupplierPaymentsPageState
   }
 
   Future<void> _load() async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final supplierRepo = ref.read(supplierRepositoryProvider);
     final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
 
-    final supplier = await supplierRepo.getSupplierById(widget.supplierId);
+    final supplier = await supplierRepo.getSupplierById(companyId, widget.supplierId);
     if (!mounted) return;
     if (supplier == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,7 +62,7 @@ class _SupplierPaymentsPageState
       return;
     }
 
-    final entries = await ledgerRepo.getEntriesForSupplier(supplier.id);
+    final entries = await ledgerRepo.getEntriesForSupplier(companyId, supplier.id);
     final payments = entries
         .where((e) => e.type == SupplierLedgerEntryType.payment)
         .toList()
@@ -99,12 +103,14 @@ class _SupplierPaymentsPageState
     if (supplier == null) return;
 
     final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     await ledgerRepo.addPaymentEntry(
+      companyId: companyId,
       supplier: supplier,
       amount: amount,
-      note: _noteController.text.trim().isEmpty
-          ? 'Ödeme ($_selectedMethod)'
-          : _noteController.text.trim(),
+      note: note.isEmpty ? null : note,
     );
 
     if (!mounted) return;
