@@ -31,9 +31,12 @@ class FirestoreRefs {
   }
 
   Query<CompanyMember> membersGroupByUid(String uid) {
+    // Note: FieldPath.documentId() doesn't work with collectionGroup queries
+    // unless you provide a full document path (e.g. companies/<id>/members/<uid>).
+    // For our schema member docs also store the uid as a field, so query by that.
     return _db
         .collectionGroup('members')
-        .where(FieldPath.documentId, isEqualTo: uid)
+        .where('uid', isEqualTo: uid)
         .withConverter<CompanyMember>(
           fromFirestore: (snap, _) => CompanyMember.fromDoc(snap),
           toFirestore: (m, _) => m.toMap(),
