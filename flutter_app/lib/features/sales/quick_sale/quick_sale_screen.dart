@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_beep/flutter_beep.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -578,12 +579,24 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     final companyId = ref.read(activeCompanyIdProvider);
     if (companyId == null) return false;
 
-    await ref.read(heldSalesRepositoryProvider).holdSale(
-          companyId: companyId,
-          name: confirmed,
-          items: posState.items,
-          total: posState.total,
-        );
+    try {
+      await ref.read(heldSalesRepositoryProvider).holdSale(
+            companyId: companyId,
+            name: confirmed,
+            items: posState.items,
+            total: posState.total,
+          );
+    } on FirebaseException catch (e) {
+      if (!context.mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Satış beklemeye alınamadı: ${e.message ?? e.code}'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return false;
+    }
 
     ref.read(holdSaleNameDraftProvider.notifier).state = '';
 
