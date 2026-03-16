@@ -6,6 +6,7 @@ import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../pricing/domain/price_resolver.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../../suppliers/data/stock_entry_repository.dart';
 import '../../suppliers/data/supplier_repository.dart';
 import '../../suppliers/domain/stock_entry.dart';
@@ -55,13 +56,24 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   }
 
   Future<void> _loadProductAndData() async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) {
+      setState(() {
+        _loadingProduct = false;
+        _loadingPurchases = false;
+        _loadingMovements = false;
+        _errorMessage = 'Aktif firma seçilmedi';
+      });
+      return;
+    }
+
     final productRepo = ProductRepository();
     final stockRepo = StockEntryRepository(ProductRepository());
     final supplierRepo = SupplierRepository();
     final salesRepo = SalesRepository();
 
     try {
-      final product = await productRepo.getProductById(widget.productId);
+      final product = await productRepo.getProductById(companyId, widget.productId);
       if (!mounted) return;
       if (product == null) {
         setState(() {

@@ -54,7 +54,7 @@ class ProductRepository {
     final actor = currentUserId ?? 'system';
     final now = DateTime.now();
 
-    await _refs.productsRef(companyId).doc(productId).set(
+    await _refs.products(companyId).doc(productId).set(
       {
         'isDeleted': true,
         'isVisible': false,

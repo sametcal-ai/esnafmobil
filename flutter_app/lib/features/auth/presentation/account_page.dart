@@ -20,7 +20,7 @@ class AccountPage extends ConsumerWidget {
           icon: const Icon(Icons.logout),
           tooltip: 'Çıkış Yap',
           onPressed: () async {
-            await ref.read(authControllerProvider.notifier).logout();
+            await ref.read(firebaseAuthControllerProvider.notifier).signOut();
           },
         ),
       ],

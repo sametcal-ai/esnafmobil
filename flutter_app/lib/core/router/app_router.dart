@@ -8,6 +8,7 @@ import '../../features/auth/presentation/user_management_page.dart';
 import '../../features/auth/presentation/account_page.dart';
 import '../../features/company/domain/active_company_provider.dart';
 import '../../features/company/presentation/company_gate_page.dart';
+import '../../features/company_context/domain/company_context_controller.dart' show companyContextProvider;
 import '../../features/products/presentation/products_page.dart';
 import '../../features/products/presentation/products_lookup_page.dart';
 import '../../features/products/presentation/product_detail_page.dart';

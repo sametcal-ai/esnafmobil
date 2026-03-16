@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
 import '../../auth/domain/firebase_auth_controller.dart';
+import '../../../core/firestore/models/company_member.dart';
 import 'company_membership.dart';
 
 final firestoreRefsProvider = Provider<FirestoreRefs>((ref) {

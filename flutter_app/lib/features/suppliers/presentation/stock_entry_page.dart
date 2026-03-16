@@ -61,6 +61,8 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
       return;
     }
 
+    final suppliers = await supplierRepo.getAllSuppliers();
+
     final productRepo = ref.read(productsRepositoryProvider);
     final products = await productRepo.getAllProducts(companyId);
 
