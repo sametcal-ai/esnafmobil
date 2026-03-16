@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../../products/data/product_repository.dart';
 import '../data/stock_entry_repository.dart';
 import '../data/supplier_repository.dart';
@@ -208,6 +209,9 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
     SupplierLedgerEntry entry,
     Supplier supplier,
   ) async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return null;
+
     final stockRepo = StockEntryRepository(ProductRepository());
     final productRepo = ProductRepository();
 
@@ -239,7 +243,7 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
 
     if (bestMatch == null) return null;
 
-    final product = await productRepo.getProductById(bestMatch.productId);
+    final product = await productRepo.getProductById(companyId, bestMatch.productId);
 
     return _SupplierPurchaseViewData(
       stockEntry: bestMatch,

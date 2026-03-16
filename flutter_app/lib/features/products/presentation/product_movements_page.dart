@@ -16,6 +16,7 @@ import '../../suppliers/domain/supplier.dart';
 import '../../sales/data/sales_repository.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../customers/domain/customer.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../data/product_repository.dart';
 import '../data/product_statement_pdf_service.dart';
 import '../domain/product.dart';
@@ -49,8 +50,20 @@ class _ProductMovementsPageState extends ConsumerState<ProductMovementsPage> {
   }
 
   Future<void> _initProduct() async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aktif firma seçilmedi'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pop();
+      return;
+    }
+
     final productRepo = ProductRepository();
-    final product = await productRepo.getProductById(widget.productId);
+    final product = await productRepo.getProductById(companyId, widget.productId);
     if (!mounted) return;
     if (product == null) {
       ScaffoldMessenger.of(context).showSnackBar(

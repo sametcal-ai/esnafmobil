@@ -14,7 +14,11 @@ import 'select_company_page.dart';
 
 final connectivityResultProvider =
     FutureProvider.autoDispose<ConnectivityResult>((ref) async {
-  return Connectivity().checkConnectivity();
+  final dynamic results = await Connectivity().checkConnectivity();
+  if (results is List<ConnectivityResult>) {
+    return results.isEmpty ? ConnectivityResult.none : results.first;
+  }
+  return results as ConnectivityResult;
 });
 
 class CompanyGatePage extends ConsumerWidget {
