@@ -106,7 +106,7 @@ class CompanyContextController extends StateNotifier<CompanyContextState> {
     try {
       final snap = await _firestore
           .collectionGroup('members')
-          .where('uid', isEqualTo: uid)
+          .where(FieldPath.documentId, isEqualTo: uid)
           .get();
 
       final memberships = <CompanyMembership>[];
