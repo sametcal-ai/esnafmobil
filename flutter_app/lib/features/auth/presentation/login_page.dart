@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/app_button.dart';
-import '../domain/auth_controller.dart';
+import '../domain/firebase_auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -27,16 +27,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _submit() async {
-    final controller = ref.read(authControllerProvider.notifier);
-
+    final controller = ref.read(firebaseAuthControllerProvider.notifier);
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     final success = _isRegister
-        ? await controller.register(email, password)
-        : await controller.login(email, password);
+        ? await controller.registerWithEmailAndPassword(
+            email: email,
+            password: password,
+          )
+        : await controller.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
 
-    final state = ref.read(authControllerProvider);
+    final state = ref.read(firebaseAuthControllerProvider);
 
     if (!success) {
       final msg = state.errorMessage;
@@ -51,12 +56,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       return;
     }
 
-    // Yönlendirme GoRouter.redirect içinde yapılacak (firma seçimi dahil).
+    if (!mounted) return;
+
+    context.go('/company-gate');
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
+    final authUiState = ref.watch(firebaseAuthControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -69,8 +76,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             const SizedBox(height: 24),
             TextField(
               controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
+              keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
                 labelText: 'E-posta',
                 border: OutlineInputBorder(),
@@ -94,15 +101,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             SizedBox(
               width: double.infinity,
               child: AppButton(
-                label: authState.isLoading
-                    ? (_isRegister ? 'Kayıt yapılıyor...' : 'Giriş yapılıyor...')
+                label: authUiState.isLoading
+                    ? (_isRegister ? 'Kayıt olunuyor...' : 'Giriş yapılıyor...')
                     : (_isRegister ? 'Kayıt Ol' : 'Giriş Yap'),
-                onPressed: authState.isLoading ? null : _submit,
+                onPressed: authUiState.isLoading ? null : _submit,
               ),
             ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: authState.isLoading
+              onPressed: authUiState.isLoading
                   ? null
                   : () {
                       setState(() {
@@ -111,8 +118,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     },
               child: Text(
                 _isRegister
-                    ? 'Zaten hesabın var mı? Giriş Yap'
-                    : 'Hesabın yok mu? Kayıt Ol',
+                    ? 'Zaten hesabın var mı? Giriş yap'
+                    : 'Hesabın yok mu? Kayıt ol',
               ),
             ),
           ],

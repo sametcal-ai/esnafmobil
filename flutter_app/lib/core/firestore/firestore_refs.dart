@@ -29,6 +29,16 @@ class FirestoreRefs {
         );
   }
 
+  Query<CompanyMember> membersGroupByUid(String uid) {
+    return _db
+        .collectionGroup('members')
+        .where(FieldPath.documentId, isEqualTo: uid)
+        .withConverter<CompanyMember>(
+          fromFirestore: (snap, _) => CompanyMember.fromDoc(snap),
+          toFirestore: (m, _) => m.toMap(),
+        );
+  }
+
   DocumentReference<CompanyMember> member(String companyId, String uid) {
     return members(companyId).doc(uid);
   }

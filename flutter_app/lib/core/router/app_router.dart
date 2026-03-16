@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/auth/domain/auth_controller.dart';
-import '../../features/auth/domain/user.dart';
+import '../../features/auth/domain/firebase_auth_controller.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/user_management_page.dart';
 import '../../features/auth/presentation/account_page.dart';
-import '../../features/company_context/domain/company_context_controller.dart';
-import '../../features/company_context/presentation/company_select_page.dart';
+import '../../features/company/domain/active_company_provider.dart';
+import '../../features/company/presentation/company_gate_page.dart';
 import '../../features/products/presentation/products_page.dart';
 import '../../features/products/presentation/products_lookup_page.dart';
 import '../../features/products/presentation/product_detail_page.dart';
@@ -50,7 +49,11 @@ final routerRefreshNotifierProvider =
     Provider<RouterRefreshNotifier>((ref) {
   final notifier = RouterRefreshNotifier();
 
-  ref.listen(authControllerProvider, (_, __) {
+  ref.listen(authStateProvider, (_, __) {
+    notifier.refresh();
+  });
+
+  ref.listen(activeCompanyIdProvider, (_, __) {
     notifier.refresh();
   });
 
@@ -79,9 +82,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const LoginPage(),
       ),
       GoRoute(
-        path: '/company-select',
-        name: 'company_select',
-        builder: (context, state) => const CompanySelectPage(),
+        path: '/company-gate',
+        name: 'company_gate',
+        builder: (context, state) => const CompanyGatePage(),
+      ),
+      GoRoute(
+        path: '/pending-approval',
+        name: 'pending_approval',
+        builder: (context, state) => const CompanyGatePage(),
+      ),
+      GoRoute(
+        path: '/no-company',
+        name: 'no_company',
+        builder: (context, state) => const CompanyGatePage(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -264,66 +277,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (context, state) {
-      final authState = ref.read(authControllerProvider);
-      final isLoggedIn = authState.isAuthenticated;
-      final loggingIn = state.matchedLocation == '/login';
-      final selectingCompany = state.matchedLocation == '/company-select';
+      // side-effect provider (logout => activeCompanyId reset)
+      ref.read(activeCompanyResetterProvider);
 
-      final companyState = ref.read(companyContextProvider);
-      final hasCompany = companyState.activeCompanyId != null;
-      final user = ref.read(currentUserProvider);
+      final authUser = ref.read(authStateProvider).value;
+      final isLoggedIn = authUser != null;
+      final activeCompanyId = ref.read(activeCompanyIdProvider);
 
-      // Giriş yapmamış kullanıcılar sadece /login'e gidebilir.
+      final location = state.matchedLocation;
+      final loggingIn = location == '/login';
+      final inCompanyGate = location == '/company-gate';
+
       if (!isLoggedIn) {
         return loggingIn ? null : '/login';
       }
 
-      // Giriş var ama firma seçimi yoksa kullanıcıyı firma seçimine al.
-      if (!hasCompany) {
-        return selectingCompany ? null : '/company-select';
+      // Auth var ama henüz aktif firma seçilmediyse her şeyi gate'e çek.
+      if (activeCompanyId == null) {
+        return inCompanyGate ? null : '/company-gate';
       }
 
-      // Giriş yapmış kullanıcı login sayfasına giderse rolüne göre yönlendir.
-      if (loggingIn) {
-        if (user?.role == UserRole.admin) {
-          return '/dashboard';
-        } else {
-          return '/sales';
-        }
+      // Auth + activeCompanyId hazırsa login/gate'e girişleri ana sayfaya al.
+      if (loggingIn || inCompanyGate) {
+        return '/dashboard';
       }
 
-      // Firma seçimi sayfasındayken aktif firma set edildiyse ana sayfaya yönlendir.
-      if (selectingCompany) {
-        if (user?.role == UserRole.admin) {
-          return '/dashboard';
-        } else {
-          return '/sales';
-        }
-      }
-
-      // Rol tabanlı erişim kontrolü.
-      final location = state.matchedLocation;
-
-      // Admin olmayan (cashier) kullanıcının erişemeyeceği rotalar.
-      final adminOnlyPaths = <String>[
-        '/suppliers',
-        '/stock-entry',
-        '/stock-movements',
-        '/pricing',
-        '/customers',
-        '/scan',
-        '/users',
-        '/products',
-      ];
-
-      if (user != null && user.role == UserRole.cashier) {
-        if (adminOnlyPaths.any((path) => location.startsWith(path))) {
-          // Cashier admin ekranına girmeye çalışıyorsa satış ekranına at.
-          return '/sales';
-        }
-      }
-
-      // Diğer tüm durumlarda yönlendirme yok.
       return null;
     },
   );

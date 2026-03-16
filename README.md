@@ -30,6 +30,54 @@ Aşağıdaki adımlar Expo uygulaması içindir.
 
 Geliştirme için **app/** klasörü altındaki dosyaları düzenleyebilirsiniz. Proje [file-based routing](https://docs.expo.dev/router/introduction) kullanır.
 
+## Firebase (Firestore Rules + Cloud Functions)
+
+Repo kökünde:
+
+- Firestore rules: `firestore.rules`
+- Firebase config: `firebase.json`
+- Cloud Functions (Node/TS): `functions/`
+
+### Deploy
+
+Firebase CLI gerektirir:
+
+```bash
+npm i -g firebase-tools
+firebase login
+```
+
+Rules deploy:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Functions deploy:
+
+```bash
+cd functions
+npm install
+npm run build
+cd ..
+
+firebase deploy --only functions
+```
+
+Hepsini birlikte:
+
+```bash
+firebase deploy --only firestore:rules,functions
+```
+
+### Emulator (opsiyonel)
+
+Yerelde test etmek için:
+
+```bash
+firebase emulators:start --only firestore,functions
+```
+
 ## Versiyonlama Kuralı
 
 Her geliştirme (PR/commit) ile mobil uygulama versiyonu artırılmalıdır.
