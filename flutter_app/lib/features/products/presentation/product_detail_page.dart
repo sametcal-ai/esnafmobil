@@ -67,10 +67,10 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
       return;
     }
 
-    final productRepo = ProductRepository();
-    final stockRepo = StockEntryRepository(ProductRepository());
-    final supplierRepo = SupplierRepository();
-    final salesRepo = SalesRepository();
+    final productRepo = ref.read(productsRepositoryProvider);
+    final stockRepo = ref.read(stockEntryRepositoryProvider);
+    final supplierRepo = ref.read(supplierRepositoryProvider);
+    final salesRepo = ref.read(salesRepositoryProvider);
 
     try {
       final product = await productRepo.getProductById(companyId, widget.productId);
@@ -89,7 +89,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
       });
 
       // Alışlar (incoming stock entries)
-      final allEntries = await stockRepo.getAllEntries();
+      final allEntries = await stockRepo.getAllEntries(companyId);
       final purchases = allEntries.where((e) {
         if (e.productId != product.id) return false;
         if (e.type != StockMovementType.incoming) return false;
@@ -107,18 +107,18 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
       });
 
       // Hareketler (stok giriş/çıkış + satış satırları)
-      final suppliers = await supplierRepo.getAllSuppliers();
+      final suppliers = await supplierRepo.getAllSuppliers(companyId);
       final suppliersById = <String, Supplier>{
         for (final s in suppliers) s.id: s,
       };
 
-      final customerRepo = CustomerRepository();
-      final customers = await customerRepo.getAllCustomers();
+      final customerRepo = ref.read(customerRepositoryProvider);
+      final customers = await customerRepo.getAllCustomers(companyId);
       final customersById = <String, Customer>{
         for (final c in customers) c.id: c,
       };
 
-      final allSales = await salesRepo.getAllSales();
+      final allSales = await salesRepo.getAllSales(companyId);
 
       final movements = <_ProductMovement>[];
 
