@@ -29,6 +29,7 @@ class CustomerDetailPage extends ConsumerStatefulWidget {
 class _CustomerDetailPageState
     extends ConsumerState<CustomerDetailPage> {
   CustomerDetailController? _controller;
+  VoidCallback? _removeControllerListener;
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -38,7 +39,9 @@ class _CustomerDetailPageState
     _initController();
   }
 
+  @override
   void dispose() {
+    _removeControllerListener?.call();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
@@ -73,6 +76,12 @@ class _CustomerDetailPageState
         ledgerRepository: ledgerRepo,
         pageSize: settings.movementsPageSize,
       );
+
+      _removeControllerListener?.call();
+      _removeControllerListener = _controller!.addListener((_) {
+        if (!mounted) return;
+        setState(() {});
+      });
     });
   }
 
@@ -128,6 +137,12 @@ class _CustomerDetailPageState
           ledgerRepository: ref.read(customerLedgerRepositoryProvider),
           pageSize: settings.movementsPageSize,
         );
+
+        _removeControllerListener?.call();
+        _removeControllerListener = _controller!.addListener((_) {
+          if (!mounted) return;
+          setState(() {});
+        });
       }
     });
   }

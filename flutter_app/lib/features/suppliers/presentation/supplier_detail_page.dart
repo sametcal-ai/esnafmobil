@@ -26,11 +26,18 @@ class SupplierDetailPage extends ConsumerStatefulWidget {
 
 class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
   SupplierDetailController? _controller;
+  VoidCallback? _removeControllerListener;
 
   @override
   void initState() {
     super.initState();
     _initController();
+  }
+
+  @override
+  void dispose() {
+    _removeControllerListener?.call();
+    super.dispose();
   }
 
   Future<void> _initController() async {
@@ -59,6 +66,12 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
         supplier: supplier,
         ledgerRepository: ledgerRepo,
       );
+
+      _removeControllerListener?.call();
+      _removeControllerListener = _controller!.addListener((_) {
+        if (!mounted) return;
+        setState(() {});
+      });
     });
   }
 
@@ -95,7 +108,14 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
         supplier: saved,
         ledgerRepository: ref.read(supplierLedgerRepositoryProvider),
       );
+
+      _removeControllerListener?.call();
+      _removeControllerListener = _controller!.addListener((_) {
+        if (!mounted) return;
+        setState(() {});
+      });
     });
+  }
   }
 
   void _openPayments(Supplier supplier) {
