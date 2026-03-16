@@ -79,8 +79,11 @@ final quickSalePaymentProvider =
 });
 
 final quickSaleCustomersProvider = FutureProvider<List<Customer>>((ref) async {
-  final repo = CustomerRepository();
-  return repo.getAllCustomers();
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) return const <Customer>[];
+
+  final repo = ref.watch(customerRepositoryProvider);
+  return repo.getAllCustomers(companyId);
 });
 
 final quickSaleProductsProvider = StreamProvider<List<catalog.Product>>((ref) {
@@ -572,7 +575,11 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
 
     if (confirmed == null) return false;
 
-    await ref.read(heldSalesControllerProvider.notifier).holdSale(
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return false;
+
+    await ref.read(heldSalesRepositoryProvider).holdSale(
+          companyId: companyId,
           name: confirmed,
           items: posState.items,
           total: posState.total,
@@ -1296,8 +1303,12 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
       }
 
       if (customer != null && creditApplied > 0) {
-        final ledgerRepo = CustomerLedgerRepository(CustomerRepository());
+        final companyId = ref.read(activeCompanyIdProvider);
+        if (companyId == null) return false;
+
+        final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
         await ledgerRepo.addSaleEntry(
+          companyId: companyId,
           customer: customer,
           amount: creditApplied,
           note: 'POS parçalı satış (veresiye)',
@@ -1431,8 +1442,12 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
       return false;
     }
 
-    final ledgerRepo = CustomerLedgerRepository(CustomerRepository());
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return false;
+
+    final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
     await ledgerRepo.addSaleEntry(
+      companyId: companyId,
       customer: customer,
       amount: posState.total,
       note: 'POS veresiye satış',
