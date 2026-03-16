@@ -78,7 +78,7 @@ class _CustomerCollectionsPageState
     });
   }
 
-  Future<void> _addCollection() async {
+  Future<void> _addCollection(BuildContext dialogContext) async {
     final text = _amountController.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -122,7 +122,7 @@ class _CustomerCollectionsPageState
     );
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+    Navigator.of(dialogContext).pop();
     await _load();
   }
 
@@ -200,7 +200,7 @@ class _CustomerCollectionsPageState
               child: const Text('İptal'),
             ),
             ElevatedButton(
-              onPressed: _addCollection,
+              onPressed: () => _addCollection(context),
               child: const Text('Kaydet'),
             ),
           ],

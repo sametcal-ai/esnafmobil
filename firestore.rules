@@ -134,6 +134,11 @@ service cloud.firestore {
         allow update, delete: if isAdmin(companyId);
       }
 
+      match /heldSales/{heldSaleId} {
+        allow read: if isMember(companyId);
+        allow create, update, delete: if isAdmin(companyId) || isCashier(companyId);
+      }
+
       match /stockEntries/{entryId} {
         allow read: if isMember(companyId);
         allow create: if isAdmin(companyId) || isCashier(companyId);
