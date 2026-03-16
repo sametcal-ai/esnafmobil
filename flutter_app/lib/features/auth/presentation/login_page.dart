@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_button.dart';
-import '../../auth/domain/auth_controller.dart';
-import '../../auth/domain/user.dart';
+import '../domain/firebase_auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -14,26 +13,36 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FocusNode _passwordFocusNode = FocusNode();
 
+  bool _isRegister = false;
+
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     _passwordFocusNode.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final authController = ref.read(authControllerProvider.notifier);
-    final success = await authController.login(
-      _usernameController.text.trim(),
-      _passwordController.text,
-    );
+    final controller = ref.read(firebaseAuthControllerProvider.notifier);
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
-    final state = ref.read(authControllerProvider);
+    final success = _isRegister
+        ? await controller.registerWithEmailAndPassword(
+            email: email,
+            password: password,
+          )
+        : await controller.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+    final state = ref.read(firebaseAuthControllerProvider);
 
     if (!success) {
       if (state.errorMessage != null && mounted) {
@@ -49,23 +58,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     if (!mounted) return;
 
-    final user = state.currentUser;
-    if (user == null) return;
-
-    if (user.role == UserRole.admin) {
-      context.goNamed('dashboard');
-    } else {
-      context.goNamed('sales');
-    }
+    context.go('/company-gate');
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
+    final authUiState = ref.watch(firebaseAuthControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Giriş Yap'),
+        title: Text(_isRegister ? 'Kayıt Ol' : 'Giriş Yap'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -73,10 +75,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           children: [
             const SizedBox(height: 24),
             TextField(
-              controller: _usernameController,
+              controller: _emailController,
               textInputAction: TextInputAction.next,
+              keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
-                labelText: 'Kullanıcı adı',
+                labelText: 'E-posta',
                 border: OutlineInputBorder(),
               ),
               onSubmitted: (_) {
@@ -98,14 +101,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             SizedBox(
               width: double.infinity,
               child: AppButton(
-                label: authState.isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap',
-                onPressed: authState.isLoading ? null : _submit,
+                label: authUiState.isLoading
+                    ? (_isRegister ? 'Kayıt olunuyor...' : 'Giriş yapılıyor...')
+                    : (_isRegister ? 'Kayıt Ol' : 'Giriş Yap'),
+                onPressed: authUiState.isLoading ? null : _submit,
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'İlk giriş için varsayılan yönetici:\nKullanıcı adı: admin\nŞifre: admin123',
-              textAlign: TextAlign.center,
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: authUiState.isLoading
+                  ? null
+                  : () {
+                      setState(() {
+                        _isRegister = !_isRegister;
+                      });
+                    },
+              child: Text(
+                _isRegister
+                    ? 'Zaten hesabın var mı? Giriş yap'
+                    : 'Hesabın yok mu? Kayıt ol',
+              ),
             ),
           ],
         ),
