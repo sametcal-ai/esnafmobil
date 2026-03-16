@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../data/customer_ledger_repository.dart';
 import '../data/customer_repository.dart';
 import '../domain/customer.dart';
@@ -43,10 +44,13 @@ class _CustomerCollectionsPageState
   }
 
   Future<void> _load() async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final customerRepo = ref.read(customerRepositoryProvider);
     final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
 
-    final customer = await customerRepo.getCustomerById(widget.customerId);
+    final customer = await customerRepo.getCustomerById(companyId, widget.customerId);
     if (!mounted) return;
     if (customer == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -60,7 +64,7 @@ class _CustomerCollectionsPageState
     }
 
     final entries =
-        await ledgerRepo.getEntriesForCustomer(customer.id);
+        await ledgerRepo.getEntriesForCustomer(companyId, customer.id);
     final payments = entries
         .where((e) => e.type == LedgerEntryType.payment)
         .toList()
@@ -101,12 +105,14 @@ class _CustomerCollectionsPageState
     if (customer == null) return;
 
     final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     await ledgerRepo.addPaymentEntry(
+      companyId: companyId,
       customer: customer,
       amount: amount,
-      note: _noteController.text.trim().isEmpty
-          ? 'Tahsilat ($_selectedMethod)'
-          : _noteController.text.trim(),
+      note: note.isEmpty ? null : note,
     );
 
     if (!mounted) return;
