@@ -119,6 +119,36 @@ class SupplierLedgerRepository {
     }
     return balance;
   }
+
+  Future<double> getBalanceForSupplierBefore(
+    String companyId,
+    String supplierId,
+    DateTime before,
+  ) async {
+    final entries = await getEntriesForSupplier(companyId, supplierId);
+    double balance = 0;
+    for (final entry in entries) {
+      if (!entry.createdAt.isBefore(before)) continue;
+      if (entry.type == SupplierLedgerEntryType.purchase) {
+        balance += entry.amount;
+      } else {
+        balance -= entry.amount;
+      }
+    }
+    return balance;
+  }
+
+  Future<List<SupplierLedgerEntry>> getEntriesForSupplierInDateRange(
+    String companyId,
+    String supplierId, {
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final entries = await getEntriesForSupplier(companyId, supplierId);
+    return entries
+        .where((e) => !e.createdAt.isBefore(start) && !e.createdAt.isAfter(end))
+        .toList(growable: false);
+  }
 }
 
 final supplierLedgerRepositoryProvider = Provider<SupplierLedgerRepository>((ref) {

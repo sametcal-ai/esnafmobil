@@ -15,7 +15,7 @@ import '../data/supplier_repository.dart';
 import '../data/supplier_statement_pdf_service.dart';
 import '../domain/supplier.dart';
 import '../domain/supplier_ledger.dart';
-import '../domain/supplier_controller.dart';
+
 
 class SupplierStatementPage extends ConsumerStatefulWidget {
   final String supplierId;
@@ -46,8 +46,11 @@ class _SupplierStatementPageState
   }
 
   Future<void> _initSupplier() async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final repo = ref.read(supplierRepositoryProvider);
-    final supplier = await repo.getSupplierById(widget.supplierId);
+    final supplier = await repo.getSupplierById(companyId, widget.supplierId);
     if (!mounted) return;
     if (supplier == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -121,12 +124,17 @@ class _SupplierStatementPageState
       _loading = true;
     });
 
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
     final previousBalance = await ledgerRepo.getBalanceForSupplierBefore(
+      companyId,
       supplier.id,
       start,
     );
     final entries = await ledgerRepo.getEntriesForSupplierInDateRange(
+      companyId,
       supplier.id,
       start: start,
       end: end,

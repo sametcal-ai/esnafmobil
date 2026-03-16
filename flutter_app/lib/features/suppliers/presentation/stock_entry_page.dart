@@ -55,13 +55,13 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
   }
 
   Future<void> _loadInitialData() async {
-    final supplierRepo = SupplierRepository();
+    final supplierRepo = ref.read(supplierRepositoryProvider);
     final companyId = ref.read(activeCompanyIdProvider);
     if (companyId == null) {
       return;
     }
 
-    final suppliers = await supplierRepo.getAllSuppliers();
+    final suppliers = await supplierRepo.getAllSuppliers(companyId);
 
     final productRepo = ref.read(productsRepositoryProvider);
     final products = await productRepo.getAllProducts(companyId);

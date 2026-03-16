@@ -54,7 +54,7 @@ class _ProductPurchasesPageState extends ConsumerState<ProductPurchasesPage> {
         return;
       }
 
-      final allEntries = await stockRepo.getAllEntries();
+      final allEntries = await stockRepo.getAllEntries(companyId);
       final purchases = allEntries.where((e) {
         if (e.productId != product.id) return false;
         if (e.type != StockMovementType.incoming) return false;

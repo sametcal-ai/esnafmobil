@@ -8,7 +8,7 @@ import '../data/supplier_ledger_repository.dart';
 import '../data/supplier_repository.dart';
 import '../domain/supplier.dart';
 import '../domain/supplier_ledger.dart';
-import '../domain/supplier_controller.dart';
+
 
 class SupplierPaymentsPage extends ConsumerStatefulWidget {
   final String supplierId;
@@ -49,7 +49,8 @@ class _SupplierPaymentsPageState
     final supplierRepo = ref.read(supplierRepositoryProvider);
     final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
 
-    final supplier = await supplierRepo.getSupplierById(companyId, widget.supplierId);
+    final supplier =
+        await supplierRepo.getSupplierById(companyId, widget.supplierId);
     if (!mounted) return;
     if (supplier == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,15 +103,22 @@ class _SupplierPaymentsPageState
     final supplier = _supplier;
     if (supplier == null) return;
 
-    final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
     final companyId = ref.read(activeCompanyIdProvider);
     if (companyId == null) return;
+
+    final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
+
+    final note = _noteController.text.trim();
+    final fullNote = [
+      _selectedMethod.trim(),
+      if (note.isNotEmpty) note,
+    ].join(' - ');
 
     await ledgerRepo.addPaymentEntry(
       companyId: companyId,
       supplier: supplier,
       amount: amount,
-      note: note.isEmpty ? null : note,
+      note: fullNote.isEmpty ? null : fullNote,
     );
 
     if (!mounted) return;

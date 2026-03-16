@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../data/customer_ledger_repository.dart';
 import '../data/customer_repository.dart';
 import '../data/customer_statement_pdf_service.dart';
@@ -45,8 +46,11 @@ class _CustomerStatementPageState
   }
 
   Future<void> _initCustomer() async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final repo = ref.read(customerRepositoryProvider);
-    final customer = await repo.getCustomerById(widget.customerId);
+    final customer = await repo.getCustomerById(companyId, widget.customerId);
     if (!mounted) return;
     if (customer == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -121,10 +125,14 @@ class _CustomerStatementPageState
       _loading = true;
     });
 
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
     final previousBalance =
-        await ledgerRepo.getBalanceForCustomerBefore(customer.id, start);
+        await ledgerRepo.getBalanceForCustomerBefore(companyId, customer.id, start);
     final entries = await ledgerRepo.getEntriesForCustomerInDateRange(
+      companyId,
       customer.id,
       start: start,
       end: end,
@@ -164,8 +172,14 @@ class _CustomerStatementPageState
       // 1) PDF üretimi
       Uint8List bytes;
       try {
+        final companyId = ref.read(activeCompanyIdProvider);
+        if (companyId == null) {
+          throw Exception('Aktif firma seçili değil');
+        }
+
         final pdfService = CustomerStatementPdfService();
         bytes = await pdfService.generateStatementPdf(
+          companyId: companyId,
           customer: customer,
           previousBalance: _previousBalance,
           entries: _entries,

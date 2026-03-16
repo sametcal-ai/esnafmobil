@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../data/customer_repository.dart';
 import '../data/customer_ledger_repository.dart';
 import '../domain/customer.dart';
@@ -44,10 +45,13 @@ class _CustomerDetailPageState
   }
 
   Future<void> _initController() async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final customerRepo = ref.read(customerRepositoryProvider);
     final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
 
-    final customer = await customerRepo.getCustomerById(widget.customerId);
+    final customer = await customerRepo.getCustomerById(companyId, widget.customerId);
     if (!mounted) return;
     if (customer == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -64,6 +68,7 @@ class _CustomerDetailPageState
 
     setState(() {
       _controller = CustomerDetailController(
+        companyId: companyId,
         customer: customer,
         ledgerRepository: ledgerRepo,
         pageSize: settings.movementsPageSize,
@@ -97,15 +102,29 @@ class _CustomerDetailPageState
 
     if (updated == null) return;
 
-    await repo.updateCustomer(updated);
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
+    final saved = await repo.updateCustomer(companyId, updated);
     if (!mounted) return;
+
+    if (saved == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Müşteri güncellenemedi'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       final controller = _controller;
       if (controller != null) {
         final settings = ref.read(appSettingsProvider);
         _controller = CustomerDetailController(
-          customer: updated,
+          companyId: companyId,
+          customer: saved,
           ledgerRepository: ref.read(customerLedgerRepositoryProvider),
           pageSize: settings.movementsPageSize,
         );
@@ -167,11 +186,14 @@ class _CustomerDetailPageState
           );
         }
 
-        final saleId = entry.saleId;
+       
+            final saleId = entry.saleId;
+        final companyId = ref.read(activeCompanyIdProvider);
+
         return FutureBuilder(
-          future: saleId == null
+          future: saleId == null || companyId == null
               ? Future.value(null)
-              : SalesRepository().getSaleById(saleId),
+              : SalesRepository().getSaleById(companyId, saleId),
           builder: (context, snapshot) {
             final sale = snapshot.data as dynamic;
 

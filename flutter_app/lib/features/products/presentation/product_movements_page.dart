@@ -137,6 +137,9 @@ class _ProductMovementsPageState extends ConsumerState<ProductMovementsPage> {
       _loading = true;
     });
 
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final stockRepo = ref.read(stockEntryRepositoryProvider);
     final supplierRepo = ref.read(supplierRepositoryProvider);
     final salesRepo = ref.read(salesRepositoryProvider);

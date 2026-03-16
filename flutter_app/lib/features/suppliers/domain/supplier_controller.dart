@@ -1,6 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+</old_ 'de><new_code>import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/supplier_repository.dart';
 import '../data/supplier_ledger_repository.dart';
 import 'supplier.dart';
 import 'supplier_ledger.dart';
@@ -38,9 +37,11 @@ class SupplierDetailState {
 }
 
 class SupplierDetailController extends StateNotifier<SupplierDetailState> {
+  final String companyId;
   final SupplierLedgerRepository _ledgerRepository;
 
   SupplierDetailController({
+    required this.companyId,
     required Supplier supplier,
     required SupplierLedgerRepository ledgerRepository,
   })  : _ledgerRepository = ledgerRepository,
@@ -59,10 +60,13 @@ class SupplierDetailController extends StateNotifier<SupplierDetailState> {
   Future<void> _load() async {
     try {
       final entries = await _ledgerRepository.getEntriesForSupplier(
+        companyId,
         state.supplier.id,
       );
-      final balance =
-          await _ledgerRepository.getBalanceForSupplier(state.supplier.id);
+      final balance = await _ledgerRepository.getBalanceForSupplier(
+        companyId,
+        state.supplier.id,
+      );
       state = state.copyWith(
         entries: entries,
         balance: balance,
@@ -77,13 +81,3 @@ class SupplierDetailController extends StateNotifier<SupplierDetailState> {
     }
   }
 }
-
-final supplierRepositoryProvider =
-    Provider<SupplierRepository>((ref) => SupplierRepository());
-
-final supplierLedgerRepositoryProvider = Provider<SupplierLedgerRepository>(
-  (ref) {
-    final repo = ref.watch(supplierRepositoryProvider);
-    return SupplierLedgerRepository(repo);
-  },
-);
