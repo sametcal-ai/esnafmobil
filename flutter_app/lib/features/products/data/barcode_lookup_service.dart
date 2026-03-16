@@ -1,28 +1,24 @@
 import 'dart:convert';
 
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 
 /// Basit barkod sorgulama servisi.
 /// Şu an için OpenFoodFacts API kullanıyor:
 /// https://world.openfoodfacts.org/api/v0/product/{barcode}.json
 class BarcodeLookupService {
-  static const String barcodeCacheBoxName = 'barcode_cache';
+  static final Map<String, Map<String, dynamic>> _memoryCache =
+      <String, Map<String, dynamic>>{};
 
   final http.Client _client;
 
-  BarcodeLookupService({http.Client? client})
-      : _client = client ?? http.Client();
-
-  Box get _cacheBox => Hive.box(barcodeCacheBoxName);
+  BarcodeLookupService({http.Client? client}) : _client = client ?? http.Client();
 
   Future<BarcodeLookupResult?> lookup(String barcode) async {
     final trimmed = barcode.trim();
     if (trimmed.isEmpty) return null;
 
-    // Önce lokal cache'e bak.
-    final cached = _cacheBox.get(trimmed);
-    if (cached is Map) {
+    final cached = _memoryCache[trimmed];
+    if (cached != null) {
       return BarcodeLookupResult.fromMap(cached);
     }
 
@@ -40,7 +36,6 @@ class BarcodeLookupService {
       if (decoded is! Map) return null;
       final map = Map<String, dynamic>.from(decoded);
 
-      // OpenFoodFacts formatında status 1 ise ürün bulundu.
       final status = map['status'];
       if (status != 1) {
         return null;
@@ -70,8 +65,7 @@ class BarcodeLookupService {
         imageUrl: imageUrl,
       );
 
-      // Başarılı sonucu cache'e yaz.
-      _cacheBox.put(trimmed, result.toMap());
+      _memoryCache[trimmed] = result.toMap();
 
       return result;
     } catch (_) {
