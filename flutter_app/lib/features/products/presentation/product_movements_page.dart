@@ -62,7 +62,7 @@ class _ProductMovementsPageState extends ConsumerState<ProductMovementsPage> {
       return;
     }
 
-    final productRepo = ProductRepository();
+    final productRepo = ref.read(productsRepositoryProvider);
     final product = await productRepo.getProductById(companyId, widget.productId);
     if (!mounted) return;
     if (product == null) {
@@ -137,17 +137,17 @@ class _ProductMovementsPageState extends ConsumerState<ProductMovementsPage> {
       _loading = true;
     });
 
-    final stockRepo = StockEntryRepository(ProductRepository());
-    final supplierRepo = SupplierRepository();
-    final salesRepo = SalesRepository();
-    final customerRepo = CustomerRepository();
+    final stockRepo = ref.read(stockEntryRepositoryProvider);
+    final supplierRepo = ref.read(supplierRepositoryProvider);
+    final salesRepo = ref.read(salesRepositoryProvider);
+    final customerRepo = ref.read(customerRepositoryProvider);
 
-    final allEntries = await stockRepo.getAllEntries();
-    final suppliers = await supplierRepo.getAllSuppliers();
+    final allEntries = await stockRepo.getAllEntries(companyId);
+    final suppliers = await supplierRepo.getAllSuppliers(companyId);
     final suppliersById = <String, Supplier>{for (final s in suppliers) s.id: s};
-    final customers = await customerRepo.getAllCustomers();
+    final customers = await customerRepo.getAllCustomers(companyId);
     final customersById = <String, Customer>{for (final c in customers) c.id: c};
-    final allSales = await salesRepo.getAllSales();
+    final allSales = await salesRepo.getAllSales(companyId);
 
     // Açılış stokunu hesapla (başlangıç tarihinden önceki tüm hareketler)
     int openingStock = 0;
