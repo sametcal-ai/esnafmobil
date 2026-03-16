@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../data/customer_repository.dart';
 import '../data/customer_ledger_repository.dart';
 import '../domain/customer.dart';
@@ -17,14 +18,17 @@ enum BalanceFilter {
 
 final customerBalancesProvider = FutureProvider.autoDispose<
     List<CustomerBalance>>((ref) async {
-  final customerRepo = CustomerRepository();
-  final ledgerRepo = CustomerLedgerRepository(customerRepo);
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) return const <CustomerBalance>[];
 
-  final customers = await customerRepo.getAllCustomers();
+  final customerRepo = ref.read(customerRepositoryProvider);
+  final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
+
+  final customers = await customerRepo.getAllCustomers(companyId);
   final balances = <CustomerBalance>[];
 
   for (final customer in customers) {
-    final balance = await ledgerRepo.getBalanceForCustomer(customer.id);
+    final balance = await ledgerRepo.getBalanceForCustomer(companyId, customer.id);
     if (balance != 0) {
       balances.add(
         CustomerBalance(customer: customer, balance: balance),
