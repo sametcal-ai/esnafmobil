@@ -20,6 +20,7 @@ Bu sayede:
 ### Üyelik
 
 - `companies/{companyId}/members/{uid}`
+  - `uid: string` (koleksiyon grubu sorguları için, docId ile aynı)
   - `role: string` (örn: owner/admin/cashier)
   - `status: string` (örn: active/invited/disabled)
   - `permissions: string[]`
