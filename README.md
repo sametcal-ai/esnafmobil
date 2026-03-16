@@ -78,6 +78,21 @@ Yerelde test etmek için:
 firebase emulators:start --only firestore,functions
 ```
 
+Örnek doğrulama akışı:
+
+1. Emulator'ı başlat.
+2. `companies/{companyId}/products/{productId}` dokümanına küçük bir `stockQuantity` ver.
+3. Offline simülasyonu için uygulamada ağ bağlantısını kapatıp `companies/{companyId}/sales/{saleId}` oluştur.
+4. Ağ gelince sale server'a ulaştığında `onSaleCreated` tetiklenir:
+   - ilgili product `stockQuantity` düşer (negatif olabilir)
+   - stok < 0 olduysa `companies/{companyId}/alerts/*` altında `type: 'oversold'` alert oluşur
+5. Logs:
+
+```bash
+cd functions
+npm run logs
+```
+
 ## Versiyonlama Kuralı
 
 Her geliştirme (PR/commit) ile mobil uygulama versiyonu artırılmalıdır.

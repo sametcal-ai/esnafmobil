@@ -495,7 +495,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
       if (saleId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Yetersiz stok. Lütfen sepeti kontrol edin.'),
+            content: Text('Satış kaydedilemedi'),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 2),
           ),
@@ -548,7 +548,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
     if (saleId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Yetersiz stok. Veresiye satış gerçekleştirilemedi.'),
+          content: Text('Satış kaydedilemedi'),
           behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 2),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_settings.dart';
+import '../../auth/domain/current_user_provider.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../pricing/domain/price_resolver.dart';
 import '../../products/data/product_repository.dart';
@@ -17,12 +18,14 @@ enum ScanResult {
 
 class PosController extends StateNotifier<PosState> {
   final String companyId;
+  final String? currentUserId;
   final ProductRepository _productRepository;
   final SalesRepository _salesRepository;
   final AppSettings _settings;
 
   PosController({
     required this.companyId,
+    required this.currentUserId,
     required AppSettings settings,
     required ProductRepository productRepository,
     required SalesRepository salesRepository,
@@ -30,10 +33,6 @@ class PosController extends StateNotifier<PosState> {
         _salesRepository = salesRepository,
         _settings = settings,
         super(PosState.initial());
-
-  /// Şimdilik satışları "system" kullanıcısı ile ilişkilendiriyoruz.
-  /// İleride auth state'i enjekte edilerek gerçek kullanıcı ID'si eklenebilir.
-  String? get _currentUserId => null;
 
   double _calculateUnitPrice(catalog.Product product) {
     return PriceResolver.resolveSellPrice(
@@ -141,8 +140,7 @@ class PosController extends StateNotifier<PosState> {
     final index = state.items.indexOf(item);
     if (index < 0) return;
 
-    final updatedItem =
-        item.copyWith(quantity: item.quantity + 1);
+    final updatedItem = item.copyWith(quantity: item.quantity + 1);
     final updatedItems = [...state.items];
     updatedItems[index] = updatedItem;
     state = state.copyWith(items: updatedItems);
@@ -157,8 +155,7 @@ class PosController extends StateNotifier<PosState> {
       return;
     }
 
-    final updatedItem =
-        item.copyWith(quantity: item.quantity - 1);
+    final updatedItem = item.copyWith(quantity: item.quantity - 1);
     final updatedItems = [...state.items];
     updatedItems[index] = updatedItem;
     state = state.copyWith(items: updatedItems);
@@ -182,34 +179,12 @@ class PosController extends StateNotifier<PosState> {
     );
   }
 
-  /// Satışı tamamlar. Stok kontrolü başarısız olursa `null` döner.
   Future<String?> completeSale({
     String? customerId,
     required String paymentMethod,
   }) async {
     if (companyId.isEmpty) return null;
     if (state.items.isEmpty) return null;
-
-    // Stok kontrolü – herhangi bir üründe yetersiz stok varsa iptal.
-    for (final item in state.items) {
-      final catalogProduct =
-          await _productRepository.getProductById(companyId, item.product.id);
-      if (catalogProduct == null) {
-        return null;
-      }
-      if (catalogProduct.stockQuantity < item.quantity) {
-        return null;
-      }
-    }
-
-    // Stokları düş.
-    for (final item in state.items) {
-      await _productRepository.decreaseStock(
-        companyId: companyId,
-        productId: item.product.id,
-        quantity: item.quantity,
-      );
-    }
 
     final subtotal = state.subtotal;
     final discount = state.discountAmount;
@@ -238,25 +213,25 @@ class PosController extends StateNotifier<PosState> {
       total: total,
       paymentMethod: paymentMethod,
       items: items,
-      currentUserId: _currentUserId,
+      currentUserId: currentUserId,
     );
 
-    // Satış tamamlandıktan sonra sepeti temizle.
     clearCart();
 
     return saleId;
   }
 }
 
-final posControllerProvider =
-    StateNotifierProvider<PosController, PosState>((ref) {
+final posControllerProvider = StateNotifierProvider<PosController, PosState>((ref) {
   final settings = ref.watch(appSettingsProvider);
   final companyId = ref.watch(activeCompanyIdProvider);
+  final currentUserId = ref.watch(currentUserIdProvider);
   final productsRepo = ref.watch(productsRepositoryProvider);
   final salesRepo = ref.watch(salesRepositoryProvider);
 
   return PosController(
     companyId: companyId ?? '',
+    currentUserId: currentUserId,
     settings: settings,
     productRepository: productsRepo,
     salesRepository: salesRepo,
