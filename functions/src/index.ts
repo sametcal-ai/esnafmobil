@@ -3,6 +3,13 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 admin.initializeApp();
 
+const callableOptions = {
+  // For 2nd gen functions, invocation is protected by Cloud Run/IAM.
+  // Firebase Callable auth is handled inside the function via request.auth,
+  // so the endpoint must be publicly invokable.
+  invoker: 'public' as const,
+};
+
 type ApproveMemberInput = {
   companyId: string;
   uid: string;
@@ -16,7 +23,7 @@ type GetMyMembershipsOutput = {
   }>;
 };
 
-export const approveMember = onCall<ApproveMemberInput>(async (request) => {
+export const approveMember = onCall<ApproveMemberInput>(callableOptions, async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Authentication required.');
   }
@@ -62,7 +69,7 @@ export const approveMember = onCall<ApproveMemberInput>(async (request) => {
   return { ok: true };
 });
 
-export const getMyMemberships = onCall<undefined>(async (request): Promise<GetMyMembershipsOutput> => {
+export const getMyMemberships = onCall<undefined>(callableOptions, async (request): Promise<GetMyMembershipsOutput> => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Authentication required.');
   }
