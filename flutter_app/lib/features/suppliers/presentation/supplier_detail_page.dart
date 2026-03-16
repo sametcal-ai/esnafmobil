@@ -116,7 +116,6 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
       });
     });
   }
-  }
 
   void _openPayments(Supplier supplier) {
     context.push('/suppliers/${supplier.id}/payments');
