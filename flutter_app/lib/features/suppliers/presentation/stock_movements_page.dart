@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../../products/data/product_repository.dart';
 import '../../products/domain/product.dart';
 import '../data/stock_entry_repository.dart';
@@ -34,7 +35,7 @@ class StockMovementsPage extends ConsumerWidget {
           }
 
           return FutureBuilder<_StockMovementViewData>(
-            future: _buildViewData(entries),
+            future: _buildViewData(entries, ref),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
@@ -112,10 +113,19 @@ class StockMovementsPage extends ConsumerWidget {
   }
 
   Future<_StockMovementViewData> _buildViewData(
-    List<StockEntry> entries,
-  ) async {
-    final productRepo = ProductRepository();
-    final supplierRepo = SupplierRepository();
+  List<StockEntry> entries,
+  WidgetRef ref,
+) async {
+  final companyId = ref.read(activeCompanyIdProvider);
+  if (companyId == null) {
+    return _StockMovementViewData(
+      productsById: const <String, Product>{},
+      suppliersById: const <String, Supplier>{},
+    );
+  }
+
+  final productRepo = ref.read(productsRepositoryProvider);
+  final supplierRepo = SupplierRepository();
 
     final productIds = entries.map((e) => e.productId).toSet();
     final supplierIds = entries
@@ -123,7 +133,7 @@ class StockMovementsPage extends ConsumerWidget {
         .whereType<String>()
         .toSet();
 
-    final products = await productRepo.getAllProducts();
+    final products = await productRepo.getAllProducts(companyId);
     final suppliers = await supplierRepo.getAllSuppliers();
 
     final productsById = <String, Product>{

@@ -106,7 +106,8 @@ class _ProductsLookupPageState extends ConsumerState<ProductsLookupPage> {
     return AppScaffold(
       title: 'Ürünler',
       body: productsAsync.when(
-        data: (products) {
+        data: (feed) {
+          final products = feed.products;
           final query = _searchQuery.trim().toLowerCase();
           final isFilterActive = query.isNotEmpty && query.length >= minChars;
 

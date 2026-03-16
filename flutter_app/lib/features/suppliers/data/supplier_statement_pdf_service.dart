@@ -26,6 +26,7 @@ class SupplierStatementPdfService {
   }
 
   Future<Uint8List> generateStatementPdf({
+    required String companyId,
     required Supplier supplier,
     required double previousBalance,
     required List<SupplierLedgerEntry> entries,
@@ -53,7 +54,7 @@ class SupplierStatementPdfService {
           e.supplierId == supplier.id,
     );
 
-    final products = await productRepo.getAllProducts();
+    final products = await productRepo.getAllProducts(companyId);
     final productsById = {
       for (final p in products) p.id: p,
     };

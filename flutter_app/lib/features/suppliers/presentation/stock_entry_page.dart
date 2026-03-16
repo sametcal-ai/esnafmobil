@@ -6,6 +6,7 @@ import '../../../core/scanner/barcode_scanner_view.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../../products/data/product_repository.dart';
 import '../../products/domain/product.dart';
 import '../data/stock_entry_repository.dart';
@@ -55,10 +56,13 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
 
   Future<void> _loadInitialData() async {
     final supplierRepo = SupplierRepository();
-    final productRepo = ProductRepository();
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) {
+      return;
+    }
 
-    final suppliers = await supplierRepo.getAllSuppliers();
-    final products = await productRepo.getAllProducts();
+    final productRepo = ref.read(productsRepositoryProvider);
+    final products = await productRepo.getAllProducts(companyId);
 
     if (!mounted) return;
 
@@ -163,7 +167,6 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
                     enabled: true,
                     onBarcode: (value) {
                       if (isPopping) return;
-
                       final trimmed = value.trim();
                       if (trimmed.isEmpty) return;
 
@@ -182,8 +185,11 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
 
     if (!mounted || result == null || result.isEmpty) return;
 
-    final repo = ProductRepository();
-    final product = repo.getProductByBarcode(result);
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
+    final repo = ref.read(productsRepositoryProvider);
+    final product = await repo.findProductByBarcode(companyId, result);
     if (product == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -224,6 +230,14 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
       _isSaving = true;
     });
 
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) {
+      setState(() {
+        _isSaving = false;
+      });
+      return;
+    }
+
     final stockRepo = StockEntryRepository(ProductRepository());
     final marginText = _marginController.text.trim();
     final marginPercent =
@@ -231,6 +245,7 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
 
     for (final line in _lines) {
       await stockRepo.createStockEntry(
+        companyId: companyId,
         supplierId: _selectedSupplier!.id,
         productId: line.product.id,
         quantity: line.quantity,

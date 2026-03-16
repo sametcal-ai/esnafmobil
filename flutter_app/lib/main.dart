@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,12 +12,16 @@ Future<void> main() async {
 
   await Firebase.initializeApp();
 
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+  );
+
   await Hive.initFlutter();
   await Hive.openBox('users');
   await Hive.openBox('session');
   await Hive.openBox('customers');
   await Hive.openBox('customer_ledger');
-  await Hive.openBox('products');
+  
   await Hive.openBox('suppliers');
   await Hive.openBox('supplier_ledger');
   await Hive.openBox('stock_entries');
