@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -152,21 +153,23 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
           child: Text('Müşteriler yüklenemedi'),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final created = await showDialog<bool>(
-            context: context,
-            builder: (context) {
-              return const _AddCustomerDialog();
-            },
-          );
-          if (created == true) {
-            ref.invalidate(customersProvider);
-          }
-        },
-        icon: const Icon(Icons.person_add_alt_1_outlined),
-        label: const Text('Müşteri Ekle'),
-      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final created = await showDialog<bool>(
+                  context: context,
+                  builder: (context) {
+                    return const _AddCustomerDialog();
+                  },
+                );
+                if (created == true) {
+                  ref.invalidate(customersProvider);
+                }
+              },
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              label: const Text('Müşteri Ekle'),
+            )
+          : null,
     );
   }
 }
@@ -205,14 +208,43 @@ class _AddCustomerDialogState extends ConsumerState<_AddCustomerDialog> {
     }
 
     final companyId = ref.read(activeCompanyIdProvider);
-    if (companyId == null) return;
+    if (companyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Firma seçili değil. Önce firma seçin.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isSaving = true;
     });
 
     final repo = ref.read(customerRepositoryProvider);
-    await repo.createCustomer(companyId: companyId, name: name, phone: phone);
+
+    try {
+      await repo.createCustomer(companyId: companyId, name: name, phone: phone);
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isSaving = false;
+      });
+
+      final message = e.code == 'permission-denied'
+          ? 'Yetkiniz yok (admin gerekli).'
+          : 'Kaydedilemedi: ${e.message ?? e.code}';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
     setState(() {
