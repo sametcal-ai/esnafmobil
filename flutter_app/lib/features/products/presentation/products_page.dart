@@ -10,8 +10,8 @@ import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../services/jojapi_external_search_service.dart';
-import '../../auth/domain/auth_controller.dart';
 import '../../auth/domain/user.dart';
+import '../../company_context/domain/company_context_controller.dart';
 import '../../pricing/domain/price_resolver.dart';
 import '../data/product_repository.dart';
 import '../domain/product.dart';
@@ -148,8 +148,7 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsProvider);
-    final authState = ref.watch(authControllerProvider);
-    final currentUser = authState.currentUser;
+    final currentUser = ref.watch(currentUserProvider);
     final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
     final settings = ref.watch(appSettingsProvider);
     final minChars = settings.searchFilterMinChars;

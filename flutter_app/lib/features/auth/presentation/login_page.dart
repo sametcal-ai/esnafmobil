@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_button.dart';
 import '../domain/firebase_auth_controller.dart';
@@ -45,10 +44,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final state = ref.read(firebaseAuthControllerProvider);
 
     if (!success) {
-      if (state.errorMessage != null && mounted) {
+      final msg = state.errorMessage;
+      if (msg != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(state.errorMessage!),
+            content: Text(msg),
             behavior: SnackBarBehavior.floating,
           ),
         );

@@ -27,8 +27,6 @@ class AppScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authControllerProvider);
-
     return Scaffold(
       appBar: AppBar(
         leading: Navigator.of(context).canPop()

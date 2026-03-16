@@ -57,6 +57,10 @@ final routerRefreshNotifierProvider =
     notifier.refresh();
   });
 
+  ref.listen(companyContextProvider, (_, __) {
+    notifier.refresh();
+  });
+
   ref.onDispose(notifier.dispose);
 
   return notifier;

@@ -15,6 +15,15 @@ class AccountPage extends ConsumerWidget {
 
     return AppScaffold(
       title: 'Hesabım',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout),
+          tooltip: 'Çıkış Yap',
+          onPressed: () async {
+            await ref.read(authControllerProvider.notifier).logout();
+          },
+        ),
+      ],
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

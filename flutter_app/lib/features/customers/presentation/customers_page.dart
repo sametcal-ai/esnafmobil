@@ -6,8 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_settings.dart';
 import '../../../core/widgets/app_scaffold.dart';
-import '../../auth/domain/auth_controller.dart';
 import '../../auth/domain/user.dart';
+import '../../company_context/domain/company_context_controller.dart';
 import '../data/customer_repository.dart';
 import '../domain/customer.dart';
 
@@ -56,8 +56,7 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
   @override
   Widget build(BuildContext context) {
     final customersAsync = ref.watch(customersProvider);
-    final authState = ref.watch(authControllerProvider);
-    final user = authState.currentUser;
+    final user = ref.watch(currentUserProvider);
     final isAdmin = user != null && user.role == UserRole.admin;
     final settings = ref.watch(appSettingsProvider);
     final minChars = settings.searchFilterMinChars;

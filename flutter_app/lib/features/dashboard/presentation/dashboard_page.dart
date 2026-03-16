@@ -3,16 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_scaffold.dart';
-import '../../auth/domain/auth_controller.dart';
 import '../../auth/domain/user.dart';
+import '../../company_context/domain/company_context_controller.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authControllerProvider);
-    final currentUser = authState.currentUser;
+    final currentUser = ref.watch(currentUserProvider);
     final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
 
     final cards = <_DashboardCard>[
