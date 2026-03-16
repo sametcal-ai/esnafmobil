@@ -27,22 +27,35 @@ class CompanyMember {
     };
   }
 
+  static List<String> _asStringList(dynamic raw) {
+    if (raw is Iterable) {
+      return raw.whereType<String>().toList(growable: false);
+    }
+    return const <String>[];
+  }
+
   factory CompanyMember.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
-
-    List<String> asStringList(dynamic raw) {
-      if (raw is Iterable) {
-        return raw.whereType<String>().toList(growable: false);
-      }
-      return const <String>[];
-    }
 
     return CompanyMember(
       uid: doc.id,
       role: (data['role'] as String?) ?? 'member',
       status: (data['status'] as String?) ?? 'active',
-      permissions: asStringList(data['permissions']),
-      storeIds: asStringList(data['storeIds']),
+      permissions: _asStringList(data['permissions']),
+      storeIds: _asStringList(data['storeIds']),
+    );
+  }
+
+  factory CompanyMember.fromMap({
+    required String uid,
+    required Map<String, dynamic> data,
+  }) {
+    return CompanyMember(
+      uid: uid,
+      role: (data['role'] as String?) ?? 'member',
+      status: (data['status'] as String?) ?? 'active',
+      permissions: _asStringList(data['permissions']),
+      storeIds: _asStringList(data['storeIds']),
     );
   }
 }

@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../domain/active_company_provider.dart';
 import '../domain/company_gate_logic.dart';
-import '../domain/company_membership.dart';
 import '../domain/company_memberships_provider.dart';
 import 'no_company_page.dart';
 import 'pending_approval_page.dart';
@@ -28,21 +27,17 @@ class CompanyGatePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(activeCompanyResetterProvider);
 
-    final membershipsSnap = ref.watch(companyMembershipsSnapshotProvider);
+    final memberships = ref.watch(companyMembershipsProvider);
     final activeCompanyId = ref.watch(activeCompanyIdProvider);
 
     return AppScaffold(
       title: 'Firma',
-      body: membershipsSnap.when(
-        data: (snap) {
-          final items = snap.docs.map((doc) {
-            final member = doc.data();
-            final companyId = doc.reference.parent.parent!.id;
-            return CompanyMembership(companyId: companyId, member: member);
-          }).toList(growable: false);
+      body: memberships.when(
+        data: (items) {
+          final hasAnyMembership = items.isNotEmpty;
 
           // İlk kurulumda cache boş olabilir. Bu durumda offline ise kullanıcıyı yönlendir.
-          if (items.isEmpty && snap.metadata.isFromCache) {
+          if (!hasAnyMembership) {
             final connectivity = ref.watch(connectivityResultProvider).value;
             if (connectivity == ConnectivityResult.none) {
               return const Center(

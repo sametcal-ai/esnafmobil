@@ -9,6 +9,13 @@ type ApproveMemberInput = {
   role: 'admin' | 'cashier';
 };
 
+type GetMyMembershipsOutput = {
+  memberships: Array<{
+    companyId: string;
+    member: Record<string, unknown>;
+  }>;
+};
+
 export const approveMember = onCall<ApproveMemberInput>(async (request) => {
   if (!request.auth?.uid) {
     throw new HttpsError('unauthenticated', 'Authentication required.');
@@ -53,4 +60,36 @@ export const approveMember = onCall<ApproveMemberInput>(async (request) => {
   });
 
   return { ok: true };
+});
+
+export const getMyMemberships = onCall<undefined>(async (request): Promise<GetMyMembershipsOutput> => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Authentication required.');
+  }
+
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+
+  // This is intentionally company-id based instead of collectionGroup to also work
+  // when member documents don't contain a `uid` field and rely on docId==uid.
+  const companiesSnap = await db.collection('companies').get();
+
+  const memberRefs = companiesSnap.docs.map((d) => db.doc(`companies/${d.id}/members/${uid}`));
+  const memberSnaps = memberRefs.length > 0 ? await db.getAll(...memberRefs) : [];
+
+  const memberships = memberSnaps
+    .map((snap) => {
+      if (!snap.exists) return null;
+
+      const parts = snap.ref.path.split('/');
+      const companyId = parts.length >= 2 ? parts[1] : '';
+
+      return {
+        companyId,
+        member: snap.data() as Record<string, unknown>,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null && x.companyId.length > 0);
+
+  return { memberships };
 });
