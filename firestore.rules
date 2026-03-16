@@ -49,6 +49,17 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).changedKeys().hasOnly(keys);
     }
 
+    // Collection Group queries for `members` need an explicit wildcard match.
+    // Without this, a query like `collectionGroup('members')` can be rejected because
+    // Firestore can't prove that *all* possible `members` subcollections are readable.
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
+        request.auth.uid == memberId
+      );
+      allow write: if false;
+    }
+
     match /companies/{companyId} {
       allow read: if isMember(companyId);
       allow write: if isAdmin(companyId);
