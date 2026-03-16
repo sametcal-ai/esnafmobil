@@ -34,10 +34,13 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
   }
 
   Future<void> _initController() async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     final supplierRepo = ref.read(supplierRepositoryProvider);
     final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
 
-    final supplier = await supplierRepo.getSupplierById(widget.supplierId);
+    final supplier = await supplierRepo.getSupplierById(companyId, widget.supplierId);
     if (!mounted) return;
     if (supplier == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -69,7 +72,7 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
 
     if (updated == null) return;
 
-    await repo.updateSupplier(updated);
+    final companydateSupplier(updated);
     if (!mounted) return;
 
     setState(() {
