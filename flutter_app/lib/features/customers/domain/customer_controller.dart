@@ -45,12 +45,13 @@ class CustomerDetailState {
   }
 }
 
-class CustomerDetailController
-    extends StateNotifier<CustomerDetailState> {
+class CustomerDetailController extends StateNotifier<CustomerDetailState> {
+  final String companyId;
   final CustomerLedgerRepository _ledgerRepository;
   final int _pageSize;
 
   CustomerDetailController({
+    required this.companyId,
     required Customer customer,
     required CustomerLedgerRepository ledgerRepository,
     required int pageSize,
@@ -73,12 +74,13 @@ class CustomerDetailController
   Future<void> _load() async {
     try {
       final entries = await _ledgerRepository.getEntriesForCustomerPaged(
+        companyId,
         state.customer.id,
         offset: 0,
         limit: _pageSize,
       );
       final balance =
-          await _ledgerRepository.getBalanceForCustomer(state.customer.id);
+          await _ledgerRepository.getBalanceForCustomer(companyId, state.customer.id);
       state = state.copyWith(
         entries: entries,
         balance: balance,
@@ -97,6 +99,7 @@ class CustomerDetailController
   Future<void> addPayment(double amount) async {
     if (amount <= 0) return;
     await _ledgerRepository.addPaymentEntry(
+      companyId: companyId,
       customer: state.customer,
       amount: amount,
     );
@@ -110,6 +113,7 @@ class CustomerDetailController
     try {
       final nextOffset = state.entries.length;
       final next = await _ledgerRepository.getEntriesForCustomerPaged(
+        companyId,
         state.customer.id,
         offset: nextOffset,
         limit: _pageSize,
@@ -134,12 +138,3 @@ class CustomerDetailController
   }
 }
 
-final customerRepositoryProvider =
-    Provider<CustomerRepository>((ref) => CustomerRepository());
-
-final customerLedgerRepositoryProvider = Provider<CustomerLedgerRepository>(
-  (ref) {
-    final repo = ref.watch(customerRepositoryProvider);
-    return CustomerLedgerRepository(repo);
-  },
-);
