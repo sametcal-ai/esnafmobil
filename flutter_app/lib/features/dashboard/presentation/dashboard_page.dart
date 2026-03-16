@@ -48,14 +48,20 @@ class DashboardPage extends ConsumerWidget {
     ];
 
     if (isAdmin) {
-      cards.add(
+      cards.addAll([
+        _DashboardCard(
+          icon: Icons.warning_amber_rounded,
+          title: 'Stok Uyarıları',
+          color: Colors.red.shade700,
+          onTap: () => context.pushNamed('alerts'),
+        ),
         _DashboardCard(
           icon: Icons.manage_accounts_outlined,
           title: 'Kullanıcı Yönetimi',
           color: Colors.indigo.shade600,
           onTap: () => context.pushNamed('users'),
         ),
-      );
+      ]);
     }
 
     return AppScaffold(

@@ -31,6 +31,7 @@ import '../../features/sales/held_sales/held_sales_tab.dart';
 import '../../features/scanner/presentation/barcode_scanner_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
 import '../../features/settings/presentation/system_settings_page.dart';
+import '../../features/alerts/presentation/alerts_page.dart';
 import '../widgets/app_shell_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -224,6 +225,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/settings',
                 name: 'settings',
                 builder: (context, state) => const SystemSettingsPage(),
+              ),
+              GoRoute(
+                path: '/alerts',
+                name: 'alerts',
+                builder: (context, state) => const AlertsPage(),
               ),
             ],
           ),
