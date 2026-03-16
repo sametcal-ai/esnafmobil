@@ -25,9 +25,9 @@ class PosController extends StateNotifier<PosState> {
     required this.companyId,
     required AppSettings settings,
     required ProductRepository productRepository,
-    SalesRepository? salesRepository,
+    required SalesRepository salesRepository,
   })  : _productRepository = productRepository,
-        _salesRepository = salesRepository ?? SalesRepository(),
+        _salesRepository = salesRepository,
         _settings = settings,
         super(PosState.initial());
 
@@ -230,6 +230,7 @@ class PosController extends StateNotifier<PosState> {
         .toList(growable: false);
 
     final saleId = await _salesRepository.createSale(
+      companyId: companyId,
       customerId: customerId,
       subtotal: subtotal,
       discount: discount,
@@ -251,11 +252,13 @@ final posControllerProvider =
     StateNotifierProvider<PosController, PosState>((ref) {
   final settings = ref.watch(appSettingsProvider);
   final companyId = ref.watch(activeCompanyIdProvider);
-  final repo = ref.watch(productsRepositoryProvider);
+  final productsRepo = ref.watch(productsRepositoryProvider);
+  final salesRepo = ref.watch(salesRepositoryProvider);
 
   return PosController(
     companyId: companyId ?? '',
     settings: settings,
-    productRepository: repo,
+    productRepository: productsRepo,
+    salesRepository: salesRepo,
   );
 });
