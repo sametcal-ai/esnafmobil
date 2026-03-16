@@ -1,6 +1,9 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
+import '../../company/domain/company_memberships_provider.dart';
 
 class SaleItem {
   final String productId;
@@ -18,6 +21,33 @@ class SaleItem {
     required this.unitPrice,
     required this.lineTotal,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'productId': productId,
+      'productName': productName,
+      'barcode': barcode,
+      'quantity': quantity,
+      'unitPrice': unitPrice,
+      'lineTotal': lineTotal,
+    };
+  }
+
+  factory SaleItem.fromMap(Map map) {
+    final m = Map<String, dynamic>.from(map);
+    final quantity = (m['quantity'] as num?)?.toInt() ?? 0;
+    final unitPrice = (m['unitPrice'] as num?)?.toDouble() ?? 0;
+    final lineTotal = (m['lineTotal'] as num?)?.toDouble() ?? (quantity * unitPrice).toDouble();
+
+    return SaleItem(
+      productId: (m['productId'] as String?) ?? '',
+      productName: (m['productName'] as String?) ?? '',
+      barcode: m['barcode'] as String?,
+      quantity: quantity,
+      unitPrice: unitPrice,
+      lineTotal: lineTotal,
+    );
+  }
 }
 
 class Sale {
@@ -28,6 +58,7 @@ class Sale {
   final double discount;
   final double vat;
   final double total;
+  final String paymentMethod;
   final List<SaleItem> items;
   final AuditMeta meta;
 
@@ -39,147 +70,106 @@ class Sale {
     required this.discount,
     required this.vat,
     required this.total,
+    required this.paymentMethod,
     required this.items,
     required this.meta,
   });
-}
 
-class SalesRepository {
-  static const String salesBoxName = 'sales';
-
-  Box get _box => Hive.box(salesBoxName);
-
-  /// Tüm satışları en yeni en üstte döner.
-  Future<List<Sale>> getAllSales() async {
-    final entries = <Sale>[];
-
-    for (final dynamic raw in _box.values) {
-      if (raw is! Map) continue;
-      final map = Map<String, dynamic>.from(raw as Map);
-
-      final createdAtMs = map['createdAt'];
-      final createdAt = createdAtMs is int
-          ? DateTime.fromMillisecondsSinceEpoch(createdAtMs)
-          : DateTime.now();
-
-      final itemsRaw = map['items'];
-      final items = <SaleItem>[];
-      if (itemsRaw is List) {
-        for (final dynamic itemRaw in itemsRaw) {
-          if (itemRaw is! Map) continue;
-          final imap = Map<String, dynamic>.from(itemRaw as Map);
-          final quantity = (imap['quantity'] as num?)?.toInt() ?? 0;
-          final unitPrice = (imap['unitPrice'] as num?)?.toDouble() ?? 0;
-          final lineTotal = (imap['lineTotal'] as num?)?.toDouble() ??
-              (quantity * unitPrice).toDouble();
-          items.add(
-            SaleItem(
-              productId: (imap['productId'] as String?) ?? '',
-              productName: (imap['productName'] as String?) ?? '',
-              barcode: imap['barcode'] as String?,
-              quantity: quantity,
-              unitPrice: unitPrice,
-              lineTotal: lineTotal,
-            ),
-          );
-        }
-      }
-
-      final meta = AuditMeta.fromMap(
-        map,
-        fallbackCreatedAt: createdAt,
-      );
-
-      final sale = Sale(
-        id: (map['id'] as String?) ?? '',
-        customerId: map['customerId'] as String?,
-        createdAt: createdAt,
-        subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
-        discount: (map['discount'] as num?)?.toDouble() ?? 0,
-        vat: (map['vat'] as num?)?.toDouble() ?? 0,
-        total: (map['total'] as num?)?.toDouble() ?? 0,
-        items: items,
-        meta: meta,
-      );
-
-      if (!sale.meta.isDeleted && sale.meta.isVisible && sale.meta.isActived) {
-        entries.add(sale);
-      }
-    }
-
-    entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return entries;
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'customerId': customerId,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'subtotal': subtotal,
+      'discount': discount,
+      'vat': vat,
+      'total': total,
+      'paymentMethod': paymentMethod,
+      'items': items.map((i) => i.toMap()).toList(growable: false),
+      ...meta.toMap(),
+    };
   }
 
-  /// Tek bir satış kaydını ID'ye göre getirir.
-  Future<Sale?> getSaleById(String id) async {
-    final raw = _box.get(id);
-    if (raw is! Map) return null;
-    final map = Map<String, dynamic>.from(raw as Map);
+  factory Sale.fromMap(Map dynamicMap) {
+    final map = Map<String, dynamic>.from(dynamicMap as Map);
 
-    final createdAtMs = map['createdAt'];
-    final createdAt = createdAtMs is int
-        ? DateTime.fromMillisecondsSinceEpoch(createdAtMs)
-        : DateTime.now();
+    final createdAtRaw = map['createdAt'];
+    final createdAt = createdAtRaw is Timestamp
+        ? createdAtRaw.toDate()
+        : createdAtRaw is int
+            ? DateTime.fromMillisecondsSinceEpoch(createdAtRaw)
+            : DateTime.now();
 
     final itemsRaw = map['items'];
     final items = <SaleItem>[];
     if (itemsRaw is List) {
-      for (final dynamic itemRaw in itemsRaw) {
-        if (itemRaw is! Map) continue;
-        final imap = Map<String, dynamic>.from(itemRaw as Map);
-        final quantity = (imap['quantity'] as num?)?.toInt() ?? 0;
-        final unitPrice = (imap['unitPrice'] as num?)?.toDouble() ?? 0;
-        final lineTotal = (imap['lineTotal'] as num?)?.toDouble() ??
-            (quantity * unitPrice).toDouble();
-        items.add(
-          SaleItem(
-            productId: (imap['productId'] as String?) ?? '',
-            productName: (imap['productName'] as String?) ?? '',
-            barcode: imap['barcode'] as String?,
-            quantity: quantity,
-            unitPrice: unitPrice,
-            lineTotal: lineTotal,
-          ),
-        );
+      for (final item in itemsRaw.whereType<Map>()) {
+        items.add(SaleItem.fromMap(item));
       }
     }
 
-    final meta = AuditMeta.fromMap(
-      map,
-      fallbackCreatedAt: createdAt,
-    );
+    final meta = AuditMeta.fromMap(map, fallbackCreatedAt: createdAt);
 
     return Sale(
-      id: (map['id'] as String?) ?? id,
+      id: (map['id'] as String?) ?? '',
       customerId: map['customerId'] as String?,
       createdAt: createdAt,
       subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
       discount: (map['discount'] as num?)?.toDouble() ?? 0,
       vat: (map['vat'] as num?)?.toDouble() ?? 0,
       total: (map['total'] as num?)?.toDouble() ?? 0,
+      paymentMethod: (map['paymentMethod'] as String?) ?? 'cash',
       items: items,
       meta: meta,
     );
   }
+}
 
-  /// Verilen satış ID listesini tek seferde yükler.
-  /// Parametrede tekrar eden ID'ler varsa, sonuçta her ID için tek bir sorgu yapılır.
-  Future<Map<String, Sale>> getSalesByIds(Iterable<String> ids) async {
-    final uniqueIds = ids.toSet();
-    final result = <String, Sale>{};
+class SalesRepository {
+  SalesRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
 
-    for (final id in uniqueIds) {
-      final sale = await getSaleById(id);
-      if (sale != null) {
-        result[id] = sale;
-      }
-    }
+  final FirestoreRefs _refs;
 
-    return result;
+  Stream<List<Sale>> watchSales(String companyId) {
+    return _refs
+        .sales(companyId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snap) {
+      final entries = snap.docs
+          .map((d) => d.data())
+          .whereType<Map<String, dynamic>>()
+          .map(Sale.fromMap)
+          .where((s) => !s.meta.isDeleted && s.meta.isVisible && s.meta.isActived)
+          .toList(growable: false);
+      return entries;
+    });
+  }
+
+  Future<List<Sale>> getAllSales(String companyId) async {
+    final snap = await _refs.sales(companyId).orderBy('createdAt', descending: true).get();
+    return snap.docs
+        .map((d) => d.data())
+        .whereType<Map<String, dynamic>>()
+        .map(Sale.fromMap)
+        .where((s) => !s.meta.isDeleted && s.meta.isVisible && s.meta.isActived)
+        .toList(growable: false);
+  }
+
+  Future<Sale?> getSaleById(
+    String companyId,
+    String id,
+  ) async {
+    final snap = await _refs.sales(companyId).doc(id).get();
+    final data = snap.data();
+    if (data == null) return null;
+    final sale = Sale.fromMap(data);
+    if (sale.meta.isDeleted || !sale.meta.isVisible || !sale.meta.isActived) return null;
+    return sale;
   }
 
   Future<String> createSale({
+    required String companyId,
     String? customerId,
     required double subtotal,
     required double discount,
@@ -193,36 +183,27 @@ class SalesRepository {
     final id = now.microsecondsSinceEpoch.toString();
 
     final actor = currentUserId ?? 'system';
-    final meta = AuditMeta.create(
-      createdBy: actor,
-      now: now,
+    final meta = AuditMeta.create(createdBy: actor, now: now);
+
+    final sale = Sale(
+      id: id,
+      customerId: customerId,
+      createdAt: now,
+      subtotal: subtotal,
+      discount: discount,
+      vat: vat,
+      total: total,
+      paymentMethod: paymentMethod,
+      items: items,
+      meta: meta,
     );
 
-    final map = <String, dynamic>{
-      'id': id,
-      'customerId': customerId,
-      'createdAt': now.millisecondsSinceEpoch,
-      'subtotal': subtotal,
-      'discount': discount,
-      'vat': vat,
-      'total': total,
-      'paymentMethod': paymentMethod,
-      'items': items
-          .map(
-            (i) => {
-              'productId': i.productId,
-              'productName': i.productName,
-              'barcode': i.barcode,
-              'quantity': i.quantity,
-              'unitPrice': i.unitPrice,
-              'lineTotal': i.lineTotal,
-            },
-          )
-          .toList(),
-      ...meta.toMap(),
-    };
-
-    await _box.put(id, map);
+    await _refs.sales(companyId).doc(id).set(sale.toMap(), SetOptions(merge: true));
     return id;
   }
 }
+
+final salesRepositoryProvider = Provider<SalesRepository>((ref) {
+  final refs = ref.watch(firestoreRefsProvider);
+  return SalesRepository(refs);
+});
