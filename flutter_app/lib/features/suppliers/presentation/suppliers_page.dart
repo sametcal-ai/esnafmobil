@@ -7,14 +7,19 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../auth/domain/user.dart';
-import '../../company_context/domain/company_context_controller.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
+import '../../company/domain/active_company_provider.dart';
 import '../data/supplier_repository.dart';
 import '../domain/supplier.dart';
 
-final suppliersProvider =
-    FutureProvider.autoDispose<List<Supplier>>((ref) async {
-  final repo = SupplierRepository();
-  return repo.getAllSuppliers();
+final suppliersProvider = StreamProvider.autoDispose<List<Supplier>>((ref) {
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) {
+    return const Stream<List<Supplier>>.empty();
+  }
+
+  final repo = ref.watch(supplierRepositoryProvider);
+  return repo.watchSuppliers(companyId);
 });
 
 class SuppliersPage extends ConsumerStatefulWidget {
@@ -164,9 +169,11 @@ class _SuppliersPageState extends ConsumerState<SuppliersPage> {
                           ? IconButton(
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () async {
-                                final repo = SupplierRepository();
-                                await repo.deleteSupplier(supplier.id);
-                                ref.invalidate(suppliersProvider);
+                                final companyId = ref.read(activeCompanyIdProvider);
+                                if (companyId == null) return;
+
+                                final repo = ref.read(supplierRepositoryProvider);
+                                await repo.deleteSupplier(companyId, supplier.id);
                               },
                             )
                           : null,
@@ -222,16 +229,16 @@ class _SuppliersPageState extends ConsumerState<SuppliersPage> {
   }
 }
 
-class _EditSupplierDialog extends StatefulWidget {
+class _EditSupplierDialog extends ConsumerStatefulWidget {
   final Supplier? existing;
 
   const _EditSupplierDialog({super.key, this.existing});
 
   @override
-  State<_EditSupplierDialog> createState() => _EditSupplierDialogState();
+  ConsumerState<_EditSupplierDialog> createState() => _EditSupplierDialogState();
 }
 
-class _EditSupplierDialogState extends State<_EditSupplierDialog> {
+class _EditSupplierDialogState extends ConsumerState<_EditSupplierDialog> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
@@ -279,10 +286,14 @@ class _EditSupplierDialogState extends State<_EditSupplierDialog> {
       _isSaving = true;
     });
 
-    final repo = SupplierRepository();
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
+    final repo = ref.read(supplierRepositoryProvider);
 
     if (widget.existing == null) {
       await repo.createSupplier(
+        companyId: companyId,
         name: name,
         phone: phone.isEmpty ? null : phone,
         address: address.isEmpty ? null : address,
@@ -295,7 +306,7 @@ class _EditSupplierDialogState extends State<_EditSupplierDialog> {
         address: address.isEmpty ? null : address,
         note: note.isEmpty ? null : note,
       );
-      await repo.updateSupplier(updated);
+      await repo.updateSupplier(companyId, updated);
     }
 
     if (!mounted) return;
