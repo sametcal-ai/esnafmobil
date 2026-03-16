@@ -140,11 +140,20 @@ class CompanyContextController extends StateNotifier<CompanyContextState> {
         errorMessage: memberships.isEmpty ? 'Bu kullanıcı hiçbir firmaya üye değil' : null,
       );
     } catch (e) {
+      String details = e.toString();
+      if (e is FirebaseException) {
+        details = '${e.code}: ${e.message ?? ''}'.trim();
+      }
+
+      // Helpful during development; UI shows a generic message.
+      // ignore: avoid_print
+      print('Company memberships load failed: $details');
+
       state = state.copyWith(
         isLoading: false,
         memberships: const <CompanyMembership>[],
         activeCompanyId: null,
-        errorMessage: 'Firma üyelikleri okunamadı',
+        errorMessage: 'Firma üyelikleri okunamadı ($details)',
       );
     }
   }
