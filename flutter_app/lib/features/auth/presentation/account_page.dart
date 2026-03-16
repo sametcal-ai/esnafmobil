@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company_context/domain/company_context_controller.dart';
 import '../domain/auth_controller.dart';
 import '../domain/user.dart';
 
@@ -70,9 +71,10 @@ class _AccountPageState extends ConsumerState<AccountPage> {
     });
 
     if (!success) {
+      final msg = ref.read(authControllerProvider).errorMessage;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mevcut şifre hatalı'),
+        SnackBar(
+          content: Text(msg ?? 'Şifre güncellenemedi'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -93,11 +95,19 @@ class _AccountPageState extends ConsumerState<AccountPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
-    final user = authState.currentUser;
+    final user = ref.watch(currentUserProvider);
 
     return AppScaffold(
       title: 'Hesabım',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.logout),
+          tooltip: 'Çıkış Yap',
+          onPressed: () async {
+            await ref.read(authControllerProvider.notifier).logout();
+          },
+        ),
+      ],
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: user == null
@@ -113,7 +123,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                         leading: const CircleAvatar(
                           child: Icon(Icons.person_outline),
                         ),
-                        title: Text(user.username),
+                        title: Text(user.email),
                         subtitle: Text(
                           user.role == UserRole.admin ? 'Yönetici' : 'Kasiyer',
                         ),
@@ -129,7 +139,7 @@ class _AccountPageState extends ConsumerState<AccountPage> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Şifre Sıfırlama',
+                      'Şifre Değiştir',
                       style:
                           Theme.of(context).textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w600,

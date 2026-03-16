@@ -1,39 +1,38 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../auth/data/local_auth_repository.dart';
-import 'user.dart';
+import '../data/firebase_auth_repository.dart';
 
 class AuthState {
-  final bool isAuthenticated;
-  final User? currentUser;
+  final fb.User? firebaseUser;
   final bool isLoading;
   final String? errorMessage;
 
   const AuthState({
-    required this.isAuthenticated,
-    required this.currentUser,
+    required this.firebaseUser,
     required this.isLoading,
     required this.errorMessage,
   });
 
+  bool get isAuthenticated => firebaseUser != null;
+
   factory AuthState.initial() {
     return const AuthState(
-      isAuthenticated: false,
-      currentUser: null,
+      firebaseUser: null,
       isLoading: false,
       errorMessage: null,
     );
   }
 
   AuthState copyWith({
-    bool? isAuthenticated,
-    User? currentUser,
+    fb.User? firebaseUser,
     bool? isLoading,
     String? errorMessage,
   }) {
     return AuthState(
-      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
-      currentUser: currentUser ?? this.currentUser,
+      firebaseUser: firebaseUser ?? this.firebaseUser,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage,
     );
@@ -41,48 +40,61 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  final LocalAuthRepository _repository;
+  final FirebaseAuthRepository _repository;
+  StreamSubscription<fb.User?>? _sub;
 
   AuthController(this._repository) : super(AuthState.initial()) {
-    _initialize();
+    _sub = _repository.authStateChanges().listen((user) {
+      state = state.copyWith(firebaseUser: user, errorMessage: null);
+    });
   }
 
-  Future<void> _initialize() async {
-    await _repository.ensureDefaultAdminUser();
-    final user = await _repository.getCurrentUser();
-    if (user != null) {
-      state = state.copyWith(
-        isAuthenticated: true,
-        currentUser: user,
-        errorMessage: null,
-      );
-    }
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
-  Future<bool> login(String username, String password) async {
+  Future<bool> login(String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
-    final user = await _repository.authenticate(username, password);
-    if (user == null) {
+
+    try {
+      await _repository.signInWithEmailPassword(
+        email: email,
+        password: password,
+      );
+      state = state.copyWith(isLoading: false, errorMessage: null);
+      return true;
+    } on fb.FirebaseAuthException catch (e) {
       state = state.copyWith(
         isLoading: false,
-        isAuthenticated: false,
-        currentUser: null,
-        errorMessage: 'Kullanıcı adı veya şifre hatalı',
+        errorMessage: e.message ?? 'Giriş başarısız',
       );
       return false;
     }
+  }
 
-    state = state.copyWith(
-      isLoading: false,
-      isAuthenticated: true,
-      currentUser: user,
-      errorMessage: null,
-    );
-    return true;
+  Future<bool> register(String email, String password) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+
+    try {
+      await _repository.registerWithEmailPassword(
+        email: email,
+        password: password,
+      );
+      state = state.copyWith(isLoading: false, errorMessage: null);
+      return true;
+    } on fb.FirebaseAuthException catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.message ?? 'Kayıt başarısız',
+      );
+      return false;
+    }
   }
 
   Future<void> logout() async {
-    await _repository.clearSession();
+    await _repository.signOut();
     state = AuthState.initial();
   }
 
@@ -90,30 +102,36 @@ class AuthController extends StateNotifier<AuthState> {
     required String currentPassword,
     required String newPassword,
   }) async {
-    final user = state.currentUser;
-    if (user == null) return false;
+    state = state.copyWith(isLoading: true, errorMessage: null);
 
-    final updated = await _repository.changePassword(
-      userId: user.id,
-      currentPassword: currentPassword,
-      newPassword: newPassword,
-    );
-
-    if (updated == null) {
+    try {
+      await _repository.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      state = state.copyWith(isLoading: false, errorMessage: null);
+      return true;
+    } on fb.FirebaseAuthException catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.message ?? 'Şifre güncellenemedi',
+      );
       return false;
     }
-
-    state = state.copyWith(currentUser: updated, errorMessage: null);
-    return true;
   }
 }
 
-final localAuthRepositoryProvider = Provider<LocalAuthRepository>((ref) {
-  return LocalAuthRepository();
+final firebaseAuthProvider = Provider<fb.FirebaseAuth>((ref) {
+  return fb.FirebaseAuth.instance;
+});
+
+final firebaseAuthRepositoryProvider = Provider<FirebaseAuthRepository>((ref) {
+  final auth = ref.watch(firebaseAuthProvider);
+  return FirebaseAuthRepository(auth);
 });
 
 final authControllerProvider =
     StateNotifierProvider<AuthController, AuthState>((ref) {
-  final repo = ref.watch(localAuthRepositoryProvider);
+  final repo = ref.watch(firebaseAuthRepositoryProvider);
   return AuthController(repo);
 });

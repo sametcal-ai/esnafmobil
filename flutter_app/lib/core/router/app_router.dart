@@ -7,6 +7,8 @@ import '../../features/auth/domain/user.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/user_management_page.dart';
 import '../../features/auth/presentation/account_page.dart';
+import '../../features/company_context/domain/company_context_controller.dart';
+import '../../features/company_context/presentation/company_select_page.dart';
 import '../../features/products/presentation/products_page.dart';
 import '../../features/products/presentation/products_lookup_page.dart';
 import '../../features/products/presentation/product_detail_page.dart';
@@ -52,6 +54,10 @@ final routerRefreshNotifierProvider =
     notifier.refresh();
   });
 
+  ref.listen(companyContextProvider, (_, __) {
+    notifier.refresh();
+  });
+
   ref.onDispose(notifier.dispose);
 
   return notifier;
@@ -71,6 +77,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: '/company-select',
+        name: 'company_select',
+        builder: (context, state) => const CompanySelectPage(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -255,20 +266,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final authState = ref.read(authControllerProvider);
       final isLoggedIn = authState.isAuthenticated;
-      final user = authState.currentUser;
       final loggingIn = state.matchedLocation == '/login';
+      final selectingCompany = state.matchedLocation == '/company-select';
+
+      final companyState = ref.read(companyContextProvider);
+      final hasCompany = companyState.activeCompanyId != null;
+      final user = ref.read(currentUserProvider);
 
       // Giriş yapmamış kullanıcılar sadece /login'e gidebilir.
       if (!isLoggedIn) {
         return loggingIn ? null : '/login';
       }
 
+      // Giriş var ama firma seçimi yoksa kullanıcıyı firma seçimine al.
+      if (!hasCompany) {
+        return selectingCompany ? null : '/company-select';
+      }
+
       // Giriş yapmış kullanıcı login sayfasına giderse rolüne göre yönlendir.
       if (loggingIn) {
-        if (user == null) {
-          return '/login';
+        if (user?.role == UserRole.admin) {
+          return '/dashboard';
+        } else {
+          return '/sales';
         }
-        if (user.role == UserRole.admin) {
+      }
+
+      // Firma seçimi sayfasındayken aktif firma set edildiyse ana sayfaya yönlendir.
+      if (selectingCompany) {
+        if (user?.role == UserRole.admin) {
           return '/dashboard';
         } else {
           return '/sales';

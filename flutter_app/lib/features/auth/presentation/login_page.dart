@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_button.dart';
-import '../../auth/domain/auth_controller.dart';
-import '../../auth/domain/user.dart';
+import '../domain/auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -14,32 +12,38 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FocusNode _passwordFocusNode = FocusNode();
 
+  bool _isRegister = false;
+
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     _passwordFocusNode.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final authController = ref.read(authControllerProvider.notifier);
-    final success = await authController.login(
-      _usernameController.text.trim(),
-      _passwordController.text,
-    );
+    final controller = ref.read(authControllerProvider.notifier);
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    final success = _isRegister
+        ? await controller.register(email, password)
+        : await controller.login(email, password);
 
     final state = ref.read(authControllerProvider);
 
     if (!success) {
-      if (state.errorMessage != null && mounted) {
+      final msg = state.errorMessage;
+      if (msg != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(state.errorMessage!),
+            content: Text(msg),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -47,16 +51,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       return;
     }
 
-    if (!mounted) return;
-
-    final user = state.currentUser;
-    if (user == null) return;
-
-    if (user.role == UserRole.admin) {
-      context.goNamed('dashboard');
-    } else {
-      context.goNamed('sales');
-    }
+    // Yönlendirme GoRouter.redirect içinde yapılacak (firma seçimi dahil).
   }
 
   @override
@@ -65,7 +60,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Giriş Yap'),
+        title: Text(_isRegister ? 'Kayıt Ol' : 'Giriş Yap'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -73,10 +68,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           children: [
             const SizedBox(height: 24),
             TextField(
-              controller: _usernameController,
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
-                labelText: 'Kullanıcı adı',
+                labelText: 'E-posta',
                 border: OutlineInputBorder(),
               ),
               onSubmitted: (_) {
@@ -98,14 +94,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             SizedBox(
               width: double.infinity,
               child: AppButton(
-                label: authState.isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap',
+                label: authState.isLoading
+                    ? (_isRegister ? 'Kayıt yapılıyor...' : 'Giriş yapılıyor...')
+                    : (_isRegister ? 'Kayıt Ol' : 'Giriş Yap'),
                 onPressed: authState.isLoading ? null : _submit,
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'İlk giriş için varsayılan yönetici:\nKullanıcı adı: admin\nŞifre: admin123',
-              textAlign: TextAlign.center,
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: authState.isLoading
+                  ? null
+                  : () {
+                      setState(() {
+                        _isRegister = !_isRegister;
+                      });
+                    },
+              child: Text(
+                _isRegister
+                    ? 'Zaten hesabın var mı? Giriş Yap'
+                    : 'Hesabın yok mu? Kayıt Ol',
+              ),
             ),
           ],
         ),
