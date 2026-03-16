@@ -77,7 +77,7 @@ class _SupplierPaymentsPageState
     });
   }
 
-  Future<void> _addPayment() async {
+  Future<void> _addPayment(BuildContext dialogContext) async {
     final text = _amountController.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -122,7 +122,7 @@ class _SupplierPaymentsPageState
     );
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+    Navigator.of(dialogContext).pop();
     await _load();
   }
 
@@ -200,7 +200,7 @@ class _SupplierPaymentsPageState
               child: const Text('İptal'),
             ),
             ElevatedButton(
-              onPressed: _addPayment,
+              onPressed: () => _addPayment(context),
               child: const Text('Kaydet'),
             ),
           ],
