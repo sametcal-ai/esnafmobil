@@ -29,6 +29,9 @@ class HiveMigrations {
   /// Kayıtlarda `id` alanı yoksa veya boşsa yeni bir UUID üretir.
   /// Mevcut `id` değerlerini değiştirmez, böylece ilişkiler bozulmaz.
   static Future<void> _ensureIdsInBox(String boxName) async {
+    if (!Hive.isBoxOpen(boxName)) {
+      await Hive.openBox(boxName);
+    }
     final box = Hive.box(boxName);
     final keys = box.keys.toList(growable: false);
 
@@ -56,6 +59,9 @@ class HiveMigrations {
     String boxName, {
     bool hasCreatedAt = false,
   }) async {
+    if (!Hive.isBoxOpen(boxName)) {
+      await Hive.openBox(boxName);
+    }
     final box = Hive.box(boxName);
     final keys = box.keys.toList(growable: false);
 

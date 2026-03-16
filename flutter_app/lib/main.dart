@@ -21,6 +21,7 @@ Future<void> main() async {
   await Hive.openBox('session');
   await Hive.openBox('customers');
   await Hive.openBox('customer_ledger');
+  await Hive.openBox('products');
   
   await Hive.openBox('suppliers');
   await Hive.openBox('supplier_ledger');
