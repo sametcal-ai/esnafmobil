@@ -1,32 +1,32 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
+import '../../company/domain/company_memberships_provider.dart';
 import '../domain/supplier.dart';
 import '../domain/supplier_ledger.dart';
-import 'supplier_repository.dart';
 
 class SupplierLedgerRepository {
-  static const String ledgerBoxName = 'supplier_ledger';
   static const _uuid = Uuid();
 
-  Box get _ledgerBox => Hive.box(ledgerBoxName);
+  SupplierLedgerRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
 
-  final SupplierRepository _supplierRepository;
-
-  SupplierLedgerRepository(this._supplierRepository);
+  final FirestoreRefs _refs;
 
   Future<SupplierLedgerEntry> addPurchaseEntry({
+    required String companyId,
     required Supplier supplier,
     required double amount,
     String? note,
+    String? currentUserId,
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final meta = AuditMeta.create(
-      createdBy: supplier.id,
-      now: now,
-    );
+    final actor = currentUserId ?? 'system';
+    final meta = AuditMeta.create(createdBy: actor, now: now);
+
     final entry = SupplierLedgerEntry(
       id: id,
       supplierId: supplier.id,
@@ -36,21 +36,30 @@ class SupplierLedgerRepository {
       createdAt: now,
       meta: meta,
     );
-    await _ledgerBox.put(id, entry.toMap());
+
+    await _refs.supplierLedger(companyId, supplier.id).doc(id).set(
+      {
+        ...entry.toMap(),
+        'createdAt': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+
     return entry;
   }
 
   Future<SupplierLedgerEntry> addPaymentEntry({
+    required String companyId,
     required Supplier supplier,
     required double amount,
     String? note,
+    String? currentUserId,
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final meta = AuditMeta.create(
-      createdBy: supplier.id,
-      now: now,
-    );
+    final actor = currentUserId ?? 'system';
+    final meta = AuditMeta.create(createdBy: actor, now: now);
+
     final entry = SupplierLedgerEntry(
       id: id,
       supplierId: supplier.id,
@@ -60,55 +69,46 @@ class SupplierLedgerRepository {
       createdAt: now,
       meta: meta,
     );
-    await _ledgerBox.put(id, entry.toMap());
+
+    await _refs.supplierLedger(companyId, supplier.id).doc(id).set(
+      {
+        ...entry.toMap(),
+        'createdAt': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+
     return entry;
   }
 
   Future<List<SupplierLedgerEntry>> getEntriesForSupplier(
+    String companyId,
     String supplierId,
   ) async {
-    final entries = _ledgerBox.values
-        .whereType<Map>()
-        .where(isActiveRecordMap)
-        .map((map) => SupplierLedgerEntry.fromMap(map))
-        .where((entry) => entry.supplierId == supplierId)
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final snap = await _refs
+        .supplierLedger(companyId, supplierId)
+        .orderBy('createdAt', descending: true)
+        .get();
 
-    return entries;
+    return snap.docs
+        .map((d) => d.data())
+        .whereType<Map<String, dynamic>>()
+        .map((m) {
+          final createdAt = m['createdAt'];
+          if (createdAt is Timestamp) {
+            m['createdAt'] = createdAt.toDate().millisecondsSinceEpoch;
+          }
+          return SupplierLedgerEntry.fromMap(m);
+        })
+        .where((e) => !e.meta.isDeleted)
+        .toList(growable: false);
   }
 
-  Future<List<SupplierLedgerEntry>> getEntriesForSupplierInDateRange(
-    String supplierId, {
-    required DateTime start,
-    required DateTime end,
-  }) async {
-    final all = await getEntriesForSupplier(supplierId);
-    return all
-        .where(
-          (e) => !e.createdAt.isBefore(start) && !e.createdAt.isAfter(end),
-        )
-        .toList();
-  }
-
-  Future<double> getBalanceForSupplierBefore(
+  Future<double> getBalanceForSupplier(
+    String companyId,
     String supplierId,
-    DateTime before,
   ) async {
-    final all = await getEntriesForSupplier(supplierId);
-    double balance = 0;
-    for (final entry in all.where((e) => e.createdAt.isBefore(before))) {
-      if (entry.type == SupplierLedgerEntryType.purchase) {
-        balance += entry.amount;
-      } else {
-        balance -= entry.amount;
-      }
-    }
-    return balance;
-  }
-
-  Future<double> getBalanceForSupplier(String supplierId) async {
-    final entries = await getEntriesForSupplier(supplierId);
+    final entries = await getEntriesForSupplier(companyId, supplierId);
     double balance = 0;
     for (final entry in entries) {
       if (entry.type == SupplierLedgerEntryType.purchase) {
@@ -120,3 +120,8 @@ class SupplierLedgerRepository {
     return balance;
   }
 }
+
+final supplierLedgerRepositoryProvider = Provider<SupplierLedgerRepository>((ref) {
+  final refs = ref.watch(firestoreRefsProvider);
+  return SupplierLedgerRepository(refs);
+});
