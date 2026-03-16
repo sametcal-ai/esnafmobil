@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../../products/data/product_repository.dart';
 import '../../products/domain/product.dart';
 import '../domain/price_resolver.dart';
@@ -30,8 +31,11 @@ class PricingItem {
 
 final pricingProvider =
     FutureProvider.autoDispose<List<PricingItem>>((ref) async {
-  final productRepo = ProductRepository();
-  final products = await productRepo.getAllProducts();
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) return const <PricingItem>[];
+
+  final productRepo = ref.watch(productsRepositoryProvider);
+  final products = await productRepo.getAllProducts(companyId);
   final settings = ref.watch(appSettingsProvider);
 
   // Pricing'i tek gerçek kaynak olacak şekilde hesapla:

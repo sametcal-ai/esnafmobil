@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../data/supplier_ledger_repository.dart';
 import '../data/supplier_repository.dart';
 import '../data/supplier_statement_pdf_service.dart';
@@ -165,8 +166,14 @@ class _SupplierStatementPageState
     try {
       Uint8List bytes;
       try {
+        final companyId = ref.read(activeCompanyIdProvider);
+        if (companyId == null) {
+          throw Exception('Aktif firma seçili değil');
+        }
+
         final pdfService = SupplierStatementPdfService();
         bytes = await pdfService.generateStatementPdf(
+          companyId: companyId,
           supplier: supplier,
           previousBalance: _previousBalance,
           entries: _entries,

@@ -18,6 +18,7 @@ class StockEntryRepository {
   StockEntryRepository(this._productRepository);
 
   Future<StockEntry> createStockEntry({
+    required String companyId,
     required String supplierId,
     required String productId,
     required int quantity,
@@ -45,6 +46,7 @@ class StockEntryRepository {
     await _stockBox.put(id, entry.toMap());
 
     await _productRepository.increaseStock(
+      companyId: companyId,
       productId: productId,
       quantity: quantity,
       purchasePrice: unitCost,

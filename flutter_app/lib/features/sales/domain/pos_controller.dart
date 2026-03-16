@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_settings.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../../pricing/domain/price_resolver.dart';
 import '../../products/data/product_repository.dart';
 import '../../products/domain/product.dart' as catalog;
@@ -15,15 +16,17 @@ enum ScanResult {
 }
 
 class PosController extends StateNotifier<PosState> {
+  final String companyId;
   final ProductRepository _productRepository;
   final SalesRepository _salesRepository;
   final AppSettings _settings;
 
   PosController({
+    required this.companyId,
     required AppSettings settings,
-    ProductRepository? productRepository,
+    required ProductRepository productRepository,
     SalesRepository? salesRepository,
-  })  : _productRepository = productRepository ?? ProductRepository(),
+  })  : _productRepository = productRepository,
         _salesRepository = salesRepository ?? SalesRepository(),
         _settings = settings,
         super(PosState.initial());
@@ -78,13 +81,18 @@ class PosController extends StateNotifier<PosState> {
   }
 
   /// Barkodu işler ve sepete ürün ekler ya da miktarını artırır.
-  ScanResult handleBarcode(String rawBarcode) {
+  Future<ScanResult> handleBarcode(String rawBarcode) async {
+    if (companyId.isEmpty) {
+      return ScanResult.notFound;
+    }
+
     final barcode = rawBarcode.trim();
     if (barcode.isEmpty) {
       return ScanResult.notFound;
     }
 
-    final catalogProduct = _productRepository.getProductByBarcode(barcode);
+    final catalogProduct =
+        await _productRepository.findProductByBarcode(companyId, barcode);
     if (catalogProduct == null) {
       return ScanResult.notFound;
     }
@@ -179,12 +187,13 @@ class PosController extends StateNotifier<PosState> {
     String? customerId,
     required String paymentMethod,
   }) async {
+    if (companyId.isEmpty) return null;
     if (state.items.isEmpty) return null;
 
     // Stok kontrolü – herhangi bir üründe yetersiz stok varsa iptal.
     for (final item in state.items) {
       final catalogProduct =
-          await _productRepository.getProductById(item.product.id);
+          await _productRepository.getProductById(companyId, item.product.id);
       if (catalogProduct == null) {
         return null;
       }
@@ -196,6 +205,7 @@ class PosController extends StateNotifier<PosState> {
     // Stokları düş.
     for (final item in state.items) {
       await _productRepository.decreaseStock(
+        companyId: companyId,
         productId: item.product.id,
         quantity: item.quantity,
       );
@@ -240,5 +250,12 @@ class PosController extends StateNotifier<PosState> {
 final posControllerProvider =
     StateNotifierProvider<PosController, PosState>((ref) {
   final settings = ref.watch(appSettingsProvider);
-  return PosController(settings: settings);
+  final companyId = ref.watch(activeCompanyIdProvider);
+  final repo = ref.watch(productsRepositoryProvider);
+
+  return PosController(
+    companyId: companyId ?? '',
+    settings: settings,
+    productRepository: repo,
+  );
 });

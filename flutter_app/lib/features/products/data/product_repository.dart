@@ -1,25 +1,112 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
+import '../../company/domain/company_memberships_provider.dart';
 import '../domain/product.dart';
 
 class ProductRepository {
-  static const String productsBoxName = 'products';
   static const _uuid = Uuid();
 
-  Box get _productsBox => Hive.box(productsBoxName);
+  ProductRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
 
-  Future<List<Product>> getAllProducts() async {
-    return _productsBox.values
-        .whereType<Map>()
-        .where(isActiveRecordMap)
-        .map((map) => Product.fromMap(map))
+  final FirestoreRefs _refs;
+
+  Stream<List<Product>> watchProducts(String companyId) {
+    return _refs.productsRef(companyId).snapshots().map((snap) {
+      return snap.docs
+          .map((d) => d.data())
+          .where((p) => !p.meta.isDeleted)
+          .toList(growable: false);
+    });
+  }
+
+  Stream<Product?> watchProductById(
+    String companyId,
+    String productId,
+  ) {
+    return _refs
+        .productsRef(companyId)
+        .doc(productId)
+        .snapshots()
+        .map((snap) {
+      if (!snap.exists) return null;
+      final product = snap.data();
+      if (product == null) return null;
+      return product.meta.isDeleted ? null : product;
+    });
+  }
+
+  Future<void> upsertProduct(String companyId, Product product) async {
+    await _refs
+        .productsRef(companyId)
+        .doc(product.id)
+        .set(product, SetOptions(merge: true));
+  }
+
+  Future<void> deleteProduct(
+    String companyId,
+    String productId, {
+    String? currentUserId,
+  }) async {
+    final actor = currentUserId ?? 'system';
+    final now = DateTime.now();
+
+    await _refs.productsRef(companyId).doc(productId).set(
+      {
+        'isDeleted': true,
+        'isVisible': false,
+        'isActived': false,
+        'modifiedBy': actor,
+        'modifiedDate': Timestamp.fromDate(now),
+        'versionNo': FieldValue.increment(1),
+        'versionDate': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<List<Product>> getAllProducts(String companyId) async {
+    final snap = await _refs.productsRef(companyId).get();
+    return snap.docs
+        .map((d) => d.data())
+        .where((p) => !p.meta.isDeleted)
         .toList(growable: false);
   }
 
+  Future<Product?> getProductById(
+    String companyId,
+    String id,
+  ) async {
+    final snap = await _refs.productsRef(companyId).doc(id).get();
+    final product = snap.data();
+    if (product == null) return null;
+    if (product.meta.isDeleted) return null;
+    return product;
+  }
+
+  Future<Product?> findProductByBarcode(
+    String companyId,
+    String barcode,
+  ) async {
+    final trimmed = barcode.trim();
+    if (trimmed.isEmpty) return null;
+
+    final snap = await _refs
+        .productsRef(companyId)
+        .where('barcode', isEqualTo: trimmed)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null;
+    final product = snap.docs.first.data();
+    return product.meta.isDeleted ? null : product;
+  }
+
   Future<Product> createProduct({
+    required String companyId,
     required String name,
     required String brand,
     required String barcode,
@@ -61,41 +148,17 @@ class ProductRepository {
       meta: meta,
     );
 
-    await _productsBox.put(id, product.toMap());
+    await upsertProduct(companyId, product);
     return product;
   }
 
-  Future<Product?> getProductById(String id) async {
-    final raw = _productsBox.get(id);
-    if (raw is! Map) return null;
-    if (!isActiveRecordMap(raw)) return null;
-    return Product.fromMap(raw);
-  }
-
-  /// Barkoda göre ürün bulur.
-  /// Hive koleksiyonu bellek içinde olduğundan, bu arama senkron çalışabilir.
-  Product? getProductByBarcode(String barcode) {
-    final trimmed = barcode.trim();
-    if (trimmed.isEmpty) return null;
-
-    for (final dynamic raw in _productsBox.values) {
-      if (raw is! Map) continue;
-      if (!isActiveRecordMap(raw)) continue;
-      final product = Product.fromMap(raw);
-      if (product.barcode.trim() == trimmed) {
-        return product;
-      }
-    }
-    return null;
-  }
-
   Future<Product?> updateProduct(
+    String companyId,
     Product product, {
     String? currentUserId,
   }) async {
-    final raw = _productsBox.get(product.id);
-    if (raw is! Map) return null;
-    final existing = Product.fromMap(raw);
+    final existing = await getProductById(companyId, product.id);
+    if (existing == null) return null;
 
     if (existing.meta.isLocked) {
       return null;
@@ -108,25 +171,12 @@ class ProductRepository {
     );
 
     final updated = product.copyWith(meta: updatedMeta);
-    await _productsBox.put(product.id, updated.toMap());
+    await upsertProduct(companyId, updated);
     return updated;
   }
 
-  /// Ürünü soft delete ile siler.
-  Future<void> deleteProduct(
-    String id, {
-    String? currentUserId,
-  }) async {
-    final raw = _productsBox.get(id);
-    if (raw is! Map) return;
-    final existing = Product.fromMap(raw);
-    final actor = currentUserId ?? 'system';
-    final deletedMeta = existing.meta.softDelete(modifiedBy: actor);
-    final deleted = existing.copyWith(meta: deletedMeta);
-    await _productsBox.put(id, deleted.toMap());
-  }
-
   Future<void> increaseStock({
+    required String companyId,
     required String productId,
     required int quantity,
     double? purchasePrice,
@@ -135,14 +185,13 @@ class ProductRepository {
   }) async {
     if (quantity <= 0) return;
 
-    final product = await getProductById(productId);
+    final product = await getProductById(companyId, productId);
     if (product == null) return;
 
     // Yeni stok miktarı.
     final newQuantity = product.stockQuantity + quantity;
 
-    double newLastPurchasePrice =
-        purchasePrice ?? product.lastPurchasePrice;
+    double newLastPurchasePrice = purchasePrice ?? product.lastPurchasePrice;
     double newSalePrice = product.salePrice;
     double newMarginPercent = product.marginPercent;
 
@@ -152,8 +201,7 @@ class ProductRepository {
       newLastPurchasePrice = purchasePrice;
       if (marginPercent != null && marginPercent > 0) {
         newMarginPercent = marginPercent;
-        newSalePrice =
-            newLastPurchasePrice * (1 + newMarginPercent / 100);
+        newSalePrice = newLastPurchasePrice * (1 + newMarginPercent / 100);
       }
     }
 
@@ -171,17 +219,18 @@ class ProductRepository {
       meta: updatedMeta,
     );
 
-    await updateProduct(updated, currentUserId: currentUserId);
+    await upsertProduct(companyId, updated);
   }
 
   Future<void> decreaseStock({
+    required String companyId,
     required String productId,
     required int quantity,
     String? currentUserId,
   }) async {
     if (quantity <= 0) return;
 
-    final product = await getProductById(productId);
+    final product = await getProductById(companyId, productId);
     if (product == null) return;
 
     final newQuantity = product.stockQuantity - quantity;
@@ -196,9 +245,11 @@ class ProductRepository {
       meta: updatedMeta,
     );
 
-    await updateProduct(updated, currentUserId: currentUserId);
+    await upsertProduct(companyId, updated);
   }
 }
 
-final productsRepositoryProvider =
-    Provider<ProductRepository>((ref) => ProductRepository());
+final productsRepositoryProvider = Provider<ProductRepository>((ref) {
+  final refs = ref.watch(firestoreRefsProvider);
+  return ProductRepository(refs);
+});

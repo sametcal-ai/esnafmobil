@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'models/company.dart';
 import 'models/company_member.dart';
 import 'models/store.dart';
+import 'models/product.dart';
 
 class FirestoreRefs {
   FirestoreRefs(this._db);
@@ -54,7 +55,15 @@ class FirestoreRefs {
     return stores(companyId).doc(storeId);
   }
 
+  CollectionReference<Product> productsRef(String companyId) {
+    return company(companyId).collection('products').withConverter<Product>(
+          fromFirestore: (snap, _) => Product.fromDoc(snap),
+          toFirestore: (p, _) => p.toFirestoreMap(),
+        );
+  }
+
   /// İş verileri (şimdilik Map tabanlı) — tümü company altında.
+  /// Products için typed ref: [productsRef]
   CollectionReference<Map<String, dynamic>> products(String companyId) =>
       company(companyId).collection('products');
 

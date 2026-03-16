@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,10 +6,16 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../domain/active_company_provider.dart';
 import '../domain/company_gate_logic.dart';
+import '../domain/company_membership.dart';
 import '../domain/company_memberships_provider.dart';
 import 'no_company_page.dart';
 import 'pending_approval_page.dart';
 import 'select_company_page.dart';
+
+final connectivityResultProvider =
+    FutureProvider.autoDispose<ConnectivityResult>((ref) async {
+  return Connectivity().checkConnectivity();
+});
 
 class CompanyGatePage extends ConsumerWidget {
   const CompanyGatePage({super.key});
@@ -17,13 +24,35 @@ class CompanyGatePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(activeCompanyResetterProvider);
 
-    final memberships = ref.watch(companyMembershipsProvider);
+    final membershipsSnap = ref.watch(companyMembershipsSnapshotProvider);
     final activeCompanyId = ref.watch(activeCompanyIdProvider);
 
     return AppScaffold(
       title: 'Firma',
-      body: memberships.when(
-        data: (items) {
+      body: membershipsSnap.when(
+        data: (snap) {
+          final items = snap.docs.map((doc) {
+            final member = doc.data();
+            final companyId = doc.reference.parent.parent!.id;
+            return CompanyMembership(companyId: companyId, member: member);
+          }).toList(growable: false);
+
+          // İlk kurulumda cache boş olabilir. Bu durumda offline ise kullanıcıyı yönlendir.
+          if (items.isEmpty && snap.metadata.isFromCache) {
+            final connectivity = ref.watch(connectivityResultProvider).value;
+            if (connectivity == ConnectivityResult.none) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'İlk kurulum / ilk firma bağlanma için internete bağlanın.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            }
+          }
+
           final decision = decideCompanyGate(
             memberships: items,
             currentActiveCompanyId: activeCompanyId,

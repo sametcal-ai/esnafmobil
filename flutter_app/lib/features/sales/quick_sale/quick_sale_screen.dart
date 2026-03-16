@@ -3,11 +3,10 @@ import 'package:flutter_beep/flutter_beep.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/scanner/barcode_scanner_view.dart';
-
-
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../customers/data/customer_ledger_repository.dart';
 import '../../customers/domain/customer.dart';
@@ -84,9 +83,14 @@ final quickSaleCustomersProvider = FutureProvider<List<Customer>>((ref) async {
   return repo.getAllCustomers();
 });
 
-final quickSaleProductsProvider = FutureProvider<List<catalog.Product>>((ref) async {
-  final repo = ProductRepository();
-  return repo.getAllProducts();
+final quickSaleProductsProvider = StreamProvider<List<catalog.Product>>((ref) {
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) {
+    return const Stream<List<catalog.Product>>.empty();
+  }
+
+  final repo = ref.watch(productsRepositoryProvider);
+  return repo.watchProducts(companyId);
 });
 
 class QuickSaleScreen extends ConsumerStatefulWidget {
@@ -187,7 +191,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     }
 
     final posController = ref.read(posControllerProvider.notifier);
-    final result = posController.handleBarcode(trimmed);
+    final result = await posController.handleBarcode(trimmed);
 
     if (!fromCamera) {
       _barcodeController.clear();

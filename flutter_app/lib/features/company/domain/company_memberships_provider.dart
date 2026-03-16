@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
@@ -6,6 +7,18 @@ import 'company_membership.dart';
 
 final firestoreRefsProvider = Provider<FirestoreRefs>((ref) {
   return FirestoreRefs.instance();
+});
+
+final companyMembershipsSnapshotProvider =
+    StreamProvider.autoDispose<QuerySnapshot<CompanyMember>>((ref) {
+  final authUser = ref.watch(authStateProvider).value;
+
+  if (authUser == null) {
+    return const Stream<QuerySnapshot<CompanyMember>>.empty();
+  }
+
+  final refs = ref.watch(firestoreRefsProvider);
+  return refs.membersGroupByUid(authUser.uid).snapshots();
 });
 
 final companyMembershipsProvider =

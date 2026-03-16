@@ -11,15 +11,48 @@ import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../services/jojapi_external_search_service.dart';
 import '../../auth/domain/user.dart';
+import '../../company/domain/active_company_provider.dart';
+import '../../company/domain/company_memberships_provider.dart';
 import '../../company_context/domain/company_context_controller.dart';
 import '../../pricing/domain/price_resolver.dart';
 import '../data/product_repository.dart';
 import '../domain/product.dart';
 
-final productsProvider =
-    FutureProvider.autoDispose<List<Product>>((ref) async {
-  final repo = ProductRepository();
-  return repo.getAllProducts();
+class ProductsFeed {
+  final List<Product> products;
+  final bool isFromCache;
+  final bool hasPendingWrites;
+
+  const ProductsFeed({
+    required this.products,
+    required this.isFromCache,
+    required this.hasPendingWrites,
+  });
+}
+
+final productsProvider = StreamProvider.autoDispose<ProductsFeed>((ref) {
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) {
+    return const Stream<ProductsFeed>.empty();
+  }
+
+  final refs = ref.watch(firestoreRefsProvider);
+
+  return refs.productsRef(companyId).snapshots().map((snap) {
+    final products = snap.docs
+        .map((d) => d.data())
+        .where((p) => !p.meta.isDeleted)
+        .toList(growable: false);
+
+    final hasPendingWrites =
+        snap.metadata.hasPendingWrites || snap.docs.any((d) => d.metadata.hasPendingWrites);
+
+    return ProductsFeed(
+      products: products,
+      isFromCache: snap.metadata.isFromCache,
+      hasPendingWrites: hasPendingWrites,
+    );
+  });
 });
 
 class ProductsPage extends ConsumerStatefulWidget {
@@ -158,20 +191,19 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
               onPressed: () async {
-                final created = await showDialog<bool>(
+                await showDialog<bool>(
                   context: context,
                   builder: (context) => const EditProductDialog(),
                 );
-                if (created == true) {
-                  ref.invalidate(productsProvider);
-                }
               },
               icon: const Icon(Icons.add_box_outlined),
               label: const Text('Ürün Ekle'),
             )
           : null,
       body: productsAsync.when(
-        data: (products) {
+        data: (feed) {
+          final products = feed.products;
+
           if (products.isEmpty) {
             return const Center(
               child: Text('Henüz ürün yok'),
@@ -200,49 +232,36 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
 
           return CustomScrollView(
             slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 16,
-                ),
-                sliver: SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SearchBarHeaderDelegate(
-                    minHeight: 56,
-                    maxHeight: 56,
-                    child: TextField(
-                      controller: _searchController,
-                      textInputAction: TextInputAction.search,
-                      onChanged: _onSearchChanged,
-                      decoration: InputDecoration(
-                        hintText: 'Ürünlerde ara...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              onPressed: _openBarcodeScanner,
-                              icon: const Icon(
-                                Icons.qr_code_scanner_outlined,
-                              ),
-                              tooltip: 'Barkod Oku',
+              if (feed.isFromCache || feed.hasPendingWrites)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Row(
+                      children: [
+                        if (feed.isFromCache)
+                          const Text(
+                            'Offline cache',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange,
+                              fontWeight: FontWeight.w600,
                             ),
-                            if (_searchQuery.isNotEmpty)
-                              IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: _clearSearch,
-                              ),
-                          ],
-                        ),
-                        border: const OutlineInputBorder(),
-                        filled: true,
-                      ),
+                          ),
+                        if (feed.isFromCache && feed.hasPendingWrites)
+                          const SizedBox(width: 8),
+                        if (feed.hasPendingWrites)
+                          const Text(
+                            'Senkronize ediliyor…',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blueGrey,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 12)),
               SliverPadding(
                 padding: const EdgeInsets.only(
                   left: 16,
@@ -348,10 +367,11 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                                           Icons.delete_outline,
                                         ),
                                         onPressed: () async {
-                                          final repo = ProductRepository();
-                                          await repo
-                                              .deleteProduct(product.id);
-                                          ref.invalidate(productsProvider);
+                                          final companyId = ref.read(activeCompanyIdProvider);
+                                          if (companyId == null) return;
+
+                                          final repo = ref.read(productsRepositoryProvider);
+                                          await repo.deleteProduct(companyId, product.id);
                                         },
                                       ),
                                     ),
@@ -788,6 +808,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
 
     if (widget.existing == null) {
       await repo.createProduct(
+        companyId: companyId,
         name: name,
         brand: brand,
         barcode: barcode,
@@ -823,7 +844,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
         externalTotal: _externalTotal ?? widget.existing!.externalTotal,
         externalDate: _externalDate ?? widget.existing!.externalDate,
       );
-      await repo.updateProduct(updated);
+      await repo.updateProduct(companyId, updated);
     }
 
     if (!mounted) return;

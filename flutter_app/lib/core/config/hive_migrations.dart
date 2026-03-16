@@ -7,7 +7,7 @@ class HiveMigrations {
   static const _uuid = Uuid();
 
   static Future<void> runAll() async {
-    await _ensureIdsInBox('products');
+    
     await _ensureIdsInBox('customers');
     await _ensureIdsInBox('suppliers');
     await _ensureIdsInBox('customer_ledger');

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 /// Ortak denetim (audit) ve soft-state alanlarını temsil eder.
@@ -106,6 +107,24 @@ class AuditMeta {
     };
   }
 
+  /// Firestore için Timestamp tabanlı Map üretir.
+  ///
+  /// Offline-first davranış için serverTimestamp yerine istemci zamanı kullanır.
+  Map<String, dynamic> toFirestoreMap() {
+    return {
+      'createdDate': Timestamp.fromDate(createdDate),
+      'createdBy': createdBy,
+      'modifiedDate': Timestamp.fromDate(modifiedDate),
+      'modifiedBy': modifiedBy,
+      'versionNo': versionNo,
+      'versionDate': Timestamp.fromDate(versionDate),
+      'isLocked': isLocked,
+      'isVisible': isVisible,
+      'isActived': isActived,
+      'isDeleted': isDeleted,
+    };
+  }
+
   /// Eski kayıtlardan meta alanlarını okur.
   /// Eksik alanlar için güvenli varsayılanlar kullanır.
   factory AuditMeta.fromMap(
@@ -118,27 +137,35 @@ class AuditMeta {
     DateTime createdDate;
     final createdDateRaw = map['createdDate'];
     if (createdDateRaw is int) {
-      createdDate =
-          DateTime.fromMillisecondsSinceEpoch(createdDateRaw);
+      createdDate = DateTime.fromMillisecondsSinceEpoch(createdDateRaw);
+    } else if (createdDateRaw is Timestamp) {
+      createdDate = createdDateRaw.toDate();
+    } else if (createdDateRaw is DateTime) {
+      createdDate = createdDateRaw;
     } else {
       // Eski şemalarda createdAt varsa onu kullan.
       final createdAtRaw = map['createdAt'];
       if (createdAtRaw is int) {
-        createdDate =
-            DateTime.fromMillisecondsSinceEpoch(createdAtRaw);
+        createdDate = DateTime.fromMillisecondsSinceEpoch(createdAtRaw);
+      } else if (createdAtRaw is Timestamp) {
+        createdDate = createdAtRaw.toDate();
+      } else if (createdAtRaw is DateTime) {
+        createdDate = createdAtRaw;
       } else if (fallbackCreatedAt != null) {
         createdDate = fallbackCreatedAt;
       } else {
-        createdDate =
-            DateTime.fromMillisecondsSinceEpoch(0); // epoch
+        createdDate = DateTime.fromMillisecondsSinceEpoch(0); // epoch
       }
     }
 
     DateTime modifiedDate;
     final modifiedDateRaw = map['modifiedDate'];
     if (modifiedDateRaw is int) {
-      modifiedDate =
-          DateTime.fromMillisecondsSinceEpoch(modifiedDateRaw);
+      modifiedDate = DateTime.fromMillisecondsSinceEpoch(modifiedDateRaw);
+    } else if (modifiedDateRaw is Timestamp) {
+      modifiedDate = modifiedDateRaw.toDate();
+    } else if (modifiedDateRaw is DateTime) {
+      modifiedDate = modifiedDateRaw;
     } else {
       modifiedDate = createdDate;
     }
@@ -146,8 +173,11 @@ class AuditMeta {
     DateTime versionDate;
     final versionDateRaw = map['versionDate'];
     if (versionDateRaw is int) {
-      versionDate =
-          DateTime.fromMillisecondsSinceEpoch(versionDateRaw);
+      versionDate = DateTime.fromMillisecondsSinceEpoch(versionDateRaw);
+    } else if (versionDateRaw is Timestamp) {
+      versionDate = versionDateRaw.toDate();
+    } else if (versionDateRaw is DateTime) {
+      versionDate = versionDateRaw;
     } else {
       versionDate = modifiedDate;
     }
