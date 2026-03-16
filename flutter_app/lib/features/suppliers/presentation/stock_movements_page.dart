@@ -13,8 +13,11 @@ import '../domain/supplier.dart';
 
 final stockMovementsProvider =
     FutureProvider.autoDispose<List<StockEntry>>((ref) async {
-  final stockRepo = StockEntryRepository(ProductRepository());
-  return stockRepo.getAllEntries();
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) return <StockEntry>[];
+
+  final stockRepo = ref.watch(stockEntryRepositoryProvider);
+  return stockRepo.getAllEntries(companyId);
 });
 
 class StockMovementsPage extends ConsumerWidget {
@@ -125,7 +128,7 @@ class StockMovementsPage extends ConsumerWidget {
   }
 
   final productRepo = ref.read(productsRepositoryProvider);
-  final supplierRepo = SupplierRepository();
+  final supplierRepo = ref.read(supplierRepositoryProvider);
 
     final productIds = entries.map((e) => e.productId).toSet();
     final supplierIds = entries
@@ -134,7 +137,7 @@ class StockMovementsPage extends ConsumerWidget {
         .toSet();
 
     final products = await productRepo.getAllProducts(companyId);
-    final suppliers = await supplierRepo.getAllSuppliers();
+    final suppliers = await supplierRepo.getAllSuppliers(companyId);
 
     final productsById = <String, Product>{
       for (final p in products.where((p) => productIds.contains(p.id)))

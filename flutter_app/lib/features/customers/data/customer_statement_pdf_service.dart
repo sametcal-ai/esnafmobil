@@ -38,6 +38,7 @@ class CustomerStatementPdfService {
   /// [start]: Tarih aralığı başlangıcı.
   /// [end]: Tarih aralığı bitişi.
   Future<Uint8List> generateStatementPdf({
+    required String companyId,
     required Customer customer,
     required double previousBalance,
     required List<CustomerLedgerEntry> entries,
@@ -68,7 +69,7 @@ class CustomerStatementPdfService {
       // saleIds boşsa gereksiz repository çağrısı yapma.
       final salesById = saleIds.isEmpty
           ? <String, Sale>{}
-          : await _salesRepository.getSalesByIds(saleIds);
+          : await _salesRepository.getSalesByIds(companyId, saleIds);
 
       // Dönem özeti hesapları (NaN oluşmasını engellemek için güvenli toplama).
       double periodSalesTotal = 0;

@@ -136,6 +136,36 @@ class CustomerLedgerRepository {
     }
     return balance;
   }
+
+  Future<double> getBalanceForCustomerBefore(
+    String companyId,
+    String customerId,
+    DateTime before,
+  ) async {
+    final entries = await getEntriesForCustomer(companyId, customerId);
+    double balance = 0;
+    for (final entry in entries) {
+      if (!entry.createdAt.isBefore(before)) continue;
+      if (entry.type == LedgerEntryType.sale) {
+        balance += entry.amount;
+      } else {
+        balance -= entry.amount;
+      }
+    }
+    return balance;
+  }
+
+  Future<List<CustomerLedgerEntry>> getEntriesForCustomerInDateRange(
+    String companyId,
+    String customerId, {
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final entries = await getEntriesForCustomer(companyId, customerId);
+    return entries
+        .where((e) => !e.createdAt.isBefore(start) && !e.createdAt.isAfter(end))
+        .toList(growable: false);
+  }
 }
 
 final customerLedgerRepositoryProvider = Provider<CustomerLedgerRepository>((ref) {

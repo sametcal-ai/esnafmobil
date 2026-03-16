@@ -55,6 +55,7 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
 
     setState(() {
       _controller = SupplierDetailController(
+        companyId: companyId,
         supplier: supplier,
         ledgerRepository: ledgerRepo,
       );
@@ -72,12 +73,26 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
 
     if (updated == null) return;
 
-    final companydateSupplier(updated);
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
+    final saved = await repo.updateSupplier(companyId, updated);
     if (!mounted) return;
+
+    if (saved == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tedarikçi güncellenemedi'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _controller = SupplierDetailController(
-        supplier: updated,
+        companyId: companyId,
+        supplier: saved,
         ledgerRepository: ref.read(supplierLedgerRepositoryProvider),
       );
     });
@@ -218,7 +233,7 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
     final stockRepo = StockEntryRepository(ProductRepository());
     final productRepo = ProductRepository();
 
-    final allEntries = await stockRepo.getAllEntries();
+    final allEntries = await stockRepo.getAllEntries(companyId);
     final relevant = allEntries.where(
       (e) =>
           e.type == StockMovementType.incoming &&

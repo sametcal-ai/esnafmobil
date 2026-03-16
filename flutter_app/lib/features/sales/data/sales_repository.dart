@@ -168,6 +168,24 @@ class SalesRepository {
     return sale;
   }
 
+  Future<Map<String, Sale>> getSalesByIds(
+    String companyId,
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty) return <String, Sale>{};
+
+    final uniqueIds = ids.toSet().toList(growable: false);
+    final sales = await Future.wait(
+      uniqueIds.map((id) => getSaleById(companyId, id)),
+    );
+
+    final map = <String, Sale>{};
+    for (final sale in sales.whereType<Sale>()) {
+      map[sale.id] = sale;
+    }
+    return map;
+  }
+
   Future<String> createSale({
     required String companyId,
     String? customerId,

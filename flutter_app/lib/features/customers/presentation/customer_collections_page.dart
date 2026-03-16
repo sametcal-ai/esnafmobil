@@ -108,11 +108,17 @@ class _CustomerCollectionsPageState
     final companyId = ref.read(activeCompanyIdProvider);
     if (companyId == null) return;
 
+    final note = _noteController.text.trim();
+    final fullNote = [
+      _selectedMethod.trim(),
+      if (note.isNotEmpty) note,
+    ].join(' - ');
+
     await ledgerRepo.addPaymentEntry(
       companyId: companyId,
       customer: customer,
       amount: amount,
-      note: note.isEmpty ? null : note,
+      note: fullNote.isEmpty ? null : fullNote,
     );
 
     if (!mounted) return;

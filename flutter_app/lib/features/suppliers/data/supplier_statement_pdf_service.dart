@@ -47,7 +47,7 @@ class SupplierStatementPdfService {
     final stockRepo = StockEntryRepository(ProductRepository());
     final productRepo = ProductRepository();
 
-    final stockEntries = await stockRepo.getAllEntries();
+    final stockEntries = await stockRepo.getAllEntries(companyId);
     final supplierStocks = stockEntries.where(
       (e) =>
           e.type == StockMovementType.incoming &&
