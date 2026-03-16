@@ -1,0 +1,136 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function memberPath(companyId, uid) {
+      return /databases/$(database)/documents/companies/$(companyId)/members/$(uid);
+    }
+
+    function myMemberPath(companyId) {
+      return memberPath(companyId, request.auth.uid);
+    }
+
+    function memberDoc(companyId) {
+      return get(myMemberPath(companyId));
+    }
+
+    function isMember(companyId) {
+      return isSignedIn() && exists(myMemberPath(companyId)) && memberDoc(companyId).data.status == 'active';
+    }
+
+    function isAdmin(companyId) {
+      return isMember(companyId) && memberDoc(companyId).data.role == 'admin';
+    }
+
+    function isCashier(companyId) {
+      return isMember(companyId) && memberDoc(companyId).data.role == 'cashier';
+    }
+
+    function deniesMemberSensitiveFieldWrites() {
+      // Client must not be able to change role/status/permissions/storeIds.
+      return !('role' in request.resource.data) &&
+        !('status' in request.resource.data) &&
+        !('permissions' in request.resource.data) &&
+        !('storeIds' in request.resource.data);
+    }
+
+    function unchangedMemberSensitiveFields() {
+      return request.resource.data.role == resource.data.role &&
+        request.resource.data.status == resource.data.status &&
+        request.resource.data.permissions == resource.data.permissions &&
+        request.resource.data.storeIds == resource.data.storeIds;
+    }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(keys);
+    }
+
+    match /companies/{companyId} {
+      allow read: if isMember(companyId);
+      allow write: if isAdmin(companyId);
+
+      match /members/{uid} {
+        allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin(companyId));
+
+        // Self-application (create) is allowed, but must be "pending".
+        // Role/status are intentionally constrained here.
+        allow create: if isSignedIn()
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly([
+            'role',
+            'status',
+            'permissions',
+            'storeIds',
+            'createdAt',
+            'lastSeenAt'
+          ])
+          && request.resource.data.status == 'pending'
+          && request.resource.data.role in ['cashier']
+          && (!('permissions' in request.resource.data) || ((request.resource.data.permissions is list) && request.resource.data.permissions.size() == 0))
+          && (!('storeIds' in request.resource.data) || ((request.resource.data.storeIds is list) && request.resource.data.storeIds.size() == 0));
+
+        // By default, client cannot update member docs except harmless self updates.
+        // Admin + Cloud Functions should do approvals/role changes (Admin SDK bypasses rules).
+        allow update: if isSignedIn()
+          && request.auth.uid == uid
+          && unchangedMemberSensitiveFields()
+          && onlyChanges(['lastSeenAt']);
+
+        allow delete: if false;
+      }
+
+      match /products/{productId} {
+        allow read: if isMember(companyId);
+        allow write: if isAdmin(companyId);
+      }
+
+      match /customers/{customerId} {
+        allow read: if isMember(companyId);
+        allow write: if isAdmin(companyId);
+
+        match /ledger/{entryId} {
+          allow read: if isMember(companyId);
+          allow create: if isAdmin(companyId) || isCashier(companyId);
+          allow update, delete: if isAdmin(companyId);
+        }
+      }
+
+      match /suppliers/{supplierId} {
+        allow read: if isMember(companyId);
+        allow write: if isAdmin(companyId);
+
+        match /ledger/{entryId} {
+          allow read: if isMember(companyId);
+          allow create: if isAdmin(companyId) || isCashier(companyId);
+          allow update, delete: if isAdmin(companyId);
+        }
+      }
+
+      match /sales/{saleId} {
+        allow read: if isMember(companyId);
+        allow create: if isAdmin(companyId) || isCashier(companyId);
+        allow update, delete: if isAdmin(companyId);
+      }
+
+      match /stockEntries/{entryId} {
+        allow read: if isMember(companyId);
+        allow create: if isAdmin(companyId) || isCashier(companyId);
+        allow update, delete: if isAdmin(companyId);
+      }
+
+      match /alerts/{alertId} {
+        allow read: if isAdmin(companyId);
+        allow write: if false;
+      }
+
+      // Default deny for any other subcollections until explicitly opened.
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+  }
+}
