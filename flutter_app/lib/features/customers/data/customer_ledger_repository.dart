@@ -1,22 +1,22 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
+import '../../company/domain/company_memberships_provider.dart';
 import '../domain/customer.dart';
 import '../domain/customer_ledger.dart';
-import 'customer_repository.dart';
 
 class CustomerLedgerRepository {
-  static const String ledgerBoxName = 'customer_ledger';
   static const _uuid = Uuid();
 
-  Box get _ledgerBox => Hive.box(ledgerBoxName);
+  CustomerLedgerRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
 
-  final CustomerRepository _customerRepository;
-
-  CustomerLedgerRepository(this._customerRepository);
+  final FirestoreRefs _refs;
 
   Future<CustomerLedgerEntry> addSaleEntry({
+    required String companyId,
     required Customer customer,
     required double amount,
     String? note,
@@ -26,10 +26,8 @@ class CustomerLedgerRepository {
     final now = DateTime.now();
     final id = _uuid.v4();
     final actor = currentUserId ?? 'system';
-    final meta = AuditMeta.create(
-      createdBy: actor,
-      now: now,
-    );
+    final meta = AuditMeta.create(createdBy: actor, now: now);
+
     final entry = CustomerLedgerEntry(
       id: id,
       customerId: customer.id,
@@ -40,21 +38,30 @@ class CustomerLedgerRepository {
       saleId: saleId,
       meta: meta,
     );
-    await _ledgerBox.put(id, entry.toMap());
+
+    await _refs.customerLedger(companyId, customer.id).doc(id).set(
+      {
+        ...entry.toMap(),
+        'createdAt': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+
     return entry;
   }
 
   Future<CustomerLedgerEntry> addPaymentEntry({
+    required String companyId,
     required Customer customer,
     required double amount,
     String? note,
+    String? currentUserId,
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final meta = AuditMeta.create(
-      createdBy: customer.id,
-      now: now,
-    );
+    final actor = currentUserId ?? 'system';
+    final meta = AuditMeta.create(createdBy: actor, now: now);
+
     final entry = CustomerLedgerEntry(
       id: id,
       customerId: customer.id,
@@ -65,30 +72,48 @@ class CustomerLedgerRepository {
       saleId: null,
       meta: meta,
     );
-    await _ledgerBox.put(id, entry.toMap());
+
+    await _refs.customerLedger(companyId, customer.id).doc(id).set(
+      {
+        ...entry.toMap(),
+        'createdAt': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+
     return entry;
   }
 
   Future<List<CustomerLedgerEntry>> getEntriesForCustomer(
+    String companyId,
     String customerId,
   ) async {
-    final entries = _ledgerBox.values
-        .whereType<Map>()
-        .where(isActiveRecordMap)
-        .map((map) => CustomerLedgerEntry.fromMap(map))
-        .where((entry) => entry.customerId == customerId)
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final snap = await _refs
+        .customerLedger(companyId, customerId)
+        .orderBy('createdAt', descending: true)
+        .get();
 
-    return entries;
+    return snap.docs
+        .map((d) => d.data())
+        .whereType<Map<String, dynamic>>()
+        .map((m) {
+          final createdAt = m['createdAt'];
+          if (createdAt is Timestamp) {
+            m['createdAt'] = createdAt.toDate().millisecondsSinceEpoch;
+          }
+          return CustomerLedgerEntry.fromMap(m);
+        })
+        .where((e) => !e.meta.isDeleted)
+        .toList(growable: false);
   }
 
   Future<List<CustomerLedgerEntry>> getEntriesForCustomerPaged(
+    String companyId,
     String customerId, {
     required int offset,
     required int limit,
   }) async {
-    final all = await getEntriesForCustomer(customerId);
+    final all = await getEntriesForCustomer(companyId, customerId);
     if (offset >= all.length) {
       return <CustomerLedgerEntry>[];
     }
@@ -96,36 +121,11 @@ class CustomerLedgerRepository {
     return all.sublist(offset, end);
   }
 
-  Future<List<CustomerLedgerEntry>> getEntriesForCustomerInDateRange(
-    String customerId, {
-    required DateTime start,
-    required DateTime end,
-  }) async {
-    final all = await getEntriesForCustomer(customerId);
-    return all
-        .where((e) =>
-            !e.createdAt.isBefore(start) && !e.createdAt.isAfter(end))
-        .toList();
-  }
-
-  Future<double> getBalanceForCustomerBefore(
+  Future<double> getBalanceForCustomer(
+    String companyId,
     String customerId,
-    DateTime before,
   ) async {
-    final all = await getEntriesForCustomer(customerId);
-    double balance = 0;
-    for (final entry in all.where((e) => e.createdAt.isBefore(before))) {
-      if (entry.type == LedgerEntryType.sale) {
-        balance += entry.amount;
-      } else {
-        balance -= entry.amount;
-      }
-    }
-    return balance;
-  }
-
-  Future<double> getBalanceForCustomer(String customerId) async {
-    final entries = await getEntriesForCustomer(customerId);
+    final entries = await getEntriesForCustomer(companyId, customerId);
     double balance = 0;
     for (final entry in entries) {
       if (entry.type == LedgerEntryType.sale) {
@@ -137,3 +137,8 @@ class CustomerLedgerRepository {
     return balance;
   }
 }
+
+final customerLedgerRepositoryProvider = Provider<CustomerLedgerRepository>((ref) {
+  final refs = ref.watch(firestoreRefsProvider);
+  return CustomerLedgerRepository(refs);
+});
