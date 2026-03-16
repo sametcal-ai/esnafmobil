@@ -7,14 +7,19 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../auth/domain/user.dart';
-import '../../company_context/domain/company_context_controller.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
+import '../../company/domain/active_company_provider.dart';
 import '../data/customer_repository.dart';
 import '../domain/customer.dart';
 
-final customersProvider =
-    FutureProvider.autoDispose<List<Customer>>((ref) async {
-  final repo = CustomerRepository();
-  return repo.getAllCustomers();
+final customersProvider = StreamProvider.autoDispose<List<Customer>>((ref) {
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) {
+    return const Stream<List<Customer>>.empty();
+  }
+
+  final repo = ref.watch(customerRepositoryProvider);
+  return repo.watchCustomers(companyId);
 });
 
 class CustomersPage extends ConsumerStatefulWidget {
@@ -166,14 +171,14 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
   }
 }
 
-class _AddCustomerDialog extends StatefulWidget {
+class _AddCustomerDialog extends ConsumerStatefulWidget {
   const _AddCustomerDialog({super.key});
 
   @override
-  State<_AddCustomerDialog> createState() => _AddCustomerDialogState();
+  ConsumerState<_AddCustomerDialog> createState() => _AddCustomerDialogState();
 }
 
-class _AddCustomerDialogState extends State<_AddCustomerDialog> {
+class _AddCustomerDialogState extends ConsumerState<_AddCustomerDialog> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   bool _isSaving = false;
@@ -187,9 +192,7 @@ class _AddCustomerDialogState extends State<_AddCustomerDialog> {
 
   Future<void> _save() async {
     final name = _nameController.text.trim();
-    final phone = _phoneController.text.trim().isEmpty
-        ? null
-        : _phoneController.text.trim();
+    final phone = _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim();
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -201,14 +204,15 @@ class _AddCustomerDialogState extends State<_AddCustomerDialog> {
       return;
     }
 
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
     setState(() {
       _isSaving = true;
     });
 
-    final repo = CustomerRepository();
-    // Şimdilik current user bilgisine bu dialog içinden erişmiyoruz,
-    // bu nedenle createdBy 'system' olarak kalmaya devam ediyor.
-    await repo.createCustomer(name: name, phone: phone);
+    final repo = ref.read(customerRepositoryProvider);
+    await repo.createCustomer(companyId: companyId, name: name, phone: phone);
 
     if (!mounted) return;
     setState(() {
