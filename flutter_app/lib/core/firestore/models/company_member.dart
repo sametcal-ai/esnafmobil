@@ -19,6 +19,7 @@ class CompanyMember {
 
   Map<String, dynamic> toMap() {
     return {
+      'uid': uid,
       'role': role,
       'status': status,
       'permissions': permissions,
