@@ -40,8 +40,8 @@ class _ProductPurchasesPageState extends ConsumerState<ProductPurchasesPage> {
       return;
     }
 
-    final productRepo = ProductRepository();
-    final stockRepo = StockEntryRepository(ProductRepository());
+    final productRepo = ref.read(productsRepositoryProvider);
+    final stockRepo = ref.read(stockEntryRepositoryProvider);
 
     try {
       final product = await productRepo.getProductById(companyId, widget.productId);
