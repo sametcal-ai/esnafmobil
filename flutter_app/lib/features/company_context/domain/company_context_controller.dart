@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -71,8 +72,12 @@ extension<T> on Iterable<T> {
 }
 
 class CompanyContextController extends StateNotifier<CompanyContextState> {
-  CompanyContextController(this._firestore, this._sessionBox, this._auth)
-      : super(CompanyContextState.initial()) {
+  CompanyContextController(
+    this._firestore,
+    this._sessionBox,
+    this._auth,
+    this._functions,
+  ) : super(CompanyContextState.initial()) {
     _sub = _auth.authStateChanges().listen((user) {
       if (user == null) {
         _clear();
@@ -87,6 +92,7 @@ class CompanyContextController extends StateNotifier<CompanyContextState> {
   final FirebaseFirestore _firestore;
   final Box _sessionBox;
   final FirebaseAuthRepository _auth;
+  final FirebaseFunctions _functions;
   StreamSubscription? _sub;
 
   @override
@@ -100,46 +106,56 @@ class CompanyContextController extends StateNotifier<CompanyContextState> {
     _sessionBox.delete(_activeCompanyKey);
   }
 
+  Future<List<CompanyMembership>> _fallbackMembershipsViaFunction(String uid) async {
+    final callable = _functions.httpsCallable('getMyMemberships');
+    final res = await callable();
+
+    final data = res.data;
+    if (data is! Map) return const <CompanyMembership>[];
+
+    final raw = data['memberships'];
+    if (raw is! List) return const <CompanyMembership>[];
+
+    return raw.map((item) {
+      if (item is! Map) return null;
+
+      final companyId = item['companyId'];
+      final member = item['member'];
+
+      if (companyId is! String || member is! Map) return null;
+
+      final role = (member['role'] as String?) ?? 'cashier';
+
+      return CompanyMembership(
+        companyId: companyId,
+        role: role,
+      );
+    }).whereType<CompanyMembership>().toList(growable: false);
+  }
+
   Future<void> _loadMemberships(String uid) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      final snap = await _firestore
-          .collectionGroup('members')
-          .where('uid', isEqualTo: uid)
-          .get();
+      final snap = await _firestore.collectionGroup('members').where('uid', isEqualTo: uid).get();
 
       final memberships = <CompanyMembership>[];
       for (final doc in snap.docs) {
         final parent = doc.reference.parent.parent;
         if (parent == null) continue;
         final role = (doc.data()['role'] as String?) ?? 'cashier';
-        memberships.add(
-          CompanyMembership(
-            companyId: parent.id,
-            role: role,
-          ),
-        );
+        memberships.add(CompanyMembership(companyId: parent.id, role: role));
       }
 
-      final stored = _sessionBox.get(_activeCompanyKey);
-      final storedCompanyId = stored is String && stored.isNotEmpty ? stored : null;
-
-      String? active;
-      if (storedCompanyId != null && memberships.any((m) => m.companyId == storedCompanyId)) {
-        active = storedCompanyId;
-      } else if (memberships.isNotEmpty) {
-        active = memberships.first.companyId;
-        await _sessionBox.put(_activeCompanyKey, active);
+      await _setMembershipsAndActive(memberships);
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        final memberships = await _fallbackMembershipsViaFunction(uid);
+        await _setMembershipsAndActive(memberships);
+        return;
       }
-
-      state = state.copyWith(
-        isLoading: false,
-        memberships: memberships,
-        activeCompanyId: active,
-        errorMessage: memberships.isEmpty ? 'Bu kullanıcı hiçbir firmaya üye değil' : null,
-      );
-    } catch (e) {
+      rethrow;
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
         memberships: const <CompanyMembership>[],
@@ -147,6 +163,26 @@ class CompanyContextController extends StateNotifier<CompanyContextState> {
         errorMessage: 'Firma üyelikleri okunamadı',
       );
     }
+  }
+
+  Future<void> _setMembershipsAndActive(List<CompanyMembership> memberships) async {
+    final stored = _sessionBox.get(_activeCompanyKey);
+    final storedCompanyId = stored is String && stored.isNotEmpty ? stored : null;
+
+    String? active;
+    if (storedCompanyId != null && memberships.any((m) => m.companyId == storedCompanyId)) {
+      active = storedCompanyId;
+    } else if (memberships.isNotEmpty) {
+      active = memberships.first.companyId;
+      await _sessionBox.put(_activeCompanyKey, active);
+    }
+
+    state = state.copyWith(
+      isLoading: false,
+      memberships: memberships,
+      activeCompanyId: active,
+      errorMessage: memberships.isEmpty ? 'Bu kullanıcı hiçbir firmaya üye değil' : null,
+    );
   }
 
   Future<void> setActiveCompany(String companyId) async {
@@ -165,6 +201,10 @@ final firebaseFirestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
 });
 
+final firebaseFunctionsProvider = Provider<FirebaseFunctions>((ref) {
+  return FirebaseFunctions.instance;
+});
+
 final sessionBoxProvider = Provider<Box>((ref) {
   return Hive.box('session');
 });
@@ -174,8 +214,9 @@ final companyContextProvider =
   final firestore = ref.watch(firebaseFirestoreProvider);
   final sessionBox = ref.watch(sessionBoxProvider);
   final authRepo = ref.watch(firebaseAuthRepositoryProvider);
+  final functions = ref.watch(firebaseFunctionsProvider);
 
-  return CompanyContextController(firestore, sessionBox, authRepo);
+  return CompanyContextController(firestore, sessionBox, authRepo, functions);
 });
 
 final activeCompanyIdProvider = Provider<String?>((ref) {
