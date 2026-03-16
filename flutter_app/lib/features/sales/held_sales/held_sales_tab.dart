@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_scaffold.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../domain/pos_controller.dart';
 import 'held_sale_card.dart';
 import 'held_sales_provider.dart';
@@ -12,38 +13,47 @@ class HeldSalesTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final heldSales = ref.watch(heldSalesControllerProvider);
+    final heldSalesAsync = ref.watch(heldSalesProvider);
 
     return AppScaffold(
       title: 'Bekleyen Satışlar',
-      body: heldSales.isEmpty
-          ? const Center(
-              child: Text('Bekleyen satış yok'),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.1,
-              ),
-              itemCount: heldSales.length,
-              itemBuilder: (context, index) {
-                final sale = heldSales[index];
-                return HeldSaleCard(
-                  sale: sale,
-                  onTap: () => _openSale(context, ref, sale.id),
-                  onLongPress: () => _showMenu(context, ref, sale.id),
+      body: heldSalesAsync.when(
+        data: (heldSales) {
+          return heldSales.isEmpty
+              ? const Center(
+                  child: Text('Bekleyen satış yok'),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.1,
+                  ),
+                  itemCount: heldSales.length,
+                  itemBuilder: (context, index) {
+                    final sale = heldSales[index];
+                    return HeldSaleCard(
+                      sale: sale,
+                      onTap: () => _openSale(context, ref, sale.id),
+                      onLongPress: () => _showMenu(context, ref, sale.id),
+                    );
+                  },
                 );
-              },
-            ),
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(child: Text('Bekleyen satışlar okunamadı')),
+      ),
     );
   }
 
   Future<void> _openSale(BuildContext context, WidgetRef ref, String id) async {
-    final heldSalesController = ref.read(heldSalesControllerProvider.notifier);
-    final sale = await heldSalesController.takeSale(id);
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
+    final repo = ref.read(heldSalesRepositoryProvider);
+    final sale = await repo.takeSale(companyId, id);
     if (sale == null) return;
 
     ref.read(posControllerProvider.notifier).loadCartItems(sale.items);
@@ -108,7 +118,9 @@ class HeldSalesTab extends ConsumerWidget {
       );
 
       if (confirmed == true) {
-        await ref.read(heldSalesControllerProvider.notifier).deleteSale(id);
+        final companyId = ref.read(activeCompanyIdProvider);
+        if (companyId == null) return;
+        await ref.read(heldSalesRepositoryProvider).deleteSale(companyId, id);
       }
     }
   }
