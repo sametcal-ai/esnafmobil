@@ -13,7 +13,7 @@ import '../../../services/jojapi_external_search_service.dart';
 import '../../auth/domain/user.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../company/domain/company_memberships_provider.dart';
-import '../../company_context/domain/company_context_controller.dart' hide activeCompanyIdProvider;
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
 import '../../pricing/domain/price_resolver.dart';
 import '../data/product_repository.dart';
 import '../domain/product.dart';
