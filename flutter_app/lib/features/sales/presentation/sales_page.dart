@@ -9,6 +9,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
+import '../../company/domain/active_company_provider.dart';
 import '../../customers/data/customer_repository.dart';
 import '../../customers/data/customer_ledger_repository.dart';
 import '../../customers/domain/customer.dart';
@@ -96,8 +97,11 @@ class _SalesPageState extends ConsumerState<SalesPage> {
     setState(() {
       _customersLoading = true;
     });
-    final repo = CustomerRepository();
-    final customers = await repo.getAllCustomers();
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
+    final repo = ref.read(customerRepositoryProvider);
+    final customers = await repo.getAllCustomers(companyId);
     if (!mounted) return;
     setState(() {
       _customers = customers;
@@ -552,8 +556,12 @@ class _SalesPageState extends ConsumerState<SalesPage> {
       return;
     }
 
-    final ledgerRepo = CustomerLedgerRepository(CustomerRepository());
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
+    final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
     await ledgerRepo.addSaleEntry(
+      companyId: companyId,
       customer: _selectedCustomer!,
       amount: posState.total,
       note: 'POS veresiye satış',
