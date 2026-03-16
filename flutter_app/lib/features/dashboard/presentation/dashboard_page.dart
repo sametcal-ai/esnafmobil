@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_scaffold.dart';
 import '../../auth/domain/user.dart';
-import '../../company_context/domain/company_context_controller.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
