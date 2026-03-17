@@ -7,7 +7,9 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/config/money_formatter.dart';
 import '../domain/product.dart';
-import '../presentation/product_movements_page.dart' show Pro</old_code><new_code>class ProductStatementPdfService {
+import '../presentation/product_movements_page.dart' show ProductMovementForPdf;
+
+class ProductStatementPdfService {
   ProductStatementPdfService();
 
   Future<pw.Font> _loadTtfFont(String assetPath) async {
