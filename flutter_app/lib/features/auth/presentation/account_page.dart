@@ -45,7 +45,7 @@ class AccountPage extends ConsumerWidget {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                ref.read(activeCompanyIdProvider.notifier).state = null;
+                ref.read(activeCompanyIdProvider.notifier).clear();
               },
               child: const Text('Firma Değiştir'),
             ),
