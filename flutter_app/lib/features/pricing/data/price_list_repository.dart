@@ -141,11 +141,18 @@ class PriceListRepository {
         .limit(1)
         .get();
 
-    final DocumentReference<PriceList>? prevRef = prevActiveSnap.docs.isEmpty
-        ? null
-        : prevActiveSnap.docs.first.reference;
+    final String? prevId =
+        prevActiveSnap.docs.isEmpty ? null : prevActiveSnap.docs.first.id;
 
-    final nextRef = _refs.priceListsRef(companyId).doc(priceListId);
+    // Transaction.set, typed DocumentReference (withConverter) ile çalışırken
+    // T tipini PriceList bekler. Burada Map yazdığımız için raw ref kullanıyoruz.
+    final rawCol = FirebaseFirestore.instance
+        .collection('companies')
+        .doc(companyId)
+        .collection('priceLists');
+
+    final prevRef = prevId == null ? null : rawCol.doc(prevId);
+    final nextRef = rawCol.doc(priceListId);
 
     final db = FirebaseFirestore.instance;
     await db.runTransaction((tx) async {
@@ -196,6 +203,72 @@ class PriceListRepository {
       sourcePriceListId: prev.id,
       currentUserId: actor,
     );
+  }
+
+  Future<void> updatePriceList({
+    required String companyId,
+    required String priceListId,
+    required String name,
+    required DateTime startDate,
+    required DateTime endDate,
+    required PriceListType type,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    await _refs.priceListsRef(companyId).doc(priceListId).set(
+      {
+        'name': name,
+        'startDate': Timestamp.fromDate(startDate),
+        'endDate': Timestamp.fromDate(endDate),
+        'type': type.name,
+        'modifiedBy': actor,
+        'modifiedDate': Timestamp.fromDate(now),
+        'versionNo': FieldValue.increment(1),
+        'versionDate': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> syncMissingItemsFromProductsWithMargin({
+    required String companyId,
+    required String priceListId,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+
+    final products = await _productRepo.getAllProducts(companyId);
+    final existingSnap = await _refs.priceListItemsRef(companyId, priceListId).get();
+    final existingIds = existingSnap.docs.map((d) => d.id).toSet();
+
+    final batch = FirebaseFirestore.instance.batch();
+    final now = DateTime.now();
+
+    for (final p in products) {
+      if (existingIds.contains(p.id)) continue;
+
+      final computedSale = p.lastPurchasePrice * (1 + (p.marginPercent / 100));
+
+      final item = PriceListItem(
+        id: p.id,
+        productId: p.id,
+        purchasePrice: p.lastPurchasePrice,
+        salePrice: computedSale,
+        isInherited: false,
+        inheritedFromPriceListId: null,
+        meta: AuditMeta.create(createdBy: actor, now: now),
+      );
+
+      batch.set(
+        _refs.priceListItemsRef(companyId, priceListId).doc(p.id),
+        item,
+        SetOptions(merge: true),
+      );
+    }
+
+    await batch.commit();
   }
 
   Future<PriceList?> ensureActiveForNow(String companyId) async {
