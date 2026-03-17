@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
@@ -8,7 +9,12 @@ import '../../auth/domain/firebase_auth_controller.dart';
 import 'company_membership.dart';
 
 final firebaseFunctionsProvider = Provider<FirebaseFunctions>((ref) {
-  return FirebaseFunctions.instance;
+  // Use an explicit app+region binding to avoid mismatches where some calls go to
+  // a different Firebase app instance or default region.
+  return FirebaseFunctions.instanceFor(
+    app: Firebase.app(),
+    region: 'us-central1',
+  );
 });
 
 final companyMembershipsSnapshotProvider =
