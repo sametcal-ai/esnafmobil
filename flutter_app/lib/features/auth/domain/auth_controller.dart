@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/firebase_auth_repository.dart';
 
@@ -39,20 +39,25 @@ class AuthState {
   }
 }
 
-class AuthController extends StateNotifier<AuthState> {
-  final FirebaseAuthRepository _repository;
+class AuthController extends Notifier<AuthState> {
+  late FirebaseAuthRepository _repository;
   StreamSubscription<fb.User?>? _sub;
 
-  AuthController(this._repository) : super(AuthState.initial()) {
+  @override
+  AuthState build() {
+    _repository = ref.watch(firebaseAuthRepositoryProvider);
+
+    _sub?.cancel();
     _sub = _repository.authStateChanges().listen((user) {
       state = state.copyWith(firebaseUser: user, errorMessage: null);
     });
-  }
 
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
+    ref.onDispose(() {
+      _sub?.cancel();
+      _sub = null;
+    });
+
+    return AuthState.initial();
   }
 
   Future<bool> login(String email, String password) async {
@@ -127,11 +132,6 @@ final firebaseAuthProvider = Provider<fb.FirebaseAuth>((ref) {
 
 final firebaseAuthRepositoryProvider = Provider<FirebaseAuthRepository>((ref) {
   final auth = ref.watch(firebaseAuthProvider);
-  return FirebaseAuthRepository(auth);
-});
-
-final authControllerProvider =
-    StateNotifierProvider<AuthController, AuthState>((ref) {
-  final repo = ref.watch(firebaseAuthRepositoryProvider);
-  return AuthController(repo);
-});
+  return FirebaseAuthRe</old_code><new_code>final authControllerProvider = NotifierProvider<AuthController, AuthState>(
+  AuthController.new,
+);

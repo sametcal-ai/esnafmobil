@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter/foundation.dart';
 
 import '../data/supplier_ledger_repository.dart';
 import 'supplier.dart';
@@ -36,7 +36,7 @@ class SupplierDetailState {
   }
 }
 
-class SupplierDetailController extends StateNotifier<SupplierDetailState> {
+class SupplierDetailController extends ValueNotifier<SupplierDetailState> {
   final String companyId;
   final SupplierLedgerRepository _ledgerRepository;
 
@@ -58,7 +58,7 @@ class SupplierDetailController extends StateNotifier<SupplierDetailState> {
   }
 
   Future<void> refresh() async {
-    state = state.copyWith(
+    value = value.copyWith(
       isLoading: true,
       errorMessage: null,
     );
@@ -69,20 +69,20 @@ class SupplierDetailController extends StateNotifier<SupplierDetailState> {
     try {
       final entries = await _ledgerRepository.getEntriesForSupplier(
         companyId,
-        state.supplier.id,
+        value.supplier.id,
       );
       final balance = await _ledgerRepository.getBalanceForSupplier(
         companyId,
-        state.supplier.id,
+        value.supplier.id,
       );
-      state = state.copyWith(
+      value = value.copyWith(
         entries: entries,
         balance: balance,
         isLoading: false,
         errorMessage: null,
       );
     } catch (e) {
-      state = state.copyWith(
+      value = value.copyWith(
         isLoading: false,
         errorMessage: 'Hareketler yüklenemedi',
       );

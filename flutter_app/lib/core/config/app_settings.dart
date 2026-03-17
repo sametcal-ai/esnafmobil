@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 @immutable
@@ -51,15 +51,17 @@ class AppSettings {
   }
 }
 
-class AppSettingsController extends StateNotifier<AppSettings> {
+class AppSettingsController extends Notifier<AppSettings> {
   static const _barcodeDelayKey = 'barcode_scan_delay_seconds';
   static const _defaultMarginKey = 'default_margin_percent';
   static const _productDefaultMarginKey = 'product_default_margin_percent';
   static const _searchFilterMinCharsKey = 'search_filter_min_chars';
   static const _movementsPageSizeKey = 'movements_page_size';
 
-  AppSettingsController() : super(AppSettings.initial()) {
-    _load();
+  @override
+  AppSettings build() {
+    Future.microtask(_load);
+    return AppSettings.initial();
   }
 
   Future<void> _load() async {
@@ -120,6 +122,6 @@ class AppSettingsController extends StateNotifier<AppSettings> {
 }
 
 final appSettingsProvider =
-    StateNotifierProvider<AppSettingsController, AppSettings>(
-  (ref) => AppSettingsController(),
+    NotifierProvider<AppSettingsController, AppSettings>(
+  AppSettingsController.new,
 );

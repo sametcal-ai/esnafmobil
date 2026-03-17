@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class FirebaseAuthState {
   final bool isLoading;
@@ -20,15 +20,14 @@ class FirebaseAuthState {
   }) {
     return FirebaseAuthState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage,
-    );
+      errorMessage: errorMe</old_code><new_code>class FirebaseAuthController extends Notifier<FirebaseAuthState> {
+  late final fb.FirebaseAuth _auth;
+
+  @override
+  FirebaseAuthState build() {
+    _auth = ref.watch(firebaseAuthProvider);
+    return FirebaseAuthState.initial();
   }
-}
-
-class FirebaseAuthController extends StateNotifier<FirebaseAuthState> {
-  FirebaseAuthController(this._auth) : super(FirebaseAuthState.initial());
-
-  final fb.FirebaseAuth _auth;
 
   Future<bool> signInWithEmailAndPassword({
     required String email,
@@ -73,11 +72,7 @@ final firebaseAuthProvider = Provider<fb.FirebaseAuth>((ref) {
 
 final authStateProvider = StreamProvider<fb.User?>((ref) {
   final auth = ref.watch(firebaseAuthProvider);
-  return auth.authStateChanges();
-});
-
-final firebaseAuthControllerProvider =
-    StateNotifierProvider<FirebaseAuthController, FirebaseAuthState>((ref) {
-  final auth = ref.watch(firebaseAuthProvider);
-  return FirebaseAuthController(auth);
-});
+  return auth.auth</old_code><new_code>final firebaseAuthControllerProvider =
+    NotifierProvider<FirebaseAuthController, FirebaseAuthState>(
+  FirebaseAuthController.new,
+);

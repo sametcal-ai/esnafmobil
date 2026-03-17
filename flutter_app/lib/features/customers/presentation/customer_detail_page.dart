@@ -42,6 +42,7 @@ class _CustomerDetailPageState
   @override
   void dispose() {
     _removeControllerListener?.call();
+    _controller?.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
@@ -70,6 +71,7 @@ class _CustomerDetailPageState
     final settings = ref.read(appSettingsProvider);
 
     setState(() {
+      _controller?.dispose();
       _controller = CustomerDetailController(
         companyId: companyId,
         customer: customer,
@@ -131,6 +133,7 @@ class _CustomerDetailPageState
       final controller = _controller;
       if (controller != null) {
         final settings = ref.read(appSettingsProvider);
+        _controller?.dispose();
         _controller = CustomerDetailController(
           companyId: companyId,
           customer: saved,
@@ -308,7 +311,7 @@ class _CustomerDetailPageState
       );
     }
 
-    final state = controller.state;
+    final state = controller.value;
     final customer = state.customer;
 
     return AppScaffold(

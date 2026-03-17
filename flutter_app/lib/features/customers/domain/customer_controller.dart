@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter/foundation.dart';
 
 import '../data/customer_repository.dart';
 import '../data/customer_ledger_repository.dart';
@@ -45,7 +45,7 @@ class CustomerDetailState {
   }
 }
 
-class CustomerDetailController extends StateNotifier<CustomerDetailState> {
+class CustomerDetailController extends ValueNotifier<CustomerDetailState> {
   final String companyId;
   final CustomerLedgerRepository _ledgerRepository;
   final int _pageSize;
@@ -72,7 +72,7 @@ class CustomerDetailController extends StateNotifier<CustomerDetailState> {
   }
 
   Future<void> refresh() async {
-    state = state.copyWith(
+    value = value.copyWith(
       isLoading: true,
       errorMessage: null,
       isLoadingMore: false,
@@ -85,13 +85,13 @@ class CustomerDetailController extends StateNotifier<CustomerDetailState> {
     try {
       final entries = await _ledgerRepository.getEntriesForCustomerPaged(
         companyId,
-        state.customer.id,
+        value.customer.id,
         offset: 0,
         limit: _pageSize,
       );
       final balance =
-          await _ledgerRepository.getBalanceForCustomer(companyId, state.customer.id);
-      state = state.copyWith(
+          await _ledgerRepository.getBalanceForCustomer(companyId, value.customer.id);
+      value = value.copyWith(
         entries: entries,
         balance: balance,
         isLoading: false,
@@ -99,7 +99,7 @@ class CustomerDetailController extends StateNotifier<CustomerDetailState> {
         hasMore: entries.length == _pageSize,
       );
     } catch (e) {
-      state = state.copyWith(
+      value = value.copyWith(
         isLoading: false,
         errorMessage: 'Hareketler yüklenemedi',
       );
@@ -110,40 +110,40 @@ class CustomerDetailController extends StateNotifier<CustomerDetailState> {
     if (amount <= 0) return;
     await _ledgerRepository.addPaymentEntry(
       companyId: companyId,
-      customer: state.customer,
+      customer: value.customer,
       amount: amount,
     );
     await _load();
   }
 
   Future<void> loadMore() async {
-    if (state.isLoadingMore || !state.hasMore) return;
-    state = state.copyWith(isLoadingMore: true);
+    if (value.isLoadingMore || !value.hasMore) return;
+    value = value.copyWith(isLoadingMore: true);
 
     try {
-      final nextOffset = state.entries.length;
+      final nextOffset = value.entries.length;
       final next = await _ledgerRepository.getEntriesForCustomerPaged(
         companyId,
-        state.customer.id,
+        value.customer.id,
         offset: nextOffset,
         limit: _pageSize,
       );
       if (next.isEmpty) {
-        state = state.copyWith(
+        value = value.copyWith(
           isLoadingMore: false,
           hasMore: false,
         );
         return;
       }
 
-      final updated = [...state.entries, ...next];
-      state = state.copyWith(
+      final updated = [...value.entries, ...next];
+      value = value.copyWith(
         entries: updated,
         isLoadingMore: false,
         hasMore: next.length == _pageSize,
       );
     } catch (e) {
-      state = state.copyWith(isLoadingMore: false);
+      value = value.copyWith(isLoadingMore: false);
     }
   }
 }
