@@ -26,6 +26,15 @@ type RejectMemberInput = {
   idToken?: string;
 };
 
+type UpdateMemberInput = {
+  companyId: string;
+  uid: string;
+  displayName?: string;
+  role?: 'admin' | 'cashier';
+  active?: boolean;
+  idToken?: string;
+};
+
 type JoinCompanyByCodeInput = {
   companyCode: string;
   displayName?: string;
@@ -159,6 +168,82 @@ export const rejectMember = onCall<RejectMemberInput>(callableOptions, async (re
   }
 
   await targetRef.delete();
+
+  return { ok: true };
+});
+
+export const updateMember = onCall<UpdateMemberInput>(callableOptions, async (request) => {
+  const callerUid = await getCallerUid(request);
+
+  const { companyId, uid, displayName, role, active } = request.data || ({} as UpdateMemberInput);
+
+  if (!companyId || !uid) {
+    throw new HttpsError('invalid-argument', 'companyId and uid are required.');
+  }
+
+  if (callerUid === uid) {
+    throw new HttpsError('failed-precondition', 'Admin cannot edit their own membership via this endpoint.');
+  }
+
+  if (role != null && role !== 'admin' && role !== 'cashier') {
+    throw new HttpsError('invalid-argument', 'role must be admin or cashier.');
+  }
+
+  if (displayName != null && typeof displayName !== 'string') {
+    throw new HttpsError('invalid-argument', 'displayName must be a string.');
+  }
+
+  if (active != null && typeof active !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'active must be a boolean.');
+  }
+
+  const db = admin.firestore();
+
+  const callerRef = db.doc(`companies/${companyId}/members/${callerUid}`);
+  const targetRef = db.doc(`companies/${companyId}/members/${uid}`);
+
+  const callerSnap = await callerRef.get();
+  if (!callerSnap.exists) {
+    throw new HttpsError('permission-denied', 'Caller is not a member of this company.');
+  }
+
+  const callerData = callerSnap.data() as { role?: string; status?: string };
+  if (callerData.status !== 'active' || callerData.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Admin role required.');
+  }
+
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new HttpsError('not-found', 'Target membership not found.');
+  }
+
+  const targetData = targetSnap.data() as { status?: string };
+  if (targetData.status === 'pending') {
+    throw new HttpsError('failed-precondition', 'Pending members must be approved first.');
+  }
+
+  const patch: Record<string, unknown> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: callerUid,
+  };
+
+  if (displayName != null) {
+    patch.displayName = displayName.trim().slice(0, 64);
+  }
+
+  if (role != null) {
+    patch.role = role;
+  }
+
+  if (active != null) {
+    patch.status = active ? 'active' : 'inactive';
+  }
+
+  if (Object.keys(patch).length <= 2) {
+    throw new HttpsError('invalid-argument', 'No changes requested.');
+  }
+
+  await targetRef.set(patch, { merge: true });
 
   return { ok: true };
 });
