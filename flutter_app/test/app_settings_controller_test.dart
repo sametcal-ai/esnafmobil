@@ -8,14 +8,16 @@ import 'package:flutter_app/features/company/domain/company_memberships_provider
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class TestActiveCompanyController extends Notifier<String?> {
+class TestActiveCompanyController extends ActiveCompanyController {
   @override
   String? build() => null;
 
+  @override
   Future<void> setActiveCompanyId(String companyId) async {
     state = companyId;
   }
 
+  @override
   Future<void> clear() async {
     state = null;
   }
