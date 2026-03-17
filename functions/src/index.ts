@@ -167,7 +167,16 @@ export const rejectMember = onCall<RejectMemberInput>(callableOptions, async (re
     throw new HttpsError('failed-precondition', 'Only pending members can be rejected.');
   }
 
-  await targetRef.delete();
+  await targetRef.set(
+    {
+      status: 'inactive',
+      rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+      rejectedBy: callerUid,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: callerUid,
+    },
+    { merge: true },
+  );
 
   return { ok: true };
 });
@@ -294,6 +303,8 @@ export const joinCompanyByCode = onCall<JoinCompanyByCodeInput>(
         uid?: string;
       };
 
+      const existingStatus = typeof data.status === 'string' ? data.status : null;
+
       // Older member docs might have been created by the client (rules-limited)
       // and therefore miss displayName/email. Fill them in opportunistically.
       const patch: Record<string, unknown> = {};
@@ -309,11 +320,19 @@ export const joinCompanyByCode = onCall<JoinCompanyByCodeInput>(
         patch.email = email;
       }
 
+      // If membership was previously inactivated/rejected, allow user to re-apply
+      // with the same company code by moving it back to pending.
+      if (existingStatus === 'inactive') {
+        patch.status = 'pending';
+        patch.reappliedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+
       if (Object.keys(patch).length > 0) {
         await memberRef.set(patch, { merge: true });
       }
 
-      return { companyId, status: data.status ?? 'active' };
+      const outStatus = typeof patch.status === 'string' ? (patch.status as string) : (existingStatus ?? 'active');
+      return { companyId, status: outStatus };
     }
 
     await memberRef.create({
