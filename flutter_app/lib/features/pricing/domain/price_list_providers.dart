@@ -8,7 +8,7 @@ import 'price_list_item.dart';
 final priceListsProvider = StreamProvider.autoDispose<List<PriceList>>((ref) {
   final companyId = ref.watch(activeCompanyIdProvider);
   if (companyId == null) {
-    return const Stream<List<PriceList>>.empty();
+    return Stream.value(const <PriceList>[]);
   }
 
   final repo = ref.watch(priceListRepositoryProvider);
@@ -18,7 +18,7 @@ final priceListsProvider = StreamProvider.autoDispose<List<PriceList>>((ref) {
 final activePriceListProvider = StreamProvider.autoDispose<PriceList?>((ref) {
   final companyId = ref.watch(activeCompanyIdProvider);
   if (companyId == null) {
-    return const Stream<PriceList?>.empty();
+    return Stream.value(null);
   }
 
   final repo = ref.watch(priceListRepositoryProvider);
@@ -32,7 +32,7 @@ final priceListItemsProvider =
     StreamProvider.family.autoDispose<List<PriceListItem>, String>((ref, priceListId) {
   final companyId = ref.watch(activeCompanyIdProvider);
   if (companyId == null) {
-    return const Stream<List<PriceListItem>>.empty();
+    return Stream.value(const <PriceListItem>[]);
   }
 
   final repo = ref.watch(priceListRepositoryProvider);

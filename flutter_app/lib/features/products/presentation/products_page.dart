@@ -36,7 +36,13 @@ class ProductsFeed {
 final productsProvider = StreamProvider.autoDispose<ProductsFeed>((ref) {
   final companyId = ref.watch(activeCompanyIdProvider);
   if (companyId == null) {
-    return const Stream<ProductsFeed>.empty();
+    return Stream.value(
+      const ProductsFeed(
+        products: <Product>[],
+        isFromCache: false,
+        hasPendingWrites: false,
+      ),
+    );
   }
 
   final refs = ref.watch(firestoreRefsProvider);
