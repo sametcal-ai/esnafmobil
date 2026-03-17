@@ -80,7 +80,7 @@ class UserManagementPage extends ConsumerWidget {
     debugPrint('approveMember: idTokenNull=${idToken == null} tokenLen=${idToken?.length ?? 0}');
 
     final functions = ref.read(firebaseFunctionsProvider);
-    debugPrint('approveMember: functionsApp=${functions.app.name} region=${functions.region}');
+    debugPrint('approveMember: functionsApp=${functions.app.name}');
     final callable = functions.httpsCallable('approveMember');
 
     try {
@@ -137,7 +137,7 @@ class UserManagementPage extends ConsumerWidget {
     debugPrint('rejectMember: idTokenNull=${idToken == null} tokenLen=${idToken?.length ?? 0}');
 
     final functions = ref.read(firebaseFunctionsProvider);
-    debugPrint('rejectMember: functionsApp=${functions.app.name} region=${functions.region}');
+    debugPrint('rejectMember: functionsApp=${functions.app.name}');
     final callable = functions.httpsCallable('rejectMember');
 
     try {
