@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_settings.dart';
+import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
 import '../../auth/domain/current_user_provider.dart';
 import '../../company/domain/active_company_provider.dart';
@@ -17,7 +18,11 @@ import 'pos_models.dart';
 /// Barkod okuma sonucunu temsil eder.
 enum ScanResult {
   added,
-  increme</old_code><new_code>class PosController extends Notifier<PosState> {
+  incremented,
+  notFound,
+}
+
+class PosController extends Notifier<PosState> {
   static const _uuid = Uuid();
 
   late String companyId;
