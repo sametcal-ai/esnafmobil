@@ -9,6 +9,7 @@ import '../../../core/widgets/app_scaffold.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../company/domain/company_memberships_provider.dart';
 import '../domain/current_user_provider.dart';
+import '../domain/firebase_auth_controller.dart';
 import '../domain/user.dart';
 
 class UserManagementPage extends ConsumerWidget {
