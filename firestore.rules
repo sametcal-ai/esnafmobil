@@ -150,6 +150,11 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /settings/{docId} {
+        allow read: if isMember(companyId);
+        allow create, update, delete: if isAdmin(companyId);
+      }
+
       // Default deny for any other subcollections until explicitly opened.
       match /{document=**} {
         allow read, write: if false;

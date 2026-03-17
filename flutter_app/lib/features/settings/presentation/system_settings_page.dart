@@ -4,16 +4,67 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/config/app_settings.dart';
 
-class SystemSettingsPage extends ConsumerWidget {
+import '../../auth/domain/current_user_provider.dart';
+import '../../auth/domain/user.dart';
+
+class SystemSettingsPage extends ConsumerStatefulWidget {
   const SystemSettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SystemSettingsPage> createState() => _SystemSettingsPageState();
+}
+
+class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
+  AppSettings? _draft;
+  bool _dirty = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    Future.microtask(() {
+      final settings = ref.read(appSettingsProvider);
+      setState(() {
+        _draft = settings;
+      });
+    });
+  }
+
+  void _syncFrom(AppSettings settings) {
+    if (_dirty) return;
+    _draft = settings;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsProvider);
     final controller = ref.read(appSettingsProvider.notifier);
+    final user = ref.watch(currentUserProvider);
+    final isAdmin = user != null && user.role == UserRole.admin;
+
+    _draft ??= settings;
+    _syncFrom(settings);
+
+    final draft = _draft ?? settings;
+
+    Future<void> onSave() async {
+      await controller.save(draft);
+      if (mounted) {
+        setState(() {
+          _dirty = false;
+        });
+      }
+    }
 
     return AppScaffold(
       title: 'Sistem Ayarları',
+      actions: [
+        if (isAdmin)
+          TextButton(
+            onPressed: _dirty ? onSave : null,
+            child: const Text('Kaydet'),
+          ),
+      ],
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(
@@ -40,23 +91,30 @@ class SystemSettingsPage extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: Slider(
-                            value: settings.barcodeScanDelaySeconds
+                            value: draft.barcodeScanDelaySeconds
                                 .clamp(0.5, 10.0),
                             min: 0.5,
                             max: 10.0,
                             divisions: 95,
                             label:
-                                '${settings.barcodeScanDelaySeconds.toStringAsFixed(1)} sn',
-                            onChanged: (value) {
-                              controller.setBarcodeDelaySeconds(value);
-                            },
+                                '${draft.barcodeScanDelaySeconds.toStringAsFixed(1)} sn',
+                            onChanged: isAdmin
+                                ? (value) {
+                                    setState(() {
+                                      _dirty = true;
+                                      _draft = draft.copyWith(
+                                        barcodeScanDelaySeconds: value,
+                                      );
+                                    });
+                                  }
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
                           width: 64,
                           child: Text(
-                            '${settings.barcodeScanDelaySeconds.toStringAsFixed(1)} sn',
+                            '${draft.barcodeScanDelaySeconds.toStringAsFixed(1)} sn',
                             textAlign: TextAlign.right,
                           ),
                         ),
@@ -89,23 +147,30 @@ class SystemSettingsPage extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: Slider(
-                            value: settings.defaultMarginPercent
+                            value: draft.defaultMarginPercent
                                 .clamp(0, 100.0),
                             min: 0,
                             max: 100.0,
                             divisions: 100,
                             label:
-                                '%${settings.defaultMarginPercent.toStringAsFixed(0)}',
-                            onChanged: (value) {
-                              controller.setDefaultMarginPercent(value);
-                            },
+                                '%${draft.defaultMarginPercent.toStringAsFixed(0)}',
+                            onChanged: isAdmin
+                                ? (value) {
+                                    setState(() {
+                                      _dirty = true;
+                                      _draft = draft.copyWith(
+                                        defaultMarginPercent: value,
+                                      );
+                                    });
+                                  }
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
                           width: 64,
                           child: Text(
-                            '%${settings.defaultMarginPercent.toStringAsFixed(0)}',
+                            '%${draft.defaultMarginPercent.toStringAsFixed(0)}',
                             textAlign: TextAlign.right,
                           ),
                         ),
@@ -137,23 +202,28 @@ class SystemSettingsPage extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: Slider(
-                            value: settings.searchFilterMinChars.toDouble(),
+                            value: draft.searchFilterMinChars.toDouble(),
                             min: 0,
                             max: 10,
                             divisions: 10,
-                            label: settings.searchFilterMinChars.toString(),
-                            onChanged: (value) {
-                              controller.setSearchFilterMinChars(
-                                value.round(),
-                              );
-                            },
+                            label: draft.searchFilterMinChars.toString(),
+                            onChanged: isAdmin
+                                ? (value) {
+                                    setState(() {
+                                      _dirty = true;
+                                      _draft = draft.copyWith(
+                                        searchFilterMinChars: value.round(),
+                                      );
+                                    });
+                                  }
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
                           width: 64,
                           child: Text(
-                            settings.searchFilterMinChars.toString(),
+                            draft.searchFilterMinChars.toString(),
                             textAlign: TextAlign.right,
                           ),
                         ),
@@ -186,23 +256,30 @@ class SystemSettingsPage extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: Slider(
-                            value: settings.movementsPageSize
+                            value: draft.movementsPageSize
                                 .clamp(5, 100)
                                 .toDouble(),
                             min: 5,
                             max: 100,
                             divisions: 19, // 5,10,...,100 => 20 değer, 19 aralık
-                            label: settings.movementsPageSize.toString(),
-                            onChanged: (value) {
-                              controller.setMovementsPageSize(value.round());
-                            },
+                            label: draft.movementsPageSize.toString(),
+                            onChanged: isAdmin
+                                ? (value) {
+                                    setState(() {
+                                      _dirty = true;
+                                      _draft = draft.copyWith(
+                                        movementsPageSize: value.round(),
+                                      );
+                                    });
+                                  }
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
                           width: 64,
                           child: Text(
-                            settings.movementsPageSize.toString(),
+                            draft.movementsPageSize.toString(),
                             textAlign: TextAlign.right,
                           ),
                         ),
