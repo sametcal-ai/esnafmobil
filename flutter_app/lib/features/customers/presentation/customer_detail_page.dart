@@ -147,12 +147,14 @@ class _CustomerDetailPageState
     });
   }
 
-  void _openCollections(Customer customer) {
-    context.push('/customers/${customer.id}/collections');
+  Future<void> _openCollections(Customer customer) async {
+    await context.push('/customers/${customer.id}/collections');
+    await _controller?.refresh();
   }
 
-  void _openStatement(Customer customer) {
-    context.push('/customers/${customer.id}/statement');
+  Future<void> _openStatement(Customer customer) async {
+    await context.push('/customers/${customer.id}/statement');
+    await _controller?.refresh();
   }
 
   Future<void> _showEntryDetails(CustomerLedgerEntry entry) async {

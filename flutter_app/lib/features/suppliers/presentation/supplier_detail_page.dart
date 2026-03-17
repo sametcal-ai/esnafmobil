@@ -117,12 +117,14 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
     });
   }
 
-  void _openPayments(Supplier supplier) {
-    context.push('/suppliers/${supplier.id}/payments');
+  Future<void> _openPayments(Supplier supplier) async {
+    await context.push('/suppliers/${supplier.id}/payments');
+    await _controller?.refresh();
   }
 
-  void _openStatement(Supplier supplier) {
-    context.push('/suppliers/${supplier.id}/statement');
+  Future<void> _openStatement(Supplier supplier) async {
+    await context.push('/suppliers/${supplier.id}/statement');
+    await _controller?.refresh();
   }
 
   Future<void> _showEntryDetails(
@@ -387,7 +389,10 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => context.push('/stock-entry'),
+                onPressed: () async {
+                  await context.push('/stock-entry');
+                  await _controller?.refresh();
+                },
                 icon: const Icon(Icons.add_shopping_cart_outlined),
                 label: const Text('Ürün Alış'),
               ),

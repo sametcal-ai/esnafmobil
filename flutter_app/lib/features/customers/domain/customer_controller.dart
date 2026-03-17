@@ -71,6 +71,16 @@ class CustomerDetailController extends StateNotifier<CustomerDetailState> {
     _load();
   }
 
+  Future<void> refresh() async {
+    state = state.copyWith(
+      isLoading: true,
+      errorMessage: null,
+      isLoadingMore: false,
+      hasMore: true,
+    );
+    await _load();
+  }
+
   Future<void> _load() async {
     try {
       final entries = await _ledgerRepository.getEntriesForCustomerPaged(

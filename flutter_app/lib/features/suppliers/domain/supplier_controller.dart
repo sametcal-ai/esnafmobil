@@ -57,6 +57,14 @@ class SupplierDetailController extends StateNotifier<SupplierDetailState> {
     _load();
   }
 
+  Future<void> refresh() async {
+    state = state.copyWith(
+      isLoading: true,
+      errorMessage: null,
+    );
+    await _load();
+  }
+
   Future<void> _load() async {
     try {
       final entries = await _ledgerRepository.getEntriesForSupplier(
