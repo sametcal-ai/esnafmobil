@@ -4,16 +4,28 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
-import '../../company/domain/company_memberships_provider.dart';
+import '../../auth/domain/current_user_provider.dart';
 import '../domain/customer.dart';
 import '../domain/customer_ledger.dart';
 
 class CustomerLedgerRepository {
   static const _uuid = Uuid();
 
-  CustomerLedgerRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
+  CustomerLedgerRepository(
+    this._refs, {
+    String? currentUserId,
+  }) : _currentUserId = currentUserId;
 
   final FirestoreRefs _refs;
+  final String? _currentUserId;
+
+  String _requireActor([String? overrideUserId]) {
+    final actor = (overrideUserId ?? _currentUserId) ?? '';
+    if (actor.isEmpty) {
+      throw StateError('currentUserId is required for this operation');
+    }
+    return actor;
+  }
 
   Future<CustomerLedgerEntry> addSaleEntry({
     required String companyId,
@@ -25,7 +37,7 @@ class CustomerLedgerRepository {
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final meta = AuditMeta.create(createdBy: actor, now: now);
 
     final entry = CustomerLedgerEntry(
@@ -59,7 +71,7 @@ class CustomerLedgerRepository {
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final meta = AuditMeta.create(createdBy: actor, now: now);
 
     final entry = CustomerLedgerEntry(
@@ -170,5 +182,6 @@ class CustomerLedgerRepository {
 
 final customerLedgerRepositoryProvider = Provider<CustomerLedgerRepository>((ref) {
   final refs = ref.watch(firestoreRefsProvider);
-  return CustomerLedgerRepository(refs);
+  final currentUserId = ref.watch(currentUserIdProvider);
+  return CustomerLedgerRepository(refs, currentUserId: currentUserId);
 });

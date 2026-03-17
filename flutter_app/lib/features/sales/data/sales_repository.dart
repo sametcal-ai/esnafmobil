@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
-import '../../company/domain/company_memberships_provider.dart';
+import '../../auth/domain/current_user_provider.dart';
 
 class SaleItem {
   final String productId;
@@ -126,9 +126,21 @@ class Sale {
 }
 
 class SalesRepository {
-  SalesRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
+  SalesRepository(
+    this._refs, {
+    String? currentUserId,
+  }) : _currentUserId = currentUserId;
 
   final FirestoreRefs _refs;
+  final String? _currentUserId;
+
+  String _requireActor([String? overrideUserId]) {
+    final actor = (overrideUserId ?? _currentUserId) ?? '';
+    if (actor.isEmpty) {
+      throw StateError('currentUserId is required for this operation');
+    }
+    return actor;
+  }
 
   Stream<List<Sale>> watchSales(String companyId) {
     return _refs
@@ -200,7 +212,7 @@ class SalesRepository {
     final now = DateTime.now();
     final id = now.microsecondsSinceEpoch.toString();
 
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final meta = AuditMeta.create(createdBy: actor, now: now);
 
     final sale = Sale(
@@ -223,5 +235,6 @@ class SalesRepository {
 
 final salesRepositoryProvider = Provider<SalesRepository>((ref) {
   final refs = ref.watch(firestoreRefsProvider);
-  return SalesRepository(refs);
+  final currentUserId = ref.watch(currentUserIdProvider);
+  return SalesRepository(refs, currentUserId: currentUserId);
 });

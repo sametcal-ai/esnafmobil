@@ -4,7 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
-import '../../company/domain/company_memberships_provider.dart';
+import '../../auth/domain/current_user_provider.dart';
 import '../../products/data/product_repository.dart';
 import '../domain/stock_entry.dart';
 import 'supplier_repository.dart';
@@ -15,11 +15,22 @@ class StockEntryRepository {
 
   StockEntryRepository(
     this._productRepository, {
-    FirestoreRefs? refs,
-  }) : _refs = refs ?? FirestoreRefs.instance();
+    required FirestoreRefs refs,
+    String? currentUserId,
+  })  : _refs = refs,
+        _currentUserId = currentUserId;
 
   final FirestoreRefs _refs;
   final ProductRepository _productRepository;
+  final String? _currentUserId;
+
+  String _requireActor([String? overrideUserId]) {
+    final actor = (overrideUserId ?? _currentUserId) ?? '';
+    if (actor.isEmpty) {
+      throw StateError('currentUserId is required for this operation');
+    }
+    return actor;
+  }
 
   Stream<List<StockEntry>> watchEntries(String companyId) {
     return _refs
@@ -65,7 +76,7 @@ class StockEntryRepository {
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final meta = AuditMeta.create(createdBy: actor, now: now);
 
     final entry = StockEntry(
@@ -93,21 +104,21 @@ class StockEntryRepository {
       quantity: quantity,
       purchasePrice: unitCost,
       marginPercent: marginPercent,
-      currentUserId: currentUserId,
+      currentUserId: actor,
     );
 
     if (supplierId.isNotEmpty) {
-      final supplierRepo = SupplierRepository(_refs);
+      final supplierRepo = SupplierRepository(_refs, currentUserId: actor);
       final supplier = await supplierRepo.getSupplierById(companyId, supplierId);
       if (supplier != null) {
-        final ledgerRepo = SupplierLedgerRepository(_refs);
+        final ledgerRepo = SupplierLedgerRepository(_refs, currentUserId: actor);
         final totalAmount = quantity * unitCost;
         await ledgerRepo.addPurchaseEntry(
           companyId: companyId,
           supplier: supplier,
           amount: totalAmount,
           note: 'Stok girişi',
-          currentUserId: currentUserId,
+          currentUserId: actor,
         );
       }
     }
@@ -123,7 +134,7 @@ class StockEntryRepository {
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final meta = AuditMeta.create(createdBy: actor, now: now);
 
     final entry = StockEntry(
@@ -152,5 +163,10 @@ class StockEntryRepository {
 final stockEntryRepositoryProvider = Provider<StockEntryRepository>((ref) {
   final refs = ref.watch(firestoreRefsProvider);
   final productRepo = ref.watch(productsRepositoryProvider);
-  return StockEntryRepository(productRepo, refs: refs);
+  final currentUserId = ref.watch(currentUserIdProvider);
+  return StockEntryRepository(
+    productRepo,
+    refs: refs,
+    currentUserId: currentUserId,
+  );
 });
