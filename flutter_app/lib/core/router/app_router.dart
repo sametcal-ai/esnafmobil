@@ -285,7 +285,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // side-effect provider (logout => activeCompanyId reset)
       ref.read(activeCompanyResetterProvider);
 
-      final authUser = ref.read(authStateProvider).asData?.value;
+      final authState = ref.read(authStateProvider);
+      // FirebaseAuth initial state is async; redirect sırasında `loading` ise
+      // kullanıcıyı login'e geri fırlatmak yerine mevcut lokasyonda kal.
+      if (authState.isLoading) return null;
+
+      final authUser = authState.asData?.value;
       final isLoggedIn = authUser != null;
       final activeCompanyId = ref.read(activeCompanyIdProvider);
 
