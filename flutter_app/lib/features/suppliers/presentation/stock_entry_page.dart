@@ -28,7 +28,9 @@ class _PurchaseLine {
 }
 
 class StockEntryPage extends ConsumerStatefulWidget {
-  const StockEntryPage({super.key});
+  final Supplier? initialSupplier;
+
+  const StockEntryPage({super.key, this.initialSupplier});
 
   @override
   ConsumerState<StockEntryPage> createState() => _StockEntryPageState();
@@ -76,19 +78,25 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
 
     final settings = ref.read(appSettingsProvider);
 
+    final initialSupplier = widget.initialSupplier;
+    final selectedSupplier = initialSupplier != null
+        ? suppliers
+            .cast<Supplier?>()
+            .firstWhere((s) => s?.id == initialSupplier.id, orElse: () => null)
+        : null;
+
     setState(() {
       _suppliers = suppliers;
       _products = products;
-      _selectedSupplier = suppliers.isNotEmpty ? suppliers.first : null;
-      _selectedProduct = products.isNotEmpty ? products.first : null;
-      _supplierQuery = _selectedSupplier?.name ?? '';
-      _productQuery = _selectedProduct?.name ?? '';
 
-      final selectedMargin = _selectedProduct?.marginPercent ?? 0;
-      _marginController.text = (selectedMargin > 0
-              ? selectedMargin
-              : settings.defaultMarginPercent)
-          .toStringAsFixed(0);
+      _selectedSupplier = selectedSupplier;
+      _supplierQuery = selectedSupplier?.name ?? '';
+
+      _selectedProduct = null;
+      _productQuery = '';
+
+      final selectedMargin = settings.defaultMarginPercent;
+      _marginController.text = selectedMargin.toStringAsFixed(0);
 
       _isLoading = false;
     });
@@ -299,6 +307,9 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(appSettingsProvider);
+    final minChars = settings.searchFilterMinChars;
+
     return AppScaffold(
       title: 'Stok Girişi',
       body: _isLoading
@@ -319,7 +330,7 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
                         displayStringForOption: (s) => s.name,
                         optionsBuilder: (value) {
                           final query = value.text.trim().toLowerCase();
-                          if (query.isEmpty) {
+                          if (query.isEmpty || query.length < minChars) {
                             return const Iterable<Supplier>.empty();
                           }
                           return _suppliers.where((s) {
@@ -360,7 +371,7 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
                         displayStringForOption: (p) => p.name,
                         optionsBuilder: (value) {
                           final query = value.text.trim().toLowerCase();
-                          if (query.isEmpty) {
+                          if (query.isEmpty || query.length < minChars) {
                             return const Iterable<Product>.empty();
                           }
 

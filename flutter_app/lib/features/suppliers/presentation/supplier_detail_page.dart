@@ -400,7 +400,10 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () async {
-                  await context.push('/stock-entry');
+                  await context.pushNamed(
+                    'stock_entry',
+                    extra: supplier,
+                  );
                   await _controller?.refresh();
                 },
                 icon: const Icon(Icons.add_shopping_cart_outlined),

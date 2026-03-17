@@ -21,6 +21,7 @@ import '../../features/suppliers/presentation/stock_movements_page.dart';
 import '../../features/suppliers/presentation/supplier_detail_page.dart';
 import '../../features/suppliers/presentation/supplier_payments_page.dart';
 import '../../features/suppliers/presentation/supplier_statement_page.dart';
+import '../../features/suppliers/domain/supplier.dart';
 import '../../features/customers/presentation/customers_page.dart';
 import '../../features/customers/presentation/customer_detail_page.dart';
 import '../../features/customers/presentation/customer_balances_page.dart';
@@ -171,7 +172,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/stock-entry',
                 name: 'stock_entry',
-                builder: (context, state) => const StockEntryPage(),
+                builder: (context, state) {
+                  final initialSupplier = state.extra is Supplier
+                      ? state.extra as Supplier
+                      : null;
+                  return StockEntryPage(initialSupplier: initialSupplier);
+                },
               ),
               GoRoute(
                 path: '/stock-movements',

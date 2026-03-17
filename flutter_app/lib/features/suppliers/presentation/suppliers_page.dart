@@ -189,10 +189,7 @@ class _SuppliersPageState extends ConsumerState<SuppliersPage> {
                           alignment: Alignment.centerRight,
                           child: OutlinedButton.icon(
                             onPressed: () {
-                              context.pushNamed(
-                                'stock_entry',
-                                extra: supplier,
-                              );
+                              context.pushNamed('stock_entry');
                             },
                             icon: const Icon(Icons.shopping_cart_outlined),
                             label: const Text('Ürün Alış / Stok Girişi'),
