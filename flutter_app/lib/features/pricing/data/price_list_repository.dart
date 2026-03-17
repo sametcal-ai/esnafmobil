@@ -249,7 +249,14 @@ class PriceListRepository {
 
     final products = await _productRepo.getAllProducts(companyId);
     final existingSnap = await _refs.priceListItemsRef(companyId, priceListId).get();
-    final existingIds = existingSnap.docs.map((d) => d.id).toSet();
+
+    // Soft delete edilen (isDeleted=true) ürünler "listede var" sayılmamalı.
+    // Aksi halde aynı productId'ye sahip doküman var diye yeniden oluşturma atlanıyor.
+    final existingIds = existingSnap.docs
+        .map((d) => d.data())
+        .where((i) => !i.meta.isDeleted)
+        .map((i) => i.productId)
+        .toSet();
 
     final batch = FirebaseFirestore.instance.batch();
     final now = DateTime.now();
@@ -409,8 +416,11 @@ class PriceListRepository {
 
     final products = await _productRepo.getAllProducts(companyId);
     final existingSnap = await _refs.priceListItemsRef(companyId, priceListId).get();
-    final existingIds = existingSnap.docs.map((d) => d.id).toSet();
 
+    // Soft delete edilen ürünleri "var" kabul etmiyoruz.
+    final existingIds = existingSnap.docs
+        .map((d) => d.data())
+        .where((i) => !i.meta.isDeleted
     final batch = FirebaseFirestore.instance.batch();
     final now = DateTime.now();
 
@@ -499,7 +509,11 @@ class PriceListRepository {
     final actor = _requireActor(currentUserId);
 
     final targetSnap = await _refs.priceListItemsRef(companyId, targetPriceListId).get();
-    final existingIds = targetSnap.docs.map((d) => d.id).toSet();
+    final existingIds = targetSnap.docs
+        .map((d) => d.data())
+        .where((i) => !i.meta.isDeleted)
+        .map((i) => i.productId)
+        .toSet();
 
     final sourceSnap = await _refs.priceListItemsRef(companyId, sourcePriceListId).get();
 
