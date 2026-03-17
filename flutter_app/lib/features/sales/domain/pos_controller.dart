@@ -51,6 +51,12 @@ class PosController extends Notifier<PosState> {
       return priceFromList;
     }
 
+    // Aktif fiyat listesi var ama bu üründe fiyat yoksa satışı 0 ile engelle.
+    if (_activePriceMap.isNotEmpty) {
+      return 0;
+    }
+
+    // Henüz aktif liste yoksa (ilk kurulum vb.) eski davranışa düş.
     return PriceResolver.resolveSellPrice(
       product: product,
       settings: _settings,

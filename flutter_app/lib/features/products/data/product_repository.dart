@@ -182,8 +182,12 @@ class ProductRepository {
       bumpVersion: true,
     );
 
+    // lastPurchasePrice ve salePrice alanları fiyat listesinden türetilen
+    // read-only cache olarak kabul edilir. Client update'lerinde korunur.
     final updated = product.copyWith(
       stockQuantity: existing.stockQuantity,
+      lastPurchasePrice: existing.lastPurchasePrice,
+      salePrice: existing.salePrice,
       meta: updatedMeta,
     );
     await upsertProduct(companyId, updated);
@@ -205,16 +209,11 @@ class ProductRepository {
 
     final newQuantity = product.stockQuantity + quantity;
 
-    double newLastPurchasePrice = purchasePrice ?? product.lastPurchasePrice;
-    double newSalePrice = product.salePrice;
+    // lastPurchasePrice ve salePrice alanları fiyat listesinden gelen cache.
+    // Stok artışında client tarafı bu alanları değiştirmez.
     double newMarginPercent = product.marginPercent;
-
-    if (!product.isManualPrice && purchasePrice != null) {
-      newLastPurchasePrice = purchasePrice;
-      if (marginPercent != null && marginPercent > 0) {
-        newMarginPercent = marginPercent;
-        newSalePrice = newLastPurchasePrice * (1 + newMarginPercent / 100);
-      }
+    if (marginPercent != null && marginPercent > 0) {
+      newMarginPercent = marginPercent;
     }
 
     final actor = _requireActor(currentUserId);
@@ -225,8 +224,6 @@ class ProductRepository {
 
     final updated = product.copyWith(
       stockQuantity: newQuantity,
-      lastPurchasePrice: newLastPurchasePrice,
-      salePrice: newSalePrice,
       marginPercent: newMarginPercent,
       meta: updatedMeta,
     );

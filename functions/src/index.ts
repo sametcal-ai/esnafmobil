@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 admin.initializeApp();
 
@@ -473,6 +474,15 @@ export const onStockEntryCreated = onDocumentCreated(
 
     const entryRef = db.doc(`companies/${companyId}/stockEntries/${entryId}`);
 
+    // Aktif fiyat listesi id'sini transaction dışında al (types/overload sorunlarını önlemek için).
+    const activePriceListSnap = await db
+      .collection(`companies/${companyId}/priceLists`)
+      .where('isActive', '==', true)
+      .limit(1)
+      .get();
+
+    const activePriceListId = activePriceListSnap.empty ? null : activePriceListSnap.docs[0].id;
+
     await db.runTransaction(async (tx) => {
       const entrySnap = await tx.get(entryRef);
       if (!entrySnap.exists) return;
@@ -481,11 +491,14 @@ export const onStockEntryCreated = onDocumentCreated(
         productId?: unknown;
         quantity?: unknown;
         type?: unknown;
+        unitCost?: unknown;
+        createdBy?: unknown;
       };
 
       const productId = typeof entry.productId === 'string' ? entry.productId : '';
       const qty = typeof entry.quantity === 'number' ? entry.quantity : Number(entry.quantity);
       const type = typeof entry.type === 'string' ? entry.type : 'incoming';
+      const unitCost = typeof entry.unitCost === 'number' ? entry.unitCost : Number(entry.unitCost ?? 0);
 
       if (!productId || !Number.isFinite(qty) || qty <= 0) return;
 
@@ -506,7 +519,206 @@ export const onStockEntryCreated = onDocumentCreated(
         },
         { merge: true },
       );
+
+      // Incoming stok hareketlerinde aktif fiyat listesini güncelle.
+      if (type !== 'incoming') return;
+      if (!activePriceListId) return;
+
+      const priceListId = activePriceListId;
+
+      const marginRaw = (productSnap.data() || {}) as { marginPercent?: unknown };
+      const marginPercent =
+        typeof marginRaw.marginPercent === 'number' ? marginRaw.marginPercent : Number(marginRaw.marginPercent ?? 0);
+
+      const salePrice = unitCost > 0 ? unitCost * (1 + (marginPercent > 0 ? marginPercent : 0) / 100) : 0;
+
+      const actor = typeof entry.createdBy === 'string' && entry.createdBy.trim().length > 0 ? entry.createdBy.trim() : 'system';
+
+      const itemRef = db.doc(`companies/${companyId}/priceLists/${priceListId}/items/${productId}`);
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      tx.set(
+        itemRef,
+        {
+          id: productId,
+          productId,
+          purchasePrice: unitCost,
+          salePrice,
+          isInherited: false,
+          inheritedFromPriceListId: null,
+          modifiedDate: now,
+          modifiedBy: actor,
+          versionNo: admin.firestore.FieldValue.increment(1),
+          versionDate: now,
+          // created fields only set if missing (merge handles)
+          createdDate: now,
+          createdBy: actor,
+          isLocked: false,
+          isVisible: true,
+          isActived: true,
+          isDeleted: false,
+        },
+        { merge: true },
+      );
     });
+  },
+);
+
+// priceList item değişince ürün kartındaki cache alanlarını güncelle.
+export const onPriceListItemWritten = onDocumentWritten(
+  'companies/{companyId}/priceLists/{priceListId}/items/{productId}',
+  async (event) => {
+    const { companyId, productId } = event.params;
+    const after = event.data?.after;
+
+    if (!after || !after.exists) {
+      return;
+    }
+
+    const data = after.data() as { purchasePrice?: unknown; salePrice?: unknown; isDeleted?: unknown };
+
+    const isDeleted = (data as any).isDeleted === true;
+    if (isDeleted) return;
+
+    const purchasePrice = typeof data.purchasePrice === 'number' ? data.purchasePrice : Number(data.purchasePrice ?? 0);
+    const salePrice = typeof data.salePrice === 'number' ? data.salePrice : Number(data.salePrice ?? 0);
+
+    const db = admin.firestore();
+    const productRef = db.doc(`companies/${companyId}/products/${productId}`);
+
+    await productRef.set(
+      {
+        lastPurchasePrice: purchasePrice,
+        salePrice,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  },
+);
+
+// Süresi dolan aktif fiyat listesini pasife çekip, tarihe uygun bir liste varsa onu aktif yap.
+export const priceListAutoActivate = onSchedule(
+  {
+    schedule: 'every 1 hours',
+    timeZone: 'Europe/Istanbul',
+  },
+  async () => {
+    const db = admin.firestore();
+    const now = new Date();
+
+    const companiesSnap = await db.collection('companies').get();
+
+    for (const companyDoc of companiesSnap.docs) {
+      const companyId = companyDoc.id;
+      const priceListsRef = db.collection(`companies/${companyId}/priceLists`);
+
+      const activeSnap = await priceListsRef.where('isActive', '==', true).limit(1).get();
+      const activeDoc = activeSnap.docs[0];
+
+      const activeData = activeDoc?.data() as { startDate?: any; endDate?: any } | undefined;
+      const activeStart = activeData?.startDate?.toDate ? activeData.startDate.toDate() : null;
+      const activeEnd = activeData?.endDate?.toDate ? activeData.endDate.toDate() : null;
+
+      const activeValid =
+        activeStart != null && activeEnd != null && now >= activeStart && now <= activeEnd;
+
+      if (activeDoc && activeValid) {
+        continue;
+      }
+
+      const candidatesSnap = await priceListsRef.get();
+      const candidates = candidatesSnap.docs
+        .map((d) => ({ id: d.id, ref: d.ref, data: d.data() as any }))
+        .filter((x) => x.data && x.data.startDate?.toDate && x.data.endDate?.toDate)
+        .filter((x) => {
+          const s = x.data.startDate.toDate();
+          const e = x.data.endDate.toDate();
+          return now >= s && now <= e;
+        })
+        .sort((a, b) => b.data.startDate.toDate().getTime() - a.data.startDate.toDate().getTime());
+
+      if (candidates.length === 0) {
+        if (activeDoc) {
+          await activeDoc.ref.set(
+            {
+              isActive: false,
+              inactiveReason: 'Süresi doldu',
+              modifiedDate: admin.firestore.FieldValue.serverTimestamp(),
+              modifiedBy: 'system',
+              versionNo: admin.firestore.FieldValue.increment(1),
+              versionDate: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+        continue;
+      }
+
+      const next = candidates[0];
+
+      await db.runTransaction(async (tx) => {
+        if (activeDoc && activeDoc.id !== next.id) {
+          tx.set(
+            activeDoc.ref,
+            {
+              isActive: false,
+              inactiveReason: 'Süresi doldu',
+              modifiedDate: admin.firestore.FieldValue.serverTimestamp(),
+              modifiedBy: 'system',
+              versionNo: admin.firestore.FieldValue.increment(1),
+              versionDate: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+
+        tx.set(
+          next.ref,
+          {
+            isActive: true,
+            inactiveReason: null,
+            modifiedDate: admin.firestore.FieldValue.serverTimestamp(),
+            modifiedBy: 'system',
+            versionNo: admin.firestore.FieldValue.increment(1),
+            versionDate: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      });
+
+      // Yeni aktif listeye, bir önceki aktif listeden eksik item'ları taşı.
+      if (activeDoc && activeDoc.id !== next.id) {
+        const prevItemsSnap = await db.collection(`companies/${companyId}/priceLists/${activeDoc.id}/items`).get();
+        const nextItemsSnap = await db.collection(`companies/${companyId}/priceLists/${next.id}/items`).get();
+        const nextIds = new Set(nextItemsSnap.docs.map((d) => d.id));
+
+        const batch = db.batch();
+        for (const doc of prevItemsSnap.docs) {
+          if (nextIds.has(doc.id)) continue;
+          const item = doc.data() as any;
+
+          batch.set(
+            db.doc(`companies/${companyId}/priceLists/${next.id}/items/${doc.id}`),
+            {
+              ...item,
+              id: doc.id,
+              productId: item.productId ?? doc.id,
+              isInherited: true,
+              inheritedFromPriceListId: activeDoc.id,
+              modifiedDate: admin.firestore.FieldValue.serverTimestamp(),
+              modifiedBy: 'system',
+              versionNo: admin.firestore.FieldValue.increment(1),
+              versionDate: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+
+        await batch.commit();
+      }
+    }
   },
 );
 

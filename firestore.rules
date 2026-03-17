@@ -120,12 +120,15 @@ service cloud.firestore {
         allow read: if isMember(companyId);
 
         // stockQuantity is derived from stockEntries and must not be edited by clients.
+        // lastPurchasePrice & salePrice are a read-only cache and must not be edited by clients.
         allow create: if isAdmin(companyId)
           && ('stockQuantity' in request.resource.data)
           && request.resource.data.stockQuantity == 0;
 
         allow update: if isAdmin(companyId)
-          && (!('stockQuantity' in request.resource.data) || request.resource.data.stockQuantity == resource.data.stockQuantity);
+          && (!('stockQuantity' in request.resource.data) || request.resource.data.stockQuantity == resource.data.stockQuantity)
+          && (!('lastPurchasePrice' in request.resource.data) || request.resource.data.lastPurchasePrice == resource.data.lastPurchasePrice)
+          && (!('salePrice' in request.resource.data) || request.resource.data.salePrice == resource.data.salePrice);
 
         allow delete: if isAdmin(companyId);
       }
