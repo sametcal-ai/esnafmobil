@@ -765,7 +765,12 @@ class _SelectProductDialogState extends ConsumerState<_SelectProductDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Kapat'),
         ),
-  </old_code><new_code>class _PriceListItemsView extends ConsumerWidget {
+      ],
+    );
+  }
+}
+
+class _PriceListItemsView extends ConsumerWidget {
   final PriceList priceList;
   final List<PriceListItem> items;
 
