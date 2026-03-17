@@ -10,6 +10,8 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../company/domain/active_company_provider.dart';
+import '../../products/data/product_repository.dart';
+import '../data/stock_entry_repository.dart';
 import '../data/supplier_ledger_repository.dart';
 import '../data/supplier_repository.dart';
 import '../data/supplier_statement_pdf_service.dart';
@@ -179,7 +181,10 @@ class _SupplierStatementPageState
           throw Exception('Aktif firma seçili değil');
         }
 
-        final pdfService = SupplierStatementPdfService();
+        final pdfService = SupplierStatementPdfService(
+          stockRepo: ref.read(stockEntryRepositoryProvider),
+          productRepo: ref.read(productsRepositoryProvider),
+        );
         bytes = await pdfService.generateStatementPdf(
           companyId: companyId,
           supplier: supplier,

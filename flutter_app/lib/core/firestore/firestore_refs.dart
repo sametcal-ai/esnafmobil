@@ -98,3 +98,7 @@ class FirestoreRefs {
   ) =>
       company(companyId).collection('suppliers').doc(supplierId).collection('ledger');
 }
+
+final firestoreRefsProvider = Provider<FirestoreRefs>((ref) {
+  return FirestoreRefs.instance();
+});

@@ -220,7 +220,7 @@ class _CustomerDetailPageState extends ConsumerState<CustomerDetailPage> {
         return FutureBuilder(
           future: saleId == null || companyId == null
               ? Future.value(null)
-              : SalesRepository().getSaleById(companyId, saleId),
+              : ref.read(salesRepositoryProvider).getSaleById(companyId, saleId),
           builder: (context, snapshot) {
             final sale = snapshot.data as dynamic;
 

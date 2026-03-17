@@ -7,10 +7,6 @@ import '../../../core/firestore/models/company_member.dart';
 import '../../auth/domain/firebase_auth_controller.dart';
 import 'company_membership.dart';
 
-final firestoreRefsProvider = Provider<FirestoreRefs>((ref) {
-  return FirestoreRefs.instance();
-});
-
 final firebaseFunctionsProvider = Provider<FirebaseFunctions>((ref) {
   return FirebaseFunctions.instance;
 });

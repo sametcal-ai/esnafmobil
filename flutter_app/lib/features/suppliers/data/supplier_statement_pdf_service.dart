@@ -9,10 +9,17 @@ import '../../products/data/product_repository.dart';
 import '../data/stock_entry_repository.dart';
 import '../domain/stock_entry.dart';
 import '../domain/supplier.dart';
-import '../domain/supplier_ledger.dart';
+import '../domain/sup</old_code><new_code>class SupplierStatementPdfService {
+  final StockEntryRepository _stockRepo;
+  final ProductRepository _productRepo;
 
-class SupplierStatementPdfService {
-  Future<pw.Font> _loadTtfFont(String assetPath) async {
+  SupplierStatementPdfService({
+    required StockEntryRepository stockRepo,
+    required ProductRepository productRepo,
+  })  : _stockRepo = stockRepo,
+        _productRepo = productRepo;
+
+  Future<pw.Font
     final data = await rootBundle.load(assetPath);
     final bytes = data.buffer.asUint8List();
 
@@ -44,17 +51,14 @@ class SupplierStatementPdfService {
     final doc = pw.Document(theme: theme);
 
     // Satın alma hareketlerine ait stok kayıtlarını ve ürünleri yükle.
-    final stockRepo = StockEntryRepository(ProductRepository());
-    final productRepo = ProductRepository();
-
-    final stockEntries = await stockRepo.getAllEntries(companyId);
+    final stockEntries = await _stockRepo.getAllEntries(companyId);
     final supplierStocks = stockEntries.where(
       (e) =>
           e.type == StockMovementType.incoming &&
           e.supplierId == supplier.id,
     );
 
-    final products = await productRepo.getAllProducts(companyId);
+    final products = await _productRepo.getAllProducts(companyId);
     final productsById = {
       for (final p in products) p.id: p,
     };
