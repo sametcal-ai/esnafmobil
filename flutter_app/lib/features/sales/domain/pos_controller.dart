@@ -1,26 +1,29 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_settings.dart';
+import '../../../core/models/auditable.dart';
 import '../../auth/domain/current_user_provider.dart';
 import '../../company/domain/active_company_provider.dart';
+import '../../company/domain/company_memberships_provider.dart';
 import '../../pricing/domain/price_resolver.dart';
 import '../../products/data/product_repository.dart';
 import '../../products/domain/product.dart' as catalog;
+import '../../suppliers/domain/stock_entry.dart';
 import '../data/sales_repository.dart';
 import 'pos_models.dart';
 
 /// Barkod okuma sonucunu temsil eder.
 enum ScanResult {
   added,
-  incremented,
-  notFound,
-}
+  increme</old_code><new_code>class PosController extends Notifier<PosState> {
+  static const _uuid = Uuid();
 
-class PosController extends Notifier<PosState> {
   late String companyId;
   late String? currentUserId;
   late ProductRepository _productRepository;
-  late SalesRepository _salesRepository;
+  late FirestoreRefs _refs;
   late AppSettings _settings;
 
   @override
@@ -29,7 +32,9 @@ class PosController extends Notifier<PosState> {
     companyId = ref.watch(activeCompanyIdProvider) ?? '';
     currentUserId = ref.watch(currentUserIdProvider);
     _productRepository = ref.watch(productsRepositoryProvider);
-    _salesRepository = ref.watch(salesRepositoryProvider);
+    _refs = ref.watch(firestoreRefsProvider);
+ryProvider);
+    _refs = ref.watch(firestoreRefsProvider);
 
     return PosState.initial();
   }
@@ -186,6 +191,12 @@ class PosController extends Notifier<PosState> {
     if (companyId.isEmpty) return null;
     if (state.items.isEmpty) return null;
 
+    final now = DateTime.now();
+    final saleId = now.microsecondsSinceEpoch.toString();
+
+    final actor = currentUserId ?? 'system';
+    final saleMeta = AuditMeta.create(createdBy: actor, now: now);
+
     final subtotal = state.subtotal;
     final discount = state.discountAmount;
     final vat = state.taxAmount;
@@ -204,20 +215,80 @@ class PosController extends Notifier<PosState> {
         )
         .toList(growable: false);
 
-    final saleId = await _salesRepository.createSale(
-      companyId: companyId,
+    final sale = Sale(
+      id: saleId,
       customerId: customerId,
+      createdAt: now,
       subtotal: subtotal,
       discount: discount,
       vat: vat,
       total: total,
       paymentMethod: paymentMethod,
       items: items,
-      currentUserId: currentUserId,
+      meta: saleMeta,
     );
 
-    clearCart();
+    try {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        for (final item in state.items) {
+          final productRef = _refs.productsRef(companyId).doc(item.product.id);
+          final productSnap = await tx.get(productRef);
 
+          final product = productSnap.data();
+          if (product == null || product.meta.isDeleted) {
+            throw StateError('Product not found');
+          }
+
+          if (product.stockQuantity < item.quantity) {
+            throw StateError('Insufficient stock');
+          }
+
+          final updatedMeta = product.meta.touch(
+            modifiedBy: actor,
+            bumpVersion: true,
+          );
+
+          final updatedProduct = product.copyWith(
+            stockQuantity: product.stockQuantity - item.quantity,
+            meta: updatedMeta,
+          );
+
+          tx.set(productRef, updatedProduct, SetOptions(merge: true));
+
+          final stockEntryId = _uuid.v4();
+          final stockMeta = AuditMeta.create(createdBy: actor, now: now);
+          final stockEntry = StockEntry(
+            id: stockEntryId,
+            supplierId: null,
+            productId: item.product.id,
+            quantity: item.quantity,
+            unitCost: 0,
+            createdAt: now,
+            type: StockMovementType.outgoing,
+            meta: stockMeta,
+          );
+
+          tx.set(
+            _refs.stockEntries(companyId).doc(stockEntryId),
+            {
+              ...stockEntry.toMap(),
+              'createdAt': Timestamp.fromDate(now),
+            },
+            SetOptions(merge: true),
+          );
+        }
+
+        tx.set(
+          _refs.sales(companyId).doc(saleId),
+          sale.toMap(),
+          SetOptions(merge: true),
+        );
+      });
+    } catch (_) {
+      return null;
+    }
+
+    clearCart();
     return saleId;
   }
 }
