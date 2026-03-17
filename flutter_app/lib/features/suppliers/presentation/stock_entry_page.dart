@@ -39,6 +39,12 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
   final TextEditingController _unitCostController = TextEditingController();
   final TextEditingController _marginController = TextEditingController();
 
+  TextEditingController? _supplierAutocompleteController;
+  TextEditingController? _productAutocompleteController;
+
+  String _supplierQuery = '';
+  String _productQuery = '';
+
   List<Supplier> _suppliers = const [];
   List<Product> _products = const [];
   Supplier? _selectedSupplier;
@@ -69,14 +75,21 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
     if (!mounted) return;
 
     final settings = ref.read(appSettingsProvider);
-    _marginController.text =
-        settings.defaultMarginPercent.toStringAsFixed(0);
 
     setState(() {
       _suppliers = suppliers;
       _products = products;
       _selectedSupplier = suppliers.isNotEmpty ? suppliers.first : null;
       _selectedProduct = products.isNotEmpty ? products.first : null;
+      _supplierQuery = _selectedSupplier?.name ?? '';
+      _productQuery = _selectedProduct?.name ?? '';
+
+      final selectedMargin = _selectedProduct?.marginPercent ?? 0;
+      _marginController.text = (selectedMargin > 0
+              ? selectedMargin
+              : settings.defaultMarginPercent)
+          .toStringAsFixed(0);
+
       _isLoading = false;
     });
   }
@@ -202,10 +215,19 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
       return;
     }
 
+    final settings = ref.read(appSettingsProvider);
+
     setState(() {
       _selectedProduct = product;
-    });
-  }
+      _productQuery = product.name;
+
+      _productAutocompleteController?.text = product.name;
+
+      final selectedMargin = product.marginPercent;
+      _marginController.text = (selectedMargin > 0
+              ? selectedMargin
+              : settings.defaultMarginPercent)
+          .toStringAsFixed  }
 
   Future<void> _save() async {
     if (_selectedSupplier == null) {
@@ -290,74 +312,110 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'Tedarikçi:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: DropdownButton<Supplier>(
-                              isExpanded: true,
-                              value: _selectedSupplier,
-                              items: _suppliers
-                                  .map(
-                                    (s) => DropdownMenuItem<Supplier>(
-                                      value: s,
-                                      child: Text(
-                                        s.name,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedSupplier = value;
-                                });
-                              },
+                      Autocomplete<Supplier>(
+                        initialValue: TextEditingValue(text: _supplierQuery),
+                        displayStringForOption: (s) => s.name,
+                        optionsBuilder: (value) {
+                          final query = value.text.trim().toLowerCase();
+                          if (query.isEmpty) {
+                            return const Iterable<Supplier>.empty();
+                          }
+                          return _suppliers.where((s) {
+                            final name = s.name.toLowerCase();
+                            return name.contains(query);
+                          });
+                        },
+                        onSelected: (supplier) {
+                          setState(() {
+                            _selectedSupplier = supplier;
+                            _supplierQuery = supplier.name;
+                            _supplierAutocompleteController?.text = supplier.name;
+                          });
+                        },
+                        fieldViewBuilder:
+                            (context, textController, focusNode, onSubmit) {
+                          _supplierAutocompleteController = textController;
+
+                          return TextField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            textInputAction: TextInputAction.next,
+                            onChanged: (value) {
+                              setState(() {
+                                _supplierQuery = value;
+                              });
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Tedarikçi ara / seç',
+                              border: OutlineInputBorder(),
                             ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          const Text(
-                            'Ürün:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: DropdownButton<Product>(
-                              isExpanded: true,
-                              value: _selectedProduct,
-                              items: _products
-                                  .map(
-                                    (p) => DropdownMenuItem<Product>(
-                                      value: p,
-                                      child: Text(
-                                        '${p.name} (${p.barcode})',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedProduct = value;
-                                });
-                              },
+                      Autocomplete<Product>(
+                        initialValue: TextEditingValue(text: _productQuery),
+                        displayStringForOption: (p) => p.name,
+                        optionsBuilder: (value) {
+                          final query = value.text.trim().toLowerCase();
+                          if (query.isEmpty) {
+                            return const Iterable<Product>.empty();
+                          }
+
+                          return _products.where((p) {
+                            final name = p.name.toLowerCase();
+                            final brand = p.brand.toLowerCase();
+                            final barcode = p.barcode.toLowerCase();
+                            final tags = p.tags
+                                .map((t) => t.toLowerCase())
+                                .join(' ');
+
+                            return name.contains(query) ||
+                                brand.contains(query) ||
+                                barcode.contains(query) ||
+                                tags.contains(query);
+                          });
+                        },
+                        onSelected: (product) {
+                          final settings = ref.read(appSettingsProvider);
+
+                          setState(() {
+                            _selectedProduct = product;
+                            _productQuery = product.name;
+                            _productAutocompleteController?.text = product.name;
+
+                            final selectedMargin = product.marginPercent;
+                            _marginController.text = (selectedMargin > 0
+                                    ? selectedMargin
+                                    : settings.defaultMarginPercent)
+                                .toStringAsFixed(0);
+                          });
+                        },
+                        fieldViewBuilder:
+                            (context, textController, focusNode, onSubmit) {
+                          _productAutocompleteController = textController;
+
+                          return TextField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            textInputAction: TextInputAction.next,
+                            onChanged: (value) {
+                              setState(() {
+                                _productQuery = value;
+                              });
+                            },
+                            decoration: InputDecoration(
+                              labelText: 'Ürün ara / seç',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: IconButton(
+                                onPressed: _openBarcodeScanner,
+                                icon: const Icon(
+                                    Icons.qr_code_scanner_outlined),
+                                tooltip: 'Barkod Oku',
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            onPressed: _openBarcodeScanner,
-                            icon: const Icon(Icons.qr_code_scanner_outlined),
-                            tooltip: 'Barkod Oku',
-                          ),
-                        ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
                       Row(
