@@ -12,6 +12,11 @@ import '../domain/price_list.dart';
 import '../domain/price_list_item.dart';
 import '../domain/price_list_providers.dart';
 
+final _allProductsProvider = FutureProvider.family.autoDispose<List<Product>, String>((ref, companyId) {
+  final repo = ref.watch(productsRepositoryProvider);
+  return repo.getAllProducts(companyId);
+});
+
 class PricingDetailPage extends ConsumerWidget {
   final PriceList priceList;
 
@@ -691,12 +696,7 @@ class _SelectProductDialogState extends ConsumerState<_SelectProductDialog> {
         const <PriceListItem>[];
     final existingIds = existing.map((e) => e.productId).toSet();
 
-    final productsAsync = ref.watch(
-      FutureProvider.autoDispose<List<Product>>((ref) async {
-        final repo = ref.watch(productsRepositoryProvider);
-        return repo.getAllProducts(companyId);
-      }),
-    );
+    final productsAsync = ref.watch(_allProductsProvider(companyId));
 
     return AlertDialog(
       title: const Text('Ürün seç'),
@@ -784,12 +784,7 @@ class _PriceListItemsView extends ConsumerWidget {
       return const Center(child: Text('Firma seçili değil'));
     }
 
-    final productsAsync = ref.watch(
-      FutureProvider.autoDispose<List<Product>>((ref) async {
-        final repo = ref.watch(productsRepositoryProvider);
-        return repo.getAllProducts(companyId);
-      }),
-    );
+    final productsAsync = ref.watch(_allProductsProvider(companyId));
 
     return productsAsync.when(
       data: (products) {
