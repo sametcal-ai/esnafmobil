@@ -141,11 +141,16 @@ class PriceListRepository {
         .limit(1)
         .get();
 
-    final DocumentReference<PriceList>? prevRef = prevActiveSnap.docs.isEmpty
-        ? null
-        : prevActiveSnap.docs.first.reference;
+    final prevId =
+        prevActiveSnap.docs.isEmpty ? null : prevActiveSnap.docs.first.id;
 
-    final nextRef = _refs.priceListsRef(companyId).doc(priceListId);
+    final rawPriceLists = FirebaseFirestore.instance
+        .collection('companies')
+        .doc(companyId)
+        .collection('priceLists');
+
+    final prevRef = prevId == null ? null : rawPriceLists.doc(prevId);
+    final nextRef = rawPriceLists.doc(priceListId);
 
     final db = FirebaseFirestore.instance;
     await db.runTransaction((tx) async {
@@ -187,7 +192,8 @@ class PriceListRepository {
     final active = await getActivePriceList(companyId);
     if (active == null || active.id != priceListId) return;
 
-    final prev = await _findMostRecentOtherList(companyId, excludeId: priceListId);
+    final prev =
+        await _findMostRecentOtherList(companyId, excludeId: priceListId);
     if (prev == null) return;
 
     await _fillMissingItemsFromPrevious(
@@ -195,6 +201,36 @@ class PriceListRepository {
       targetPriceListId: priceListId,
       sourcePriceListId: prev.id,
       currentUserId: actor,
+    );
+  }
+
+  Future<void> updatePriceList({
+    required String companyId,
+    required String priceListId,
+    required String name,
+    required DateTime startDate,
+    required DateTime endDate,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    await FirebaseFirestore.instance
+        .collection('companies')
+        .doc(companyId)
+        .collection('priceLists')
+        .doc(priceListId)
+        .set(
+      {
+        'name': name,
+        'startDate': Timestamp.fromDate(startDate),
+        'endDate': Timestamp.fromDate(endDate),
+        'modifiedBy': actor,
+        'modifiedDate': Timestamp.fromDate(now),
+        'versionNo': FieldValue.increment(1),
+        'versionDate': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
     );
   }
 

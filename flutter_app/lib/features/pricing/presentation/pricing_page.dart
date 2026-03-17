@@ -360,18 +360,28 @@ class _CreatePriceListDialogState extends ConsumerState<_CreatePriceListDialog> 
                     _isSaving = true;
                   });
 
-                  final repo = ref.read(priceListRepositoryProvider);
-                  await repo.createPriceList(
-                    companyId: companyId,
-                    name: name,
-                    startDate: _startDate,
-                    endDate: _endDate,
-                    type: _type,
-                    makeActive: _makeActive,
-                  );
+                  try {
+                    final repo = ref.read(priceListRepositoryProvider);
+                    await repo.createPriceList(
+                      companyId: companyId,
+                      name: name,
+                      startDate: _startDate,
+                      endDate: _endDate,
+                      type: _type,
+                      makeActive: _makeActive,
+                    );
 
-                  if (!mounted) return;
-                  Navigator.of(context).pop();
+                    if (!mounted) return;
+                    Navigator.of(context).pop();
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Kayıt hatası: $e')),
+                    );
+                    setState(() {
+                      _isSaving = false;
+                    });
+                  }
                 },
           child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
         ),

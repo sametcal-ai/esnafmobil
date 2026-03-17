@@ -16,11 +16,31 @@ class PricingDetailPage extends ConsumerWidget {
 
   const PricingDetailPage({super.key, required this.priceList});
 
+  String _dateText(DateTime dt) {
+    final d = dt.toLocal();
+    final day = d.day.toString().padLeft(2, '0');
+    final month = d.month.toString().padLeft(2, '0');
+    final year = d.year.toString();
+    return '$day.$month.$year';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final companyId = ref.watch(activeCompanyIdProvider);
+    final lists = ref.watch(priceListsProvider).asData?.value;
+    PriceList? latest;
+    if (lists != null) {
+      for (final p in lists) {
+        if (p.id == priceList.id) {
+          latest = p;
+          break;
+        }
+      }
+    }
+    final pl = latest ?? priceList;
+
     final activeId = ref.watch(activePriceListProvider).asData?.value?.id;
-    final isActive = companyId != null && activeId == priceList.id;
+    final isActive = companyId != null && activeId == pl.id;
 
     final itemsAsync = companyId == null
         ? const AsyncValue<List<PriceListItem>>.data(<PriceListItem>[])
@@ -28,7 +48,7 @@ class PricingDetailPage extends ConsumerWidget {
             StreamProvider.autoDispose<List<PriceListItem>>(
               (ref) {
                 final repo = ref.watch(priceListRepositoryProvider);
-                return repo.watchItems(companyId, priceList.id);
+                return repo.watchItems(companyId, pl.id);
               },
             ),
           );
@@ -37,42 +57,269 @@ class PricingDetailPage extends ConsumerWidget {
       title: 'Fiyat Listesi Detayı',
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: ListTile(
-                title: Text(
-                  priceList.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+        child: itemsAsync.when(
+          data: (items) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                pl.name,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text('Başlangıç: ${_dateText(pl.startDate)}'),
+                              const SizedBox(height: 4),
+                              Text('Bitiş: ${_dateText(pl.endDate)}'),
+                              if (isActive) ...[
+                                const SizedBox(height: 8),
+                                const Chip(label: Text('Aktif')),
+                              ],
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Düzenle',
+                          onPressed: companyId == null
+                              ? null
+                              : () async {
+                                  await showModalBottomSheet<void>(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    builder: (_) => _EditPriceListSheet(
+                                      priceList: pl,
+                                      companyId: companyId,
+                                    ),
+                                  );
+                                },
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                subtitle: Text(
-                  '${priceList.startDate.toLocal().toString().split(' ').first} - ${priceList.endDate.toLocal().toString().split(' ').first}',
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Card(
+                        child: ListTile(
+                          title: const Text('Aktif ürün sayısı'),
+                          subtitle: Text(items.length.toString()),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                trailing: isActive ? const Chip(label: Text('Aktif')) : null,
-              ),
-            ),
-            const SizedBox(height: 12),
-            itemsAsync.when(
-              data: (items) {
-                return Expanded(
+                const SizedBox(height: 12),
+                Expanded(
                   child: items.isEmpty
                       ? _EmptyPriceListActions(priceList: priceList)
-                      : _PriceListItemsView(
-                          priceList: priceList,
-                          items: items,
+                      : Card(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const ListTile(
+                                title: Text(
+                                  'Ürünler',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              const Divider(height: 1),
+                              Expanded(
+                                child: _PriceListItemsView(
+                                  priceList: priceList,
+                                  items: items,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                );
-              },
-              loading: () => const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (_, __) => const Expanded(
-                child: Center(child: Text('Liste ürünleri yüklenemedi')),
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => const Center(child: Text('Liste ürünleri yüklenemedi')),
         ),
+      ),
+    );
+  }
+}
+
+class _EditPriceListSheet extends ConsumerStatefulWidget {
+  final PriceList priceList;
+  final String companyId;
+
+  const _EditPriceListSheet({
+    required this.priceList,
+    required this.companyId,
+  });
+
+  @override
+  ConsumerState<_EditPriceListSheet> createState() => _EditPriceListSheetState();
+}
+
+class _EditPriceListSheetState extends ConsumerState<_EditPriceListSheet> {
+  late final TextEditingController _nameController;
+  late DateTime _startDate;
+  late DateTime _endDate;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.priceList.name);
+    _startDate = widget.priceList.startDate;
+    _endDate = widget.priceList.endDate;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickStart() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _startDate = DateTime(picked.year, picked.month, picked.day);
+      if (_endDate.isBefore(_startDate)) {
+        _endDate = _startDate;
+      }
+    });
+  }
+
+  Future<void> _pickEnd() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate,
+      firstDate: _startDate,
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _endDate = DateTime(picked.year, picked.month, picked.day);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: 16 + bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Fiyat Listesini Düzenle',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Liste adı',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSaving ? null : _pickStart,
+                  child: Text(
+                    'Başlangıç: ${_startDate.toLocal().toString().split(' ').first}',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSaving ? null : _pickEnd,
+                  child: Text(
+                    'Bitiş: ${_endDate.toLocal().toString().split(' ').first}',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                  child: const Text('İptal'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isSaving
+                      ? null
+                      : () async {
+                          final name = _nameController.text.trim();
+                          if (name.isEmpty) return;
+
+                          setState(() {
+                            _isSaving = true;
+                          });
+
+                          try {
+                            final repo = ref.read(priceListRepositoryProvider);
+                            await repo.updatePriceList(
+                              companyId: widget.companyId,
+                              priceListId: widget.priceList.id,
+                              name: name,
+                              startDate: _startDate,
+                              endDate: _endDate,
+                            );
+
+                            if (!mounted) return;
+                            Navigator.of(context).pop();
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Güncelleme hatası: $e')),
+                            );
+                            setState(() {
+                              _isSaving = false;
+                            });
+                          }
+                        },
+                  child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
