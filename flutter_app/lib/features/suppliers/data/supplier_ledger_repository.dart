@@ -4,16 +4,28 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
-import '../../company/domain/company_memberships_provider.dart';
+import '../../auth/domain/current_user_provider.dart';
 import '../domain/supplier.dart';
 import '../domain/supplier_ledger.dart';
 
 class SupplierLedgerRepository {
   static const _uuid = Uuid();
 
-  SupplierLedgerRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
+  SupplierLedgerRepository(
+    this._refs, {
+    String? currentUserId,
+  }) : _currentUserId = currentUserId;
 
   final FirestoreRefs _refs;
+  final String? _currentUserId;
+
+  String _requireActor([String? overrideUserId]) {
+    final actor = (overrideUserId ?? _currentUserId) ?? '';
+    if (actor.isEmpty) {
+      throw StateError('currentUserId is required for this operation');
+    }
+    return actor;
+  }
 
   Future<SupplierLedgerEntry> addPurchaseEntry({
     required String companyId,
@@ -24,7 +36,7 @@ class SupplierLedgerRepository {
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final meta = AuditMeta.create(createdBy: actor, now: now);
 
     final entry = SupplierLedgerEntry(
@@ -57,7 +69,7 @@ class SupplierLedgerRepository {
   }) async {
     final now = DateTime.now();
     final id = _uuid.v4();
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final meta = AuditMeta.create(createdBy: actor, now: now);
 
     final entry = SupplierLedgerEntry(
@@ -153,5 +165,6 @@ class SupplierLedgerRepository {
 
 final supplierLedgerRepositoryProvider = Provider<SupplierLedgerRepository>((ref) {
   final refs = ref.watch(firestoreRefsProvider);
-  return SupplierLedgerRepository(refs);
+  final currentUserId = ref.watch(currentUserIdProvider);
+  return SupplierLedgerRepository(refs, currentUserId: currentUserId);
 });

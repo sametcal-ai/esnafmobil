@@ -4,15 +4,27 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
-import '../../company/domain/company_memberships_provider.dart';
+import '../../auth/domain/current_user_provider.dart';
 import '../domain/product.dart';
 
 class ProductRepository {
   static const _uuid = Uuid();
 
-  ProductRepository([FirestoreRefs? refs]) : _refs = refs ?? FirestoreRefs.instance();
+  ProductRepository(
+    this._refs, {
+    String? currentUserId,
+  }) : _currentUserId = currentUserId;
 
   final FirestoreRefs _refs;
+  final String? _currentUserId;
+
+  String _requireActor([String? overrideUserId]) {
+    final actor = (overrideUserId ?? _currentUserId) ?? '';
+    if (actor.isEmpty) {
+      throw StateError('currentUserId is required for this operation');
+    }
+    return actor;
+  }
 
   Stream<List<Product>> watchProducts(String companyId) {
     return _refs.productsRef(companyId).snapshots().map((snap) {
@@ -51,7 +63,7 @@ class ProductRepository {
     String productId, {
     String? currentUserId,
   }) async {
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final now = DateTime.now();
 
     await _refs.products(companyId).doc(productId).set(
@@ -125,7 +137,7 @@ class ProductRepository {
     String? currentUserId,
   }) async {
     final id = _uuid.v4();
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final meta = AuditMeta.create(createdBy: actor);
 
     final product = Product(
@@ -164,7 +176,7 @@ class ProductRepository {
       return null;
     }
 
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final updatedMeta = existing.meta.touch(
       modifiedBy: actor,
       bumpVersion: true,
@@ -188,15 +200,12 @@ class ProductRepository {
     final product = await getProductById(companyId, productId);
     if (product == null) return;
 
-    // Yeni stok miktarı.
     final newQuantity = product.stockQuantity + quantity;
 
     double newLastPurchasePrice = purchasePrice ?? product.lastPurchasePrice;
     double newSalePrice = product.salePrice;
     double newMarginPercent = product.marginPercent;
 
-    // Otomatik fiyatlandırma: manuel fiyat kullanılmıyorsa
-    // ve marj bilgisi geldiyse satış fiyatını güncelle.
     if (!product.isManualPrice && purchasePrice != null) {
       newLastPurchasePrice = purchasePrice;
       if (marginPercent != null && marginPercent > 0) {
@@ -205,7 +214,7 @@ class ProductRepository {
       }
     }
 
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final updatedMeta = product.meta.touch(
       modifiedBy: actor,
       bumpVersion: true,
@@ -234,7 +243,7 @@ class ProductRepository {
     if (product == null) return;
 
     final newQuantity = product.stockQuantity - quantity;
-    final actor = currentUserId ?? 'system';
+    final actor = _requireActor(currentUserId);
     final updatedMeta = product.meta.touch(
       modifiedBy: actor,
       bumpVersion: true,
@@ -251,5 +260,6 @@ class ProductRepository {
 
 final productsRepositoryProvider = Provider<ProductRepository>((ref) {
   final refs = ref.watch(firestoreRefsProvider);
-  return ProductRepository(refs);
+  final currentUserId = ref.watch(currentUserIdProvider);
+  return ProductRepository(refs, currentUserId: currentUserId);
 });

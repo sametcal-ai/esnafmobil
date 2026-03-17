@@ -197,7 +197,8 @@ class PosController extends Notifier<PosState> {
     final now = DateTime.now();
     final saleId = now.microsecondsSinceEpoch.toString();
 
-    final actor = currentUserId ?? 'system';
+    final actor = currentUserId;
+    if (actor == null || actor.isEmpty) return null;
     final saleMeta = AuditMeta.create(createdBy: actor, now: now);
 
     final subtotal = state.subtotal;
