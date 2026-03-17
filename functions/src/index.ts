@@ -561,35 +561,51 @@ export const onStockEntryCreated = onDocumentCreated(
         },
         { merge: true },
       );
+
+      // Ürün kartındaki cache alanı: lastPurchasePrice sadece stok hareketi ile güncellenir.
+      tx.set(
+        productRef,
+        {
+          lastPurchasePrice: unitCost,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
     });
   },
 );
 
 // priceList item değişince ürün kartındaki cache alanlarını güncelle.
+// NOT: lastPurchasePrice sadece stok hareketlerinden güncellenir.
+// salePrice ise sadece AKTİF fiyat listesinin item'larından cache edilir.
 export const onPriceListItemWritten = onDocumentWritten(
   'companies/{companyId}/priceLists/{priceListId}/items/{productId}',
   async (event) => {
-    const { companyId, productId } = event.params;
+    const { companyId, productId, priceListId } = event.params;
     const after = event.data?.after;
 
     if (!after || !after.exists) {
       return;
     }
 
-    const data = after.data() as { purchasePrice?: unknown; salePrice?: unknown; isDeleted?: unknown };
+    const data = after.data() as { salePrice?: unknown; isDeleted?: unknown };
 
     const isDeleted = (data as any).isDeleted === true;
     if (isDeleted) return;
 
-    const purchasePrice = typeof data.purchasePrice === 'number' ? data.purchasePrice : Number(data.purchasePrice ?? 0);
     const salePrice = typeof data.salePrice === 'number' ? data.salePrice : Number(data.salePrice ?? 0);
 
     const db = admin.firestore();
+
+    // Sadece aktif fiyat listesi ürün kartına yansıtılır.
+    const plDoc = await db.doc(`companies/${companyId}/priceLists/${priceListId}`).get();
+    const isActive = plDoc.exists && (plDoc.data() as any)?.isActive === true;
+    if (!isActive) return;
+
     const productRef = db.doc(`companies/${companyId}/products/${productId}`);
 
     await productRef.set(
       {
-        lastPurchasePrice: purchasePrice,
         salePrice,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
@@ -688,18 +704,39 @@ export const priceListAutoActivate = onSchedule(
         );
       });
 
+      // Yeni aktif listeye geçiş sonrası: ürün kartlarındaki salePrice cache'ini toplu güncelle.
+      // lastPurchasePrice bu aşamada dokunulmaz.
+      const nextItemsSnap = await db.collection(`companies/${companyId}/priceLists/${next.id}/items`).get();
+      const batch = db.batch();
+      for (const itemDoc of nextItemsSnap.docs) {
+        const item = itemDoc.data() as any;
+        const productId = item.productId ?? itemDoc.id;
+        const salePrice = typeof item.salePrice === 'number' ? item.salePrice : Number(item.salePrice ?? 0);
+
+        batch.set(
+          db.doc(`companies/${companyId}/products/${productId}`),
+          {
+            salePrice,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
+      await batch.commit();
+
       // Yeni aktif listeye, bir önceki aktif listeden eksik item'ları taşı.
+      // NOT: Kopyalama sonrası ürün kartı salePrice cache'i de yeniden basılmalı.
       if (activeDoc && activeDoc.id !== next.id) {
         const prevItemsSnap = await db.collection(`companies/${companyId}/priceLists/${activeDoc.id}/items`).get();
-        const nextItemsSnap = await db.collection(`companies/${companyId}/priceLists/${next.id}/items`).get();
-        const nextIds = new Set(nextItemsSnap.docs.map((d) => d.id));
+        const nextItemsSnap2 = await db.collection(`companies/${companyId}/priceLists/${next.id}/items`).get();
+        const nextIds = new Set(nextItemsSnap2.docs.map((d) => d.id));
 
-        const batch = db.batch();
+        const batch2 = db.batch();
         for (const doc of prevItemsSnap.docs) {
           if (nextIds.has(doc.id)) continue;
           const item = doc.data() as any;
 
-          batch.set(
+          batch2.set(
             db.doc(`companies/${companyId}/priceLists/${next.id}/items/${doc.id}`),
             {
               ...item,
@@ -716,7 +753,27 @@ export const priceListAutoActivate = onSchedule(
           );
         }
 
-        await batch.commit();
+        await batch2.commit();
+
+        // Kopyalama sonrası yeni listenin item'larından ürün kartlarına salePrice bas.
+        const finalItemsSnap = await db.collection(`companies/${companyId}/priceLists/${next.id}/items`).get();
+        const batch3 = db.batch();
+        for (const doc of finalItemsSnap.docs) {
+          const item = doc.data() as any;
+          const productId = item.productId ?? doc.id;
+          const salePrice = typeof item.salePrice === 'number' ? item.salePrice : Number(item.salePrice ?? 0);
+
+          batch3.set(
+            db.doc(`companies/${companyId}/products/${productId}`),
+            {
+              salePrice,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+
+        await batch3.commit();
       }
     }
   },

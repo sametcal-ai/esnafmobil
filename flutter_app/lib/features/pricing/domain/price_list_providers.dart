@@ -23,8 +23,7 @@ final activePriceListProvider = StreamProvider.autoDispose<PriceList?>((ref) {
 
   final repo = ref.watch(priceListRepositoryProvider);
 
-  // UI tarafında aktif listeyi garanti altına almak için (süre dolduysa switch).
-  Future.microtask(() => repo.ensureActiveForNow(companyId));
+  // Aktif liste geçişi server (scheduled function) tarafında yapılır.
 
   return repo.watchActivePriceList(companyId);
 });
