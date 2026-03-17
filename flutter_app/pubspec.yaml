@@ -17,10 +17,10 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
-  flutter_riverpod: ^2.5.1
-  go_router: ^14.1.4
-  mobile_scanner: ^5.2.3
-  permission_handler: ^11.3.1
+  flutter_riverpod: ^3.3.1
+  go_router: ^17.1.0
+  mobile_scanner: ^7.2.0
+  permission_handler: ^12.0.1
   
   crypto: ^3.0.3
   http: ^1.2.2
@@ -33,12 +33,12 @@ dependencies:
   pdf: ^3.11.3
   share_plus: ^12.0.1
   path_provider: ^2.1.5
-  connectivity_plus: ^6.0.5
+  connectivity_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
