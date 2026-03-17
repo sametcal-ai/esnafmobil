@@ -187,6 +187,28 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                                     ref.read(activeCompanyIdProvider);
                                 if (companyId == null) return;
 
+                                final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) {
+                                    return AlertDialog(
+                                      title: const Text('Fiyat listesi aktif edilsin mi?'),
+                                      content: Text('"${pl.name}" aktif fiyat listesi olarak ayarlanacak.'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(false),
+                                          child: const Text('İptal'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () => Navigator.of(context).pop(true),
+                                          child: const Text('Onayla'),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+
+                                if (ok != true) return;
+
                                 final repo =
                                     ref.read(priceListRepositoryProvider);
                                 await repo.setActivePriceList(

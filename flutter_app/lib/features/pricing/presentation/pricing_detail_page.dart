@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
+import '../../auth/domain/user.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../products/data/product_repository.dart';
 import '../../products/domain/product.dart';
@@ -763,12 +765,7 @@ class _SelectProductDialogState extends ConsumerState<_SelectProductDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Kapat'),
         ),
-      ],
-    );
-  }
-}
-
-class _PriceListItemsView extends ConsumerWidget {
+  </old_code><new_code>class _PriceListItemsView extends ConsumerWidget {
   final PriceList priceList;
   final List<PriceListItem> items;
 
@@ -785,6 +782,9 @@ class _PriceListItemsView extends ConsumerWidget {
     }
 
     final productsAsync = ref.watch(_allProductsProvider(companyId));
+
+    final currentUser = ref.watch(currentUserProvider);
+    final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
 
     return productsAsync.when(
       data: (products) {
@@ -810,9 +810,44 @@ class _PriceListItemsView extends ConsumerWidget {
                 subtitle: Text(
                   'Alış: ${formatMoney(item.purchasePrice)}  •  Satış: ${formatMoney(item.salePrice)}',
                 ),
-                trailing: item.isInherited
-                    ? const Icon(Icons.warning_amber_outlined)
-                    : const Icon(Icons.edit_outlined),
+                trailing: isAdmin
+                    ? IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Sil',
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (context) {
+                              return AlertDialog(
+                                title: const Text('Silinsin mi?'),
+                                content: Text('"$title" ürünü bu fiyat listesinden silinecek.'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(false),
+                                    child: const Text('İptal'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.of(context).pop(true),
+                                    child: const Text('Sil'),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (ok != true) return;
+
+                          final repo = ref.read(priceListRepositoryProvider);
+                          await repo.deleteItemForProduct(
+                            companyId: companyId,
+                            priceListId: priceList.id,
+                            productId: item.productId,
+                          );
+                        },
+                      )
+                    : (item.isInherited
+                        ? const Icon(Icons.warning_amber_outlined)
+                        : const Icon(Icons.edit_outlined)),
                 onTap: product == null
                     ? null
                     : () async {

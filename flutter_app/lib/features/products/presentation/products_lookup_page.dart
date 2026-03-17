@@ -178,12 +178,23 @@ class _ProductsLookupPageState extends ConsumerState<ProductsLookupPage> {
                         settings: settings,
                         activeItemMap: activeItemMap,
                       );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => const Center(
           child: Text('Ürünler yüklenemedi'),
         ),
-  </old_code><new_code>class _ProductLookupCard extends StatelessWidget {
+      ),
+    );
+  }
+}
+
+class _ProductLookupCard extends StatelessWidget {
   final Product product;
   final AppSettings settings;
   final Map<String, PriceListItem> activeItemMap;
