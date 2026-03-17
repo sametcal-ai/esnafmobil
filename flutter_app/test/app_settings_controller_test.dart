@@ -115,6 +115,9 @@ void main() {
     );
     addTearDown(container.dispose);
 
+    // Ensure the settings controller is instantiated and listening to company changes.
+    container.read(appSettingsProvider);
+
     final active =
         container.read(activeCompanyIdProvider.notifier) as TestActiveCompanyController;
 
