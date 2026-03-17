@@ -48,7 +48,7 @@ class PricingDetailPage extends ConsumerWidget {
     final activeId = ref.watch(activePriceListProvider).asData?.value?.id;
     final isActive = companyId != null && activeId == pl.id;
 
-    final itemsAsync = ref.watch(priceListItemsProvider(priceList.id));
+    final itemsAsync = ref.watch(priceListItemsProvider(pl.id));
 
     return AppScaffold(
       title: 'Fiyat Listesi Detayı',
@@ -60,7 +60,7 @@ class PricingDetailPage extends ConsumerWidget {
               : () async {
                   await showDialog<void>(
                     context: context,
-                    builder: (_) => _EditPriceListDialog(existing: priceList),
+                    builder: (_) => _EditPriceListDialog(existing: pl),
                   );
                 },
         ),
@@ -79,7 +79,7 @@ class PricingDetailPage extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          priceList.name,
+                          pl.name,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -87,11 +87,11 @@ class PricingDetailPage extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Başlangıç: ${priceList.startDate.toLocal().toString().split(' ').first}',
+                          'Başlangıç: ${pl.startDate.toLocal().toString().split(' ').first}',
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Bitiş: ${priceList.endDate.toLocal().toString().split(' ').first}',
+                          'Bitiş: ${pl.endDate.toLocal().toString().split(' ').first}',
                         ),
                       ],
                     ),
@@ -110,7 +110,7 @@ class PricingDetailPage extends ConsumerWidget {
                   : () async {
                       await showModalBottomSheet<void>(
                         context: context,
-                        builder: (_) => _FillPriceListSheet(priceList: priceList),
+                        builder: (_) => _FillPriceListSheet(priceList: pl),
                       );
                     },
               child: const Text('Fiyat listesini doldur'),
@@ -146,14 +146,14 @@ class PricingDetailPage extends ConsumerWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => _PriceListItemsPage(priceList: priceList),
+                            builder: (_) => _PriceListItemsPage(priceList: pl),
                           ),
                         );
                       },
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _PriceListMovementsCard(priceList: priceList, items: items),
+                  _PriceListMovementsCard(priceList: pl, items: items),
                 ],
               );
             },
@@ -844,67 +844,106 @@ class _PriceListMovementsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(appSettingsProvider);
-    final pageSize = settings.movementsPageSize;
+    final companyId = ref.watch(activeCompanyIdProvider);
+    if (companyId == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('Firma seçili değil'),
+        ),
+      );
+    }
 
-    final entries = <_MovementEntry>[
-      _MovementEntry(
-        occurredAt: priceList.meta.modifiedDate,
-        title: 'Fiyat listesi güncellendi',
-        subtitle: priceList.meta.modifiedBy,
-      ),
-      ...items.map(
-        (i) => _MovementEntry(
-          occurredAt: i.meta.modifiedDate,
-          title: 'Ürün fiyatı güncellendi',
-          subtitle: i.productId,
+    final productsAsync = ref.watch(_allProductsProvider(companyId));
+
+    return productsAsync.when(
+      data: (products) {
+        final byId = {for (final p in products) p.id: p};
+
+        final settings = ref.watch(appSettingsProvider);
+        final pageSize = settings.movementsPageSize;
+
+        String _subtitleWithActor(String title, String actor) {
+          final trimmed = actor.trim();
+          if (trimmed.isEmpty) return title;
+          return '$title • $trimmed';
+        }
+
+        final entries = <_MovementEntry>[
+          _MovementEntry(
+            occurredAt: priceList.meta.modifiedDate,
+            title: 'Fiyat listesi güncellendi',
+            subtitle: _subtitleWithActor(priceList.name, priceList.meta.modifiedBy),
+          ),
+          ...items.map(
+            (i) {
+              final productName = byId[i.productId]?.name ?? i.productId;
+              return _MovementEntry(
+                occurredAt: i.meta.modifiedDate,
+                title: 'Ürün fiyatı güncellendi',
+                subtitle: _subtitleWithActor(productName, i.meta.modifiedBy),
+              );
+            },
+          ),
+        ];
+
+        entries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+
+        final limited = entries.length > pageSize ? entries.sublist(0, pageSize) : entries;
+
+        return Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const ListTile(
+                title: Text(
+                  'Hareketler',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const Divider(height: 0),
+              if (limited.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Hareket yok'),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: limited.length,
+                  separatorBuilder: (_, __) => const Divider(height: 0),
+                  itemBuilder: (context, index) {
+                    final e = limited[index];
+                    final dateString =
+                        '${e.occurredAt.day.toString().padLeft(2, '0')}.'
+                        '${e.occurredAt.month.toString().padLeft(2, '0')}.'
+                        '${e.occurredAt.year} '
+                        '${e.occurredAt.hour.toString().padLeft(2, '0')}:'
+                        '${e.occurredAt.minute.toString().padLeft(2, '0')}';
+
+                    return ListTile(
+                      leading: Text(dateString, style: const TextStyle(fontSize: 12)),
+                      title: Text(e.title),
+                      subtitle: e.subtitle.isEmpty ? null : Text(e.subtitle),
+                    );
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+      loading: () => const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: CircularProgressIndicator()),
         ),
       ),
-    ];
-
-    entries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-
-    final limited = entries.length > pageSize ? entries.sublist(0, pageSize) : entries;
-
-    return Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const ListTile(
-            title: Text(
-              'Hareketler',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          const Divider(height: 0),
-          if (limited.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Hareket yok'),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: limited.length,
-              separatorBuilder: (_, __) => const Divider(height: 0),
-              itemBuilder: (context, index) {
-                final e = limited[index];
-                final dateString =
-                    '${e.occurredAt.day.toString().padLeft(2, '0')}.'
-                    '${e.occurredAt.month.toString().padLeft(2, '0')}.'
-                    '${e.occurredAt.year} '
-                    '${e.occurredAt.hour.toString().padLeft(2, '0')}:'
-                    '${e.occurredAt.minute.toString().padLeft(2, '0')}';
-
-                return ListTile(
-                  leading: Text(dateString, style: const TextStyle(fontSize: 12)),
-                  title: Text(e.title),
-                  subtitle: e.subtitle.isEmpty ? null : Text(e.subtitle),
-                );
-              },
-            ),
-        ],
+      error: (_, __) => const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('Hareketler yüklenemedi'),
+        ),
       ),
     );
   }

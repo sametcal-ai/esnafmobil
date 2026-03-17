@@ -181,7 +181,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   trailing: isActive
                       ? const Chip(label: Text('Aktif'))
                       : isAdmin
-                          ? TextButton(
+                          ? ElevatedButton(
                               onPressed: () async {
                                 final companyId =
                                     ref.read(activeCompanyIdProvider);
@@ -195,6 +195,12 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                                   previousExpired: false,
                                 );
                               },
+                              style: ElevatedButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
                               child: const Text('Aktif Et'),
                             )
                           : null,
