@@ -420,7 +420,10 @@ class PriceListRepository {
     // Soft delete edilen ürünleri "var" kabul etmiyoruz.
     final existingIds = existingSnap.docs
         .map((d) => d.data())
-        .where((i) => !i.meta.isDeleted
+        .where((i) => !i.meta.isDeleted)
+        .map((i) => i.productId)
+        .toSet();
+
     final batch = FirebaseFirestore.instance.batch();
     final now = DateTime.now();
 
