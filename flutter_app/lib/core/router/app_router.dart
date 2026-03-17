@@ -67,9 +67,9 @@ final routerRefreshNotifierProvider =
 });
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // GoRouter tek instance olarak kalsın diye burada hiçbir provider'ı watch etmiyoruz.
-  // Redirect içinde auth state'e ref.read ile erişeceğiz.
-  final refreshNotifier = ref.read(routerRefreshNotifierProvider);
+  // GoRouter tek instance olarak kalsın diye redirect içinde auth state'e ref.read ile erişiyoruz.
+  // Ancak refresh notifier'ın dispose olmaması için burada watch etmemiz gerekiyor.
+  final refreshNotifier = ref.watch(routerRefreshNotifierProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
