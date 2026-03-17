@@ -1151,8 +1151,10 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
       },
     );
 
-    cashReceivedController.dispose();
-    splitCardAmountController.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      cashReceivedController.dispose();
+      splitCardAmountController.dispose();
+    });
 
     _suppressBarcodeRefocus = false;
     if (mounted && !_isCameraMode) {
