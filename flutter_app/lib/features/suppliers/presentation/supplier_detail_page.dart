@@ -261,8 +261,8 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
     final companyId = ref.read(activeCompanyIdProvider);
     if (companyId == null) return null;
 
-    final stockRepo = StockEntryRepository(ProductRepository());
-    final productRepo = ProductRepository();
+    final stockRepo = ref.read(stockEntryRepositoryProvider);
+    final productRepo = ref.read(productsRepositoryProvider);
 
     final allEntries = await stockRepo.getAllEntries(companyId);
     final relevant = allEntries.where(

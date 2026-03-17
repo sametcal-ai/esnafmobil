@@ -6,15 +6,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/config/money_formatter.dart';
-import '../../sales/data/sales_repository.dart';
 import '../domain/product.dart';
-import '../presentation/product_movements_page.dart' show ProductMovementForPdf;
-
-class ProductStatementPdfService {
-  final SalesRepository _salesRepository;
-
-  ProductStatementPdfService({SalesRepository? salesRepository})
-      : _salesRepository = salesRepository ?? SalesRepository();
+import '../presentation/product_movements_page.dart' show Pro</old_code><new_code>class ProductStatementPdfService {
+  ProductStatementPdfService();
 
   Future<pw.Font> _loadTtfFont(String assetPath) async {
     final data = await rootBundle.load(assetPath);

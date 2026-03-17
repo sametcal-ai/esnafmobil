@@ -240,7 +240,7 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
       return;
     }
 
-    final stockRepo = StockEntryRepository(ProductRepository());
+    final stockRepo = ref.read(stockEntryRepositoryProvider);
     final marginText = _marginController.text.trim();
     final marginPercent =
         double.tryParse(marginText.replaceAll(',', '.')) ?? 0;

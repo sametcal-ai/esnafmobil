@@ -14,8 +14,8 @@ class CustomerStatementPdfService {
   final SalesRepository _salesRepository;
 
   CustomerStatementPdfService({
-    SalesRepository? salesRepository,
-  }) : _salesRepository = salesRepository ?? SalesRepository();
+    required SalesRepository salesRepository,
+  }) : _salesRepository = salesRepository;
 
   Future<pw.Font> _loadTtfFont(String assetPath) async {
     final data = await rootBundle.load(assetPath);

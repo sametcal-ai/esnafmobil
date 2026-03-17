@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../company/domain/active_company_provider.dart';
+import '../../sales/data/sales_repository.dart';
 import '../data/customer_ledger_repository.dart';
 import '../data/customer_repository.dart';
 import '../data/customer_statement_pdf_service.dart';
@@ -177,7 +178,9 @@ class _CustomerStatementPageState
           throw Exception('Aktif firma seçili değil');
         }
 
-        final pdfService = CustomerStatementPdfService();
+        final pdfService = CustomerStatementPdfService(
+          salesRepository: ref.read(salesRepositoryProvider),
+        );
         bytes = await pdfService.generateStatementPdf(
           companyId: companyId,
           customer: customer,

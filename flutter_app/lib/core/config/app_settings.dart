@@ -83,6 +83,25 @@ class AppSettings {
       movementsPageSize: movementsPageSize ?? this.movementsPageSize,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    return other is AppSettings &&
+        other.barcodeScanDelaySeconds == barcodeScanDelaySeconds &&
+        other.defaultMarginPercent == defaultMarginPercent &&
+        other.productDefaultMarginPercent == productDefaultMarginPercent &&
+        other.searchFilterMinChars == searchFilterMinChars &&
+        other.movementsPageSize == movementsPageSize;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        barcodeScanDelaySeconds,
+        defaultMarginPercent,
+        productDefaultMarginPercent,
+        searchFilterMinChars,
+        movementsPageSize,
+      );
 }
 
 class AppSettingsController extends Notifier<AppSettings> {
@@ -141,6 +160,18 @@ class AppSettingsController extends Notifier<AppSettings> {
     if (companyId == null) return;
 
     final docRef = _systemSettingsDoc(companyId);
+
+    Future.microtask(() async {
+      final snap = await docRef.get();
+      _lastDocExists = snap.exists;
+
+      if (!snap.exists &&
+          _isAdmin() &&
+          !_attemptedDefaultCreateForCompany.contains(companyId)) {
+        _attemptedDefaultCreateForCompany.add(companyId);
+        await docRef.set(AppSettings.initial().toMap());
+      }
+    });
 
     _sub = docRef.snapshots().listen((snap) {
       _lastDocExists = snap.exists;
