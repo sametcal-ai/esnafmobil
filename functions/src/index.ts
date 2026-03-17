@@ -167,16 +167,28 @@ export const rejectMember = onCall<RejectMemberInput>(callableOptions, async (re
     throw new HttpsError('failed-precondition', 'Only pending members can be rejected.');
   }
 
-  await targetRef.set(
-    {
-      status: 'inactive',
-      rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
-      rejectedBy: callerUid,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedBy: callerUid,
-    },
-    { merge: true },
-  );
+  const approvedBy = (targetData as { approvedBy?: unknown }).approvedBy;
+  const approvedAt = (targetData as { approvedAt?: unknown }).approvedAt;
+
+  const hadApproval =
+    (typeof approvedBy === 'string' && approvedBy.trim().length > 0) || approvedAt != null;
+
+  if (hadApproval) {
+    await targetRef.set(
+      {
+        status: 'inactive',
+        rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        rejectedBy: callerUid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedBy: callerUid,
+      },
+      { merge: true },
+    );
+
+    return { ok: true };
+  }
+
+  await targetRef.delete();
 
   return { ok: true };
 });
