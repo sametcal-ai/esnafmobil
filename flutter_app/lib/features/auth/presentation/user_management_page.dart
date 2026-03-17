@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/firestore/models/company_member.dart';
@@ -163,7 +164,7 @@ class UserManagementPage extends ConsumerWidget {
   }) {
     final subtitle = isPending
         ? 'pending'
-        : 'active • ${member.role.isEmpty ? '-' : member.role}';
+        : '${member.status} • ${member.role.isEmpty ? '-' : member.role}';
 
     final title = member.displayName.isNotEmpty
         ? member.displayName
@@ -180,6 +181,12 @@ class UserManagementPage extends ConsumerWidget {
     return ListTile(
       title: Text(title),
       subtitle: Text(details),
+      onTap: isPending
+          ? null
+          : () {
+              // Only admins can access this page; guard is also enforced on server.
+              context.push('/users/${member.uid}');
+            },
       trailing: isPending
           ? Wrap(
               spacing: 8,
@@ -204,7 +211,7 @@ class UserManagementPage extends ConsumerWidget {
                 ),
               ],
             )
-          : null,
+          : const Icon(Icons.chevron_right),
     );
   }
 
@@ -236,7 +243,7 @@ class UserManagementPage extends ConsumerWidget {
 
     final activeStream = refs
         .members(companyId)
-        .where('status', isEqualTo: 'active')
+        .where('status', whereIn: ['active', 'inactive'])
         .snapshots();
 
     return AppScaffold(
@@ -264,25 +271,28 @@ class UserManagementPage extends ConsumerWidget {
                 return const Text('Bekleyen kullanıcı yok.');
               }
 
-              return Card(
-                child: Column(
-                  children: items
-                      .map(
-                        (m) => _memberTile(
-                          context: context,
-                          ref: ref,
-                          companyId: companyId,
-                          member: m,
-                          isPending: true,
+              return Column(
+                children: items
+                    .map(
+                      (m) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Card(
+                          child: _memberTile(
+                            context: context,
+                            ref: ref,
+                            companyId: companyId,
+                            member: m,
+                            isPending: true,
+                          ),
                         ),
-                      )
-                      .toList(),
-                ),
+                      ),
+                    )
+                    .toList(),
               );
             },
           ),
           const SizedBox(height: 24),
-          Text('Aktif Kullanıcılar', style: Theme.of(context).textTheme.titleMedium),
+          Text('Kullanıcılar', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           StreamBuilder<QuerySnapshot<CompanyMember>>(
             stream: activeStream,
@@ -299,23 +309,26 @@ class UserManagementPage extends ConsumerWidget {
 
               final items = snap.data!.docs.map((d) => d.data()).toList();
               if (items.isEmpty) {
-                return const Text('Aktif kullanıcı yok.');
+                return const Text('Kullanıcı yok.');
               }
 
-              return Card(
-                child: Column(
-                  children: items
-                      .map(
-                        (m) => _memberTile(
-                          context: context,
-                          ref: ref,
-                          companyId: companyId,
-                          member: m,
-                          isPending: false,
+              return Column(
+                children: items
+                    .map(
+                      (m) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Card(
+                          child: _memberTile(
+                            context: context,
+                            ref: ref,
+                            companyId: companyId,
+                            member: m,
+                            isPending: false,
+                          ),
                         ),
-                      )
-                      .toList(),
-                ),
+                      ),
+                    )
+                    .toList(),
               );
             },
           ),

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/domain/firebase_auth_controller.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/user_management_page.dart';
+import '../../features/auth/presentation/user_detail_page.dart';
 import '../../features/auth/presentation/account_page.dart';
 import '../../features/company/domain/active_company_provider.dart';
 import '../../features/company/presentation/company_gate_page.dart';
@@ -220,6 +221,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/users',
                 name: 'users',
                 builder: (context, state) => const UserManagementPage(),
+              ),
+              GoRoute(
+                path: '/users/:uid',
+                name: 'user_detail',
+                builder: (context, state) {
+                  final uid = state.pathParameters['uid']!;
+                  return UserDetailPage(uid: uid);
+                },
               ),
               GoRoute(
                 path: '/settings',
