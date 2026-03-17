@@ -465,6 +465,51 @@ export const getMyMemberships = onCall<undefined>(callableOptions, async (reques
   return { memberships };
 });
 
+export const onStockEntryCreated = onDocumentCreated(
+  'companies/{companyId}/stockEntries/{entryId}',
+  async (event) => {
+    const { companyId, entryId } = event.params;
+    const db = admin.firestore();
+
+    const entryRef = db.doc(`companies/${companyId}/stockEntries/${entryId}`);
+
+    await db.runTransaction(async (tx) => {
+      const entrySnap = await tx.get(entryRef);
+      if (!entrySnap.exists) return;
+
+      const entry = entrySnap.data() as {
+        productId?: unknown;
+        quantity?: unknown;
+        type?: unknown;
+      };
+
+      const productId = typeof entry.productId === 'string' ? entry.productId : '';
+      const qty = typeof entry.quantity === 'number' ? entry.quantity : Number(entry.quantity);
+      const type = typeof entry.type === 'string' ? entry.type : 'incoming';
+
+      if (!productId || !Number.isFinite(qty) || qty <= 0) return;
+
+      const delta = type === 'outgoing' ? -qty : qty;
+
+      const productRef = db.doc(`companies/${companyId}/products/${productId}`);
+      const productSnap = await tx.get(productRef);
+
+      const product = (productSnap.data() || {}) as { stockQuantity?: unknown };
+      const stockBefore = typeof product.stockQuantity === 'number' ? product.stockQuantity : Number(product.stockQuantity ?? 0);
+      const stockAfter = stockBefore + delta;
+
+      tx.set(
+        productRef,
+        {
+          stockQuantity: stockAfter,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    });
+  },
+);
+
 export const onSaleCreated = onDocumentCreated('companies/{companyId}/sales/{saleId}', async (event) => {
   const { companyId, saleId } = event.params;
   const db = admin.firestore();
@@ -480,6 +525,8 @@ export const onSaleCreated = onDocumentCreated('companies/{companyId}/sales/{sal
     if (sale.stockProcessedAt) {
       return;
     }
+
+    const actor = typeof sale.createdBy === 'string' && sale.createdBy.trim().length > 0 ? sale.createdBy.trim() : 'system';
 
     const itemsRaw = sale.items;
     const items = Array.isArray(itemsRaw) ? itemsRaw : [];
@@ -507,14 +554,27 @@ export const onSaleCreated = onDocumentCreated('companies/{companyId}/sales/{sal
       const stockBefore = typeof product.stockQuantity === 'number' ? product.stockQuantity : Number(product.stockQuantity ?? 0);
       const stockAfter = stockBefore - qty;
 
-      tx.set(
-        productRef,
-        {
-          stockQuantity: stockAfter,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
+      const entryRef = db.collection(`companies/${companyId}/stockEntries`).doc();
+      tx.create(entryRef, {
+        id: entryRef.id,
+        supplierId: null,
+        supplierName: null,
+        productId,
+        quantity: qty,
+        unitCost: 0,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        type: 'outgoing',
+        createdDate: admin.firestore.FieldValue.serverTimestamp(),
+        createdBy: actor,
+        modifiedDate: admin.firestore.FieldValue.serverTimestamp(),
+        modifiedBy: actor,
+        versionNo: 1,
+        versionDate: admin.firestore.FieldValue.serverTimestamp(),
+        isLocked: false,
+        isVisible: true,
+        isActived: true,
+        isDeleted: false,
+      });
 
       if (stockAfter < 0) {
         warnings.push({

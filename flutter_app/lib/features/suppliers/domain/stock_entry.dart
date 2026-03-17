@@ -8,6 +8,7 @@ enum StockMovementType {
 class StockEntry {
   final String id;
   final String? supplierId;
+  final String? supplierName;
   final String productId;
   final int quantity;
   final double unitCost;
@@ -18,6 +19,7 @@ class StockEntry {
   const StockEntry({
     required this.id,
     required this.supplierId,
+    required this.supplierName,
     required this.productId,
     required this.quantity,
     required this.unitCost,
@@ -30,6 +32,7 @@ class StockEntry {
     return {
       'id': id,
       'supplierId': supplierId,
+      'supplierName': supplierName,
       'productId': productId,
       'quantity': quantity,
       'unitCost': unitCost,
@@ -57,6 +60,7 @@ class StockEntry {
     return StockEntry(
       id: map['id'] as String,
       supplierId: map['supplierId'] as String?,
+      supplierName: map['supplierName'] as String?,
       productId: map['productId'] as String,
       quantity: map['quantity'] as int,
       unitCost: (map['unitCost'] as num).toDouble(),

@@ -16,6 +16,7 @@ import '../../company/domain/active_company_provider.dart';
 import '../../company/domain/company_memberships_provider.dart';
 import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
 import '../../pricing/domain/price_resolver.dart';
+import '../../suppliers/data/stock_entry_repository.dart';
 import '../data/product_repository.dart';
 import '../domain/product.dart';
 
@@ -816,14 +817,14 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     final bool isManualPrice = salePriceText.isNotEmpty;
 
     if (widget.existing == null) {
-      await repo.createProduct(
+      final product = await repo.createProduct(
         companyId: companyId,
         name: name,
         brand: brand,
         barcode: barcode,
         imageUrl: _lookupImageUrl,
         tags: tags,
-        stockQuantity: stockQuantity,
+        stockQuantity: 0,
         lastPurchasePrice: purchasePrice,
         salePrice: salePrice,
         marginPercent: marginPercent,
@@ -834,6 +835,16 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
         externalTotal: _externalTotal,
         externalDate: _externalDate,
       );
+
+      if (stockQuantity > 0) {
+        final stockRepo = ref.read(stockEntryRepositoryProvider);
+        await stockRepo.createSystemIncomingEntry(
+          companyId: companyId,
+          productId: product.id,
+          quantity: stockQuantity,
+          unitCost: purchasePrice,
+        );
+      }
     } else {
       final updated = widget.existing!.copyWith(
         name: name,
@@ -841,7 +852,6 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
         barcode: barcode,
         imageUrl: _lookupImageUrl ?? widget.existing!.imageUrl,
         tags: tags,
-        stockQuantity: stockQuantity,
         lastPurchasePrice: purchasePrice,
         salePrice: salePrice,
         marginPercent: marginPercent,
@@ -942,11 +952,15 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _stockController,
+              enabled: !isEdit,
               keyboardType:
                   const TextInputType.numberWithOptions(signed: false),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Stok miktarı',
-                border: OutlineInputBorder(),
+                helperText: isEdit
+                    ? 'Stok; alış/satış hareketlerinden hesaplanır, buradan değiştirilemez.'
+                    : null,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),

@@ -118,7 +118,16 @@ service cloud.firestore {
 
       match /products/{productId} {
         allow read: if isMember(companyId);
-        allow write: if isAdmin(companyId);
+
+        // stockQuantity is derived from stockEntries and must not be edited by clients.
+        allow create: if isAdmin(companyId)
+          && ('stockQuantity' in request.resource.data)
+          && request.resource.data.stockQuantity == 0;
+
+        allow update: if isAdmin(companyId)
+          && (!('stockQuantity' in request.resource.data) || request.resource.data.stockQuantity == resource.data.stockQuantity);
+
+        allow delete: if isAdmin(companyId);
       }
 
       match /customers/{customerId} {
