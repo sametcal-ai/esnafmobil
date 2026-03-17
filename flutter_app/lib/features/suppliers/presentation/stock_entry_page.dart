@@ -227,7 +227,9 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
       _marginController.text = (selectedMargin > 0
               ? selectedMargin
               : settings.defaultMarginPercent)
-          .toStringAsFixed  }
+          .toStringAsFixed(0);
+    });
+  }
 
   Future<void> _save() async {
     if (_selectedSupplier == null) {
