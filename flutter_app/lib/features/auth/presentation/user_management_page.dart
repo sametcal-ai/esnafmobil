@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,10 +70,17 @@ class UserManagementPage extends ConsumerWidget {
     // In some cases (fresh emulator, token not yet minted/expired) the call can
     // end up unauthenticated. Force-refresh token before invoking.
     final auth = ref.read(firebaseAuthProvider);
+
+    final app = Firebase.app();
+    debugPrint('approveMember: projectId=${app.options.projectId}');
+
     await auth.currentUser?.reload();
+    debugPrint('approveMember: currentUser=${auth.currentUser?.uid}');
     final idToken = await auth.currentUser?.getIdToken(true);
+    debugPrint('approveMember: idTokenNull=${idToken == null} tokenLen=${idToken?.length ?? 0}');
 
     final functions = ref.read(firebaseFunctionsProvider);
+    debugPrint('approveMember: functionsApp=${functions.app.name} region=${functions.region}');
     final callable = functions.httpsCallable('approveMember');
 
     try {
@@ -119,10 +127,17 @@ class UserManagementPage extends ConsumerWidget {
     if (ok != true) return;
 
     final auth = ref.read(firebaseAuthProvider);
+
+    final app = Firebase.app();
+    debugPrint('rejectMember: projectId=${app.options.projectId}');
+
     await auth.currentUser?.reload();
+    debugPrint('rejectMember: currentUser=${auth.currentUser?.uid}');
     final idToken = await auth.currentUser?.getIdToken(true);
+    debugPrint('rejectMember: idTokenNull=${idToken == null} tokenLen=${idToken?.length ?? 0}');
 
     final functions = ref.read(firebaseFunctionsProvider);
+    debugPrint('rejectMember: functionsApp=${functions.app.name} region=${functions.region}');
     final callable = functions.httpsCallable('rejectMember');
 
     try {
