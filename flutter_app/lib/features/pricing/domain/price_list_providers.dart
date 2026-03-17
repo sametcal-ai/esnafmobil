@@ -28,24 +28,29 @@ final activePriceListProvider = StreamProvider.autoDispose<PriceList?>((ref) {
   return repo.watchActivePriceList(companyId);
 });
 
-final activePriceListItemsProvider = StreamProvider.autoDispose<List<PriceListItem>>((ref) {
+final priceListItemsProvider =
+    StreamProvider.family.autoDispose<List<PriceListItem>, String>((ref, priceListId) {
   final companyId = ref.watch(activeCompanyIdProvider);
   if (companyId == null) {
     return const Stream<List<PriceListItem>>.empty();
   }
 
+  final repo = ref.watch(priceListRepositoryProvider);
+  return repo.watchItems(companyId, priceListId);
+});
+
+final activePriceListItemsProvider = Provider.autoDispose<AsyncValue<List<PriceListItem>>>((ref) {
   final activeAsync = ref.watch(activePriceListProvider);
 
   return activeAsync.when(
     data: (active) {
       if (active == null) {
-        return const Stream<List<PriceListItem>>.empty();
+        return const AsyncValue.data(<PriceListItem>[]);
       }
-      final repo = ref.watch(priceListRepositoryProvider);
-      return repo.watchItems(companyId, active.id);
+      return ref.watch(priceListItemsProvider(active.id));
     },
-    loading: () => const Stream<List<PriceListItem>>.empty(),
-    error: (_, __) => const Stream<List<PriceListItem>>.empty(),
+    loading: () => const AsyncValue.loading(),
+    error: (err, st) => AsyncValue.error(err, st),
   );
 });
 
