@@ -6,6 +6,7 @@ import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
 import '../../auth/domain/current_user_provider.dart';
 import '../../products/data/product_repository.dart';
+import '../../pricing/data/price_list_repository.dart';
 import '../domain/stock_entry.dart';
 import 'supplier_repository.dart';
 import 'supplier_ledger_repository.dart';
@@ -14,7 +15,8 @@ class StockEntryRepository {
   static const _uuid = Uuid();
 
   StockEntryRepository(
-    this._productRepository, {
+    this._productRepository,
+    this._priceListRepository, {
     required FirestoreRefs refs,
     String? currentUserId,
   })  : _refs = refs,
@@ -22,6 +24,7 @@ class StockEntryRepository {
 
   final FirestoreRefs _refs;
   final ProductRepository _productRepository;
+  final PriceListRepository _priceListRepository;
   final String? _currentUserId;
 
   String _requireActor([String? overrideUserId]) {
@@ -99,7 +102,48 @@ class StockEntryRepository {
       SetOptions(merge: true),
     );
 
-    
+    // Satış fiyatını ürünün marginPercent alanına göre hesaplayıp
+    // aktif fiyat listesinde güncelle.
+    final product = await _productRepository.getProductById(companyId, productId);
+    if (product != null) {
+      final effectiveMargin = (marginPercent != null && marginPercent > 0)
+          ? marginPercent
+          : product.marginPercent;
+
+      final salePrice = unitCost > 0
+          ? unitCost * (1 + (effectiveMargin > 0 ? effectiveMargin : 0) / 100)
+          : 0;
+
+      final updatedProduct = product.copyWith(
+        lastPurchasePrice: unitCost,
+        salePrice: salePrice,
+        marginPercent: effectiveMargin,
+      );
+
+      await _productRepository.updateProduct(
+        companyId,
+        updatedProduct,
+        currentUserId: actor,
+      );
+
+      await _priceListRepository.ensureProductInActiveList(
+        companyId: companyId,
+        product: updatedProduct,
+        currentUserId: actor,
+      );
+
+      final active = await _priceListRepository.getActivePriceList(companyId);
+      if (active != null) {
+        await _priceListRepository.upsertItemForProduct(
+          companyId: companyId,
+          priceListId: active.id,
+          product: updatedProduct,
+          purchasePrice: unitCost,
+          salePrice: salePrice,
+          currentUserId: actor,
+        );
+      }
+    }
 
     if (supplierId.isNotEmpty) {
       final supplierRepo = SupplierRepository(_refs, currentUserId: actor);
@@ -194,9 +238,11 @@ class StockEntryRepository {
 final stockEntryRepositoryProvider = Provider<StockEntryRepository>((ref) {
   final refs = ref.watch(firestoreRefsProvider);
   final productRepo = ref.watch(productsRepositoryProvider);
+  final priceListRepo = ref.watch(priceListRepositoryProvider);
   final currentUserId = ref.watch(currentUserIdProvider);
   return StockEntryRepository(
     productRepo,
+    priceListRepo,
     refs: refs,
     currentUserId: currentUserId,
   );

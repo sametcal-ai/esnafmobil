@@ -179,6 +179,16 @@ service cloud.firestore {
         allow create, update, delete: if isAdmin(companyId);
       }
 
+      match /priceLists/{priceListId} {
+        allow read: if isMember(companyId);
+        allow create, update, delete: if isAdmin(companyId);
+
+        match /items/{itemId} {
+          allow read: if isMember(companyId);
+          allow create, update, delete: if isAdmin(companyId);
+        }
+      }
+
       // Default deny for any other subcollections until explicitly opened.
       match /{document=**} {
         allow read, write: if false;
