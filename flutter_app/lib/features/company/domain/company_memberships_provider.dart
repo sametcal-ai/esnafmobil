@@ -3,8 +3,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
-import '../../auth/domain/firebase_auth_controller.dart';
 import '../../../core/firestore/models/company_member.dart';
+import '../../auth/domain/firebase_auth_controller.dart';
 import 'company_membership.dart';
 
 final firestoreRefsProvider = Provider<FirestoreRefs>((ref) {
@@ -17,7 +17,7 @@ final firebaseFunctionsProvider = Provider<FirebaseFunctions>((ref) {
 
 final companyMembershipsSnapshotProvider =
     StreamProvider.autoDispose<QuerySnapshot<CompanyMember>>((ref) {
-  final authUser = ref.watch(authStateProvider).value;
+  final authUser = ref.watch(authStateProvider).asData?.value;
 
   if (authUser == null) {
     return const Stream<QuerySnapshot<CompanyMember>>.empty();
@@ -63,7 +63,7 @@ Future<List<CompanyMembership>> _fallbackMembershipsViaFunction(
 
 final companyMembershipsProvider =
     StreamProvider.autoDispose<List<CompanyMembership>>((ref) async* {
-  final authUser = ref.watch(authStateProvider).value;
+  final authUser = ref.watch(authStateProvider).asData?.value;
 
   if (authUser == null) {
     yield const <CompanyMembership>[];

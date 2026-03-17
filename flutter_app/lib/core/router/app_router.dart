@@ -285,7 +285,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // side-effect provider (logout => activeCompanyId reset)
       ref.read(activeCompanyResetterProvider);
 
-      final authUser = ref.read(authStateProvider).value;
+      final authUser = ref.read(authStateProvider).asData?.value;
       final isLoggedIn = authUser != null;
       final activeCompanyId = ref.read(activeCompanyIdProvider);
 

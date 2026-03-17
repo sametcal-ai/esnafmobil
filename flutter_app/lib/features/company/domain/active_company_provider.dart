@@ -12,8 +12,8 @@ final activeCompanyIdProvider = StateProvider<String?>((ref) {
 /// kendisi UI üretmez, sadece side-effect.
 final activeCompanyResetterProvider = Provider<void>((ref) {
   ref.listen(authStateProvider, (prev, next) {
-    final wasLoggedIn = prev?.value != null;
-    final isLoggedIn = next.value != null;
+    final wasLoggedIn = prev?.asData?.value != null;
+    final isLoggedIn = next.asData?.value != null;
 
     if (wasLoggedIn && !isLoggedIn) {
       ref.read(activeCompanyIdProvider.notifier).state = null;
