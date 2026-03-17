@@ -59,8 +59,9 @@ class CompanyGatePage extends ConsumerWidget {
 
           if (decision.autoSelectCompanyId != null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              ref.read(activeCompanyIdProvider.notifier).state =
-                  decision.autoSelectCompanyId;
+              ref
+                  .read(activeCompanyIdProvider.notifier)
+                  .setActiveCompanyId(decision.autoSelectCompanyId!);
               context.go('/dashboard');
             });
 
@@ -79,7 +80,9 @@ class CompanyGatePage extends ConsumerWidget {
               return SelectCompanyPage(
                 companyIds: decision.activeCompanyIds,
                 onSelect: (companyId) {
-                  ref.read(activeCompanyIdProvider.notifier).state = companyId;
+                  ref
+                      .read(activeCompanyIdProvider.notifier)
+                      .setActiveCompanyId(companyId);
                   context.go('/dashboard');
                 },
               );

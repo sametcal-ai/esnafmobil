@@ -1,11 +1,41 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../auth/domain/firebase_auth_controller.dart';
 
-final activeCompanyIdProvider = StateProvider<String?>((ref) {
-  return null;
-});
+class ActiveCompanyController extends Notifier<String?> {
+  static const _key = 'active_company_id';
+
+  @override
+  String? build() {
+    Future.microtask(_load);
+    return null;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_key);
+    if (saved != null && saved.isNotEmpty) {
+      state = saved;
+    }
+  }
+
+  Future<void> setActiveCompanyId(String companyId) async {
+    state = companyId;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, companyId);
+  }
+
+  Future<void> clear() async {
+    state = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key);
+  }
+}
+
+final activeCompanyIdProvider = NotifierProvider<ActiveCompanyController, String?>(
+  ActiveCompanyController.new,
+);
 
 /// Auth logout olduğunda aktif company context'ini sıfırlar.
 ///
@@ -17,7 +47,7 @@ final activeCompanyResetterProvider = Provider<void>((ref) {
     final isLoggedIn = next.asData?.value != null;
 
     if (wasLoggedIn && !isLoggedIn) {
-      ref.read(activeCompanyIdProvider.notifier).state = null;
+      ref.read(activeCompanyIdProvider.notifier).clear();
     }
   });
 });
