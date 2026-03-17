@@ -71,6 +71,9 @@ void main() {
     );
     addTearDown(container.dispose);
 
+    // Ensure the settings controller is instantiated.
+    container.read(appSettingsProvider);
+
     await (container.read(activeCompanyIdProvider.notifier)
             as TestActiveCompanyController)
         .setActiveCompanyId('c1');
