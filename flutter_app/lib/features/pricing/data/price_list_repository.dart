@@ -347,6 +347,36 @@ class PriceListRepository {
         .set(item, SetOptions(merge: true));
   }
 
+  Future<void> deleteItemForProduct({
+    required String companyId,
+    required String priceListId,
+    required String productId,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    await FirebaseFirestore.instance
+        .collection('companies')
+        .doc(companyId)
+        .collection('priceLists')
+        .doc(priceListId)
+        .collection('items')
+        .doc(productId)
+        .set(
+      {
+        'isDeleted': true,
+        'isVisible': false,
+        'isActived': false,
+        'modifiedBy': actor,
+        'modifiedDate': Timestamp.fromDate(now),
+        'versionNo': FieldValue.increment(1),
+        'versionDate': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<void> ensureProductInActiveList({
     required String companyId,
     required Product product,

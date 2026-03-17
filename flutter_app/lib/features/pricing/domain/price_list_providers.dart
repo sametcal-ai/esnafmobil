@@ -64,3 +64,10 @@ final activePriceListPriceMapProvider = Provider.autoDispose<Map<String, double>
   }
   return map;
 });
+
+final activePriceListItemMapProvider = Provider.autoDispose<Map<String, PriceListItem>>((ref) {
+  final itemsAsync = ref.watch(activePriceListItemsProvider);
+  final items = itemsAsync.asData?.value ?? const <PriceListItem>[];
+
+  return {for (final i in items) i.productId: i};
+});

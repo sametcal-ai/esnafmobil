@@ -181,11 +181,33 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                   trailing: isActive
                       ? const Chip(label: Text('Aktif'))
                       : isAdmin
-                          ? TextButton(
+                          ? ElevatedButton(
                               onPressed: () async {
                                 final companyId =
                                     ref.read(activeCompanyIdProvider);
                                 if (companyId == null) return;
+
+                                final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) {
+                                    return AlertDialog(
+                                      title: const Text('Fiyat listesi aktif edilsin mi?'),
+                                      content: Text('"${pl.name}" aktif fiyat listesi olarak ayarlanacak.'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(false),
+                                          child: const Text('İptal'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () => Navigator.of(context).pop(true),
+                                          child: const Text('Onayla'),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+
+                                if (ok != true) return;
 
                                 final repo =
                                     ref.read(priceListRepositoryProvider);
@@ -195,6 +217,12 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                                   previousExpired: false,
                                 );
                               },
+                              style: ElevatedButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
                               child: const Text('Aktif Et'),
                             )
                           : null,

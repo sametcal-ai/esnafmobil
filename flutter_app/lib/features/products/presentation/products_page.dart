@@ -15,6 +15,7 @@ import '../../auth/domain/user.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../company/domain/company_memberships_provider.dart';
 import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
+import '../../pricing/domain/price_list_providers.dart';
 import '../../pricing/domain/price_resolver.dart';
 import '../../pricing/data/price_list_repository.dart';
 import '../../suppliers/data/stock_entry_repository.dart';
@@ -195,6 +196,8 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
     final settings = ref.watch(appSettingsProvider);
     final minChars = settings.searchFilterMinChars;
 
+    final activeItemMap = ref.watch(activePriceListItemMapProvider);
+
     return AppScaffold(
       title: 'Products',
       floatingActionButton: isAdmin
@@ -290,18 +293,24 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                       final tagsText =
                           product.tags.isEmpty ? '-' : product.tags.join(', ');
 
-                      final resolvedSalePrice =
-                          PriceResolver.resolveSellPrice(
-                        product: product,
-                        settings: settings,
-                      );
+                      final priceListItem = activeItemMap[product.id];
+
+                      final resolvedSalePrice = priceListItem != null
+                          ? priceListItem.salePrice
+                          : PriceResolver.resolveSellPrice(
+                              product: product,
+                              settings: settings,
+                            );
 
                       final salePriceText = resolvedSalePrice > 0
                           ? formatMoney(resolvedSalePrice)
                           : '-';
 
-                      final purchasePriceText = product.lastPurchasePrice > 0
-                          ? formatMoney(product.lastPurchasePrice)
+                      final resolvedPurchasePrice =
+                          priceListItem != null ? priceListItem.purchasePrice : product.lastPurchasePrice;
+
+                      final purchasePriceText = resolvedPurchasePrice > 0
+                          ? formatMoney(resolvedPurchasePrice)
                           : '-';
 
                       return Card(

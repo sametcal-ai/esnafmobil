@@ -7,6 +7,8 @@ import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/scanner/barcode_scanner_view.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../pricing/domain/price_list_item.dart';
+import '../../pricing/domain/price_list_providers.dart';
 import '../../pricing/domain/price_resolver.dart';
 import '../domain/product.dart';
 import 'products_page.dart';
@@ -103,6 +105,8 @@ class _ProductsLookupPageState extends ConsumerState<ProductsLookupPage> {
     final settings = ref.watch(appSettingsProvider);
     final minChars = settings.searchFilterMinChars;
 
+    final activeItemMap = ref.watch(activePriceListItemMapProvider);
+
     return AppScaffold(
       title: 'Ürünler',
       body: productsAsync.when(
@@ -172,6 +176,7 @@ class _ProductsLookupPageState extends ConsumerState<ProductsLookupPage> {
                       return _ProductLookupCard(
                         product: product,
                         settings: settings,
+                        activeItemMap: activeItemMap,
                       );
                     },
                   ),
@@ -192,10 +197,12 @@ class _ProductsLookupPageState extends ConsumerState<ProductsLookupPage> {
 class _ProductLookupCard extends StatelessWidget {
   final Product product;
   final AppSettings settings;
+  final Map<String, PriceListItem> activeItemMap;
 
   const _ProductLookupCard({
     required this.product,
     required this.settings,
+    required this.activeItemMap,
   });
 
   @override
@@ -203,10 +210,14 @@ class _ProductLookupCard extends StatelessWidget {
     final brandText = product.brand.isEmpty ? '-' : product.brand;
     final tagsText = product.tags.isEmpty ? '-' : product.tags.join(', ');
 
-    final resolvedSalePrice = PriceResolver.resolveSellPrice(
-      product: product,
-      settings: settings,
-    );
+    final priceListItem = activeItemMap[product.id];
+
+    final resolvedSalePrice = priceListItem != null
+        ? priceListItem.salePrice
+        : PriceResolver.resolveSellPrice(
+            product: product,
+            settings: settings,
+          );
 
     return Card(
       child: Padding(

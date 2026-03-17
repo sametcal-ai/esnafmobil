@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../pricing/domain/price_list_providers.dart';
 import '../../pricing/domain/price_resolver.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../suppliers/data/stock_entry_repository.dart';
@@ -331,10 +332,18 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
       );
     }
 
-    final resolvedSalePrice = PriceResolver.resolveSellPrice(
-      product: product,
-      settings: settings,
-    );
+    final activeItemMap = ref.watch(activePriceListItemMapProvider);
+    final priceListItem = activeItemMap[product.id];
+
+    final resolvedSalePrice = priceListItem != null
+        ? priceListItem.salePrice
+        : PriceResolver.resolveSellPrice(
+            product: product,
+            settings: settings,
+          );
+
+    final resolvedPurchasePrice =
+        priceListItem != null ? priceListItem.purchasePrice : product.lastPurchasePrice;
 
     final isDeleted = product.meta.isDeleted;
     final movementsPageSize = settings.movementsPageSize;
@@ -432,7 +441,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 4),
-                          Text(formatMoney(product.lastPurchasePrice)),
+                          Text(formatMoney(resolvedPurchasePrice)),
                         ],
                       ),
                     ),
