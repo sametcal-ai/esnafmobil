@@ -191,10 +191,14 @@ export const joinCompanyByCode = onCall<JoinCompanyByCodeInput>(
       // and therefore miss displayName/email. Fill them in opportunistically.
       const patch: Record<string, unknown> = {};
       if (!data.uid) patch.uid = uid;
-      if ((data.displayName ?? '').trim().isEmpty && safeDisplayName.isNotEmpty) {
+
+      const existingDisplayName = typeof data.displayName === 'string' ? data.displayName.trim() : '';
+      if (!existingDisplayName && safeDisplayName) {
         patch.displayName = safeDisplayName;
       }
-      if ((data.email ?? '').toString().trim().isEmpty && email) {
+
+      const existingEmail = typeof data.email === 'string' ? data.email.trim() : '';
+      if (!existingEmail && email) {
         patch.email = email;
       }
 
