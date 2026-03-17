@@ -1,6 +1,14 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../features/auth/domain/current_user_provider.dart';
+import '../../features/auth/domain/user.dart';
+import '../../features/company/domain/active_company_provider.dart';
+import '../../features/company/domain/company_memberships_provider.dart';
+import '../firestore/firestore_refs.dart';
 
 @immutable
 class AppSettings {
@@ -32,6 +40,32 @@ class AppSettings {
     );
   }
 
+  factory AppSettings.fromMap(Map<String, dynamic> map) {
+    final initial = AppSettings.initial();
+    return AppSettings(
+      barcodeScanDelaySeconds: (map['barcodeScanDelaySeconds'] as num?)?.toDouble() ??
+          initial.barcodeScanDelaySeconds,
+      defaultMarginPercent:
+          (map['defaultMarginPercent'] as num?)?.toDouble() ?? initial.defaultMarginPercent,
+      productDefaultMarginPercent: (map['productDefaultMarginPercent'] as num?)?.toDouble() ??
+          initial.productDefaultMarginPercent,
+      searchFilterMinChars:
+          (map['searchFilterMinChars'] as num?)?.toInt() ?? initial.searchFilterMinChars,
+      movementsPageSize:
+          (map['movementsPageSize'] as num?)?.toInt() ?? initial.movementsPageSize,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'barcodeScanDelaySeconds': barcodeScanDelaySeconds,
+      'defaultMarginPercent': defaultMarginPercent,
+      'productDefaultMarginPercent': productDefaultMarginPercent,
+      'searchFilterMinChars': searchFilterMinChars,
+      'movementsPageSize': movementsPageSize,
+    };
+  }
+
   AppSettings copyWith({
     double? barcodeScanDelaySeconds,
     double? defaultMarginPercent,
@@ -52,72 +86,86 @@ class AppSettings {
 }
 
 class AppSettingsController extends Notifier<AppSettings> {
-  static const _barcodeDelayKey = 'barcode_scan_delay_seconds';
-  static const _defaultMarginKey = 'default_margin_percent';
-  static const _productDefaultMarginKey = 'product_default_margin_percent';
-  static const _searchFilterMinCharsKey = 'search_filter_min_chars';
-  static const _movementsPageSizeKey = 'movements_page_size';
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
+  String? _listeningCompanyId;
+  bool? _lastDocExists;
+  final Set<String> _attemptedDefaultCreateForCompany = <String>{};
 
   @override
   AppSettings build() {
-    Future.microtask(_load);
+    ref.listen<String?>(activeCompanyIdProvider, (prev, next) {
+      _onCompanyChanged(next);
+    });
+
+    ref.listen<User?>(currentUserProvider, (prev, next) {
+      final companyId = _listeningCompanyId;
+      if (companyId == null) return;
+      if (_lastDocExists != false) return;
+      if (!_isAdmin()) return;
+      if (_attemptedDefaultCreateForCompany.contains(companyId)) return;
+
+      _attemptedDefaultCreateForCompany.add(companyId);
+      _systemSettingsDoc(companyId).set(AppSettings.initial().toMap());
+    });
+
+    Future.microtask(() {
+      _onCompanyChanged(ref.read(activeCompanyIdProvider));
+    });
+
+    ref.onDispose(() {
+      _sub?.cancel();
+    });
+
     return AppSettings.initial();
   }
 
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final delay = prefs.getDouble(_barcodeDelayKey);
-    final margin = prefs.getDouble(_defaultMarginKey);
-    final productMargin = prefs.getDouble(_productDefaultMarginKey);
-    final searchMinChars = prefs.getInt(_searchFilterMinCharsKey);
-    final movementsPageSize = prefs.getInt(_movementsPageSizeKey);
-
-    state = state.copyWith(
-      barcodeScanDelaySeconds: delay ?? state.barcodeScanDelaySeconds,
-      defaultMarginPercent: margin ?? state.defaultMarginPercent,
-      productDefaultMarginPercent:
-          productMargin ?? state.productDefaultMarginPercent,
-      searchFilterMinChars: searchMinChars ?? state.searchFilterMinChars,
-      movementsPageSize: movementsPageSize ?? state.movementsPageSize,
-    );
+  DocumentReference<Map<String, dynamic>> _systemSettingsDoc(String companyId) {
+    final refs = ref.read(firestoreRefsProvider);
+    return refs.company(companyId).collection('settings').doc('system');
   }
 
-  Future<void> setBarcodeDelaySeconds(double seconds) async {
-    final clamped = seconds.clamp(0.5, 10.0).toDouble();
-    state = state.copyWith(barcodeScanDelaySeconds: clamped);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_barcodeDelayKey, clamped);
+  bool _isAdmin() {
+    final user = ref.read(currentUserProvider);
+    return user != null && user.role == UserRole.admin;
   }
 
-  Future<void> setDefaultMarginPercent(double percent) async {
-    final clamped = percent.clamp(0, 1000).toDouble();
-    state = state.copyWith(defaultMarginPercent: clamped);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_defaultMarginKey, clamped);
+  void _onCompanyChanged(String? companyId) {
+    if (companyId == _listeningCompanyId) return;
+
+    _sub?.cancel();
+    _sub = null;
+    _listeningCompanyId = companyId;
+    _lastDocExists = null;
+    state = AppSettings.initial();
+
+    if (companyId == null) return;
+
+    final docRef = _systemSettingsDoc(companyId);
+
+    _sub = docRef.snapshots().listen((snap) {
+      _lastDocExists = snap.exists;
+
+      if (!snap.exists) {
+        if (_isAdmin() && !_attemptedDefaultCreateForCompany.contains(companyId)) {
+          _attemptedDefaultCreateForCompany.add(companyId);
+          docRef.set(AppSettings.initial().toMap());
+        }
+        return;
+      }
+
+      final data = snap.data();
+      if (data == null) return;
+
+      state = AppSettings.fromMap(data);
+    });
   }
 
-  Future<void> setProductDefaultMarginPercent(double percent) async {
-    final clamped = percent.clamp(0, 1000).toDouble();
-    state = state.copyWith(productDefaultMarginPercent: clamped);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_productDefaultMarginKey, clamped);
-  }
+  Future<void> save(AppSettings next) async {
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
 
-  Future<void> setSearchFilterMinChars(int value) async {
-    final clamped = value.clamp(0, 10);
-    state = state.copyWith(searchFilterMinChars: clamped);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_searchFilterMinCharsKey, clamped);
-  }
-
-  Future<void> setMovementsPageSize(int value) async {
-    // 5 ile 100 arasında, 5'er 5'er artan değerler (5,10,15,...,100)
-    final clamped = value.clamp(5, 100);
-    final normalized = ((clamped / 5).round() * 5).clamp(5, 100);
-
-    state = state.copyWith(movementsPageSize: normalized);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_movementsPageSizeKey, normalized);
+    final docRef = _systemSettingsDoc(companyId);
+    await docRef.set(next.toMap(), SetOptions(merge: true));
   }
 }
 
