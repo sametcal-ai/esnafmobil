@@ -17,6 +17,29 @@ type ApproveMemberInput = {
   role: 'admin' | 'cashier';
 };
 
+type RejectMemberInput = {
+  companyId: string;
+  uid: string;
+};
+
+type JoinCompanyByCodeInput = {
+  companyCode: string;
+};
+
+type JoinCompanyByCodeOutput = {
+  companyId: string;
+  status: string;
+};
+
+type CreateCompanyInput = {
+  name: string;
+};
+
+type CreateCompanyOutput = {
+  companyId: string;
+  companyCode: string;
+};
+
 type GetMyMembershipsOutput = {
   memberships: Array<{
     companyId: string;
@@ -60,6 +83,11 @@ export const approveMember = onCall<ApproveMemberInput>(callableOptions, async (
     throw new HttpsError('not-found', 'Target membership not found.');
   }
 
+  const targetData = targetSnap.data() as { status?: string };
+  if (targetData.status && targetData.status !== 'pending') {
+    throw new HttpsError('failed-precondition', 'Only pending members can be approved.');
+  }
+
   await targetRef.update({
     status: 'active',
     role,
@@ -69,6 +97,168 @@ export const approveMember = onCall<ApproveMemberInput>(callableOptions, async (
 
   return { ok: true };
 });
+
+export const rejectMember = onCall<RejectMemberInput>(callableOptions, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError('unauthenticated', 'Authentication required.');
+  }
+
+  const { companyId, uid } = request.data || ({} as RejectMemberInput);
+
+  if (!companyId || !uid) {
+    throw new HttpsError('invalid-argument', 'companyId and uid are required.');
+  }
+
+  const db = admin.firestore();
+
+  const callerUid = request.auth.uid;
+  const callerRef = db.doc(`companies/${companyId}/members/${callerUid}`);
+  const targetRef = db.doc(`companies/${companyId}/members/${uid}`);
+
+  const callerSnap = await callerRef.get();
+  if (!callerSnap.exists) {
+    throw new HttpsError('permission-denied', 'Caller is not a member of this company.');
+  }
+
+  const callerData = callerSnap.data() as { role?: string; status?: string };
+  if (callerData.status !== 'active' || callerData.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Admin role required.');
+  }
+
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new HttpsError('not-found', 'Target membership not found.');
+  }
+
+  const targetData = targetSnap.data() as { status?: string };
+  if (targetData.status && targetData.status !== 'pending') {
+    throw new HttpsError('failed-precondition', 'Only pending members can be rejected.');
+  }
+
+  await targetRef.delete();
+
+  return { ok: true };
+});
+
+export const joinCompanyByCode = onCall<JoinCompanyByCodeInput>(
+  callableOptions,
+  async (request): Promise<JoinCompanyByCodeOutput> => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Authentication required.');
+    }
+
+    const { companyCode } = request.data || ({} as JoinCompanyByCodeInput);
+
+    if (!companyCode || typeof companyCode !== 'string') {
+      throw new HttpsError('invalid-argument', 'companyCode is required.');
+    }
+
+    const normalized = companyCode.trim();
+    if (normalized.length < 3) {
+      throw new HttpsError('invalid-argument', 'companyCode is invalid.');
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    const companySnap = await db
+      .collection('companies')
+      .where('companyCode', '==', normalized)
+      .limit(1)
+      .get();
+
+    if (companySnap.empty) {
+      throw new HttpsError('not-found', 'Company not found for given code.');
+    }
+
+    const companyId = companySnap.docs[0].id;
+    const memberRef = db.doc(`companies/${companyId}/members/${uid}`);
+
+    const existing = await memberRef.get();
+    if (existing.exists) {
+      const data = existing.data() as { status?: string };
+      return { companyId, status: data.status ?? 'active' };
+    }
+
+    await memberRef.create({
+      uid,
+      status: 'pending',
+      role: null,
+      permissions: [],
+      storeIds: [],
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { companyId, status: 'pending' };
+  },
+);
+
+function randomCompanyCode(length = 6) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < length; i++) {
+    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return out;
+}
+
+export const createCompany = onCall<CreateCompanyInput>(
+  callableOptions,
+  async (request): Promise<CreateCompanyOutput> => {
+    if (!request.auth?.uid) {
+      throw new HttpsError('unauthenticated', 'Authentication required.');
+    }
+
+    const { name } = request.data || ({} as CreateCompanyInput);
+    const companyName = typeof name === 'string' ? name.trim() : '';
+    if (!companyName) {
+      throw new HttpsError('invalid-argument', 'name is required.');
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    const companyRef = db.collection('companies').doc();
+
+    let companyCode = '';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = randomCompanyCode(6);
+      const dup = await db.collection('companies').where('companyCode', '==', code).limit(1).get();
+      if (dup.empty) {
+        companyCode = code;
+        break;
+      }
+    }
+
+    if (!companyCode) {
+      throw new HttpsError('internal', 'Failed to generate unique company code.');
+    }
+
+    const memberRef = db.doc(`companies/${companyRef.id}/members/${uid}`);
+
+    await db.runTransaction(async (tx) => {
+      tx.create(companyRef, {
+        companyCode,
+        name: companyName,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        ownerUid: uid,
+      });
+
+      tx.create(memberRef, {
+        uid,
+        status: 'active',
+        role: 'admin',
+        permissions: [],
+        storeIds: [],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { companyId: companyRef.id, companyCode };
+  },
+);
 
 export const getMyMemberships = onCall<undefined>(callableOptions, async (request): Promise<GetMyMembershipsOutput> => {
   if (!request.auth?.uid) {

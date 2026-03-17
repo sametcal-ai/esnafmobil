@@ -87,7 +87,12 @@ service cloud.firestore {
           ])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.status == 'pending'
-          && request.resource.data.role in ['cashier']
+          && (
+            // Onaylanana kadar rol boş (null/empty) olabilir.
+            !('role' in request.resource.data) ||
+            request.resource.data.role == null ||
+            request.resource.data.role == ''
+          )
           && (!('permissions' in request.resource.data) || ((request.resource.data.permissions is list) && request.resource.data.permissions.size() == 0))
           && (!('storeIds' in request.resource.data) || ((request.resource.data.storeIds is list) && request.resource.data.storeIds.size() == 0));
 
