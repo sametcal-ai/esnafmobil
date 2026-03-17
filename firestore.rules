@@ -78,6 +78,8 @@ service cloud.firestore {
           && request.auth.uid == uid
           && request.resource.data.keys().hasOnly([
             'uid',
+            'email',
+            'displayName',
             'role',
             'status',
             'permissions',
@@ -87,6 +89,11 @@ service cloud.firestore {
           ])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.status == 'pending'
+          && (
+            // Email (varsa) sadece token'daki email ile aynı olabilir.
+            !('email' in request.resource.data) ||
+            request.resource.data.email == request.auth.token.email
+          )
           && (
             // Onaylanana kadar rol boş (null/empty) olabilir.
             !('role' in request.resource.data) ||
@@ -101,7 +108,10 @@ service cloud.firestore {
         allow update: if isSignedIn()
           && request.auth.uid == uid
           && unchangedMemberSensitiveFields()
-          && onlyChanges(['lastSeenAt']);
+          && (
+            onlyChanges(['lastSeenAt']) ||
+            onlyChanges(['lastSeenAt', 'displayName'])
+          );
 
         allow delete: if false;
       }
