@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../data/customer_repository.dart';
 import '../data/customer_ledger_repository.dart';

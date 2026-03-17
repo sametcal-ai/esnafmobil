@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/config/app_settings.dart';
 import '../../auth/domain/current_user_provider.dart';
