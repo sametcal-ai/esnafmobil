@@ -21,3 +21,13 @@ class App extends ConsumerWidget {
     );
   }
 }
+
+/// Legacy entry point used by the default Flutter template test.
+class MyApp extends ConsumerWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return const App();
+  }
+}

@@ -170,7 +170,13 @@ class AppSettingsController extends Notifier<AppSettings> {
           !_attemptedDefaultCreateForCompany.contains(companyId)) {
         _attemptedDefaultCreateForCompany.add(companyId);
         await docRef.set(AppSettings.initial().toMap());
+        return;
       }
+
+      final data = snap.data();
+      if (data == null) return;
+
+      state = AppSettings.fromMap(data);
     });
 
     _sub = docRef.snapshots().listen((snap) {

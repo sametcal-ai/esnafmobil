@@ -8,6 +8,7 @@ import '../../../core/scanner/barcode_scanner_view.dart';
 
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
+import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../services/jojapi_external_search_service.dart';
 import '../../auth/domain/user.dart';
