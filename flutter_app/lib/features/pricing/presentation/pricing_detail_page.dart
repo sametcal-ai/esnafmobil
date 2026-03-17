@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../company/domain/active_company_provider.dart';
@@ -22,53 +23,200 @@ class PricingDetailPage extends ConsumerWidget {
     final activeId = ref.watch(activePriceListProvider).asData?.value?.id;
     final isActive = companyId != null && activeId == priceList.id;
 
-    final itemsAsync = companyId == null
-        ? const AsyncValue<List<PriceListItem>>.data(<PriceListItem>[])
-        : ref.watch(
-            StreamProvider.autoDispose<List<PriceListItem>>(
-              (ref) {
-                final repo = ref.watch(priceListRepositoryProvider);
-                return repo.watchItems(companyId, priceList.id);
-              },
-            ),
-          );
+    final itemsAsync = ref.watch(priceListItemsProvider(priceList.id));
 
     return AppScaffold(
       title: 'Fiyat Listesi Detayı',
-      body: Padding(
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.edit_outlined),
+          onPressed: companyId == null
+              ? null
+              : () async {
+                  await showDialog<void>(
+                    context: context,
+                    builder: (_) => _EditPriceListDialog(existing: priceList),
+                  );
+                },
+        ),
+      ],
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: ListTile(
-                title: Text(
-                  priceList.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(
-                  '${priceList.startDate.toLocal().toString().split(' ').first} - ${priceList.endDate.toLocal().toString().split(' ').first}',
-                ),
-                trailing: isActive ? const Chip(label: Text('Aktif')) : null,
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          priceList.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Başlangıç: ${priceList.startDate.toLocal().toString().split(' ').first}',
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Bitiş: ${priceList.endDate.toLocal().toString().split(' ').first}',
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isActive) const Chip(label: Text('Aktif')),
+                ],
               ),
             ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: companyId == null
+                  ? null
+                  : () async {
+                      await showModalBottomSheet<void>(
+                        context: context,
+                        builder: (_) => _FillPriceListSheet(priceList: priceList),
+                      );
+                    },
+              child: const Text('Fiyat listesini doldur'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          itemsAsync.when(
+            data: (items) {
+              return Column(
+                children: [
+                  Card(
+                    child: ListTile(
+                      title: const Text(
+                        'Aktif ürün sayısı',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      trailing: Text(
+                        items.length.toString(),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.inventory_2_outlined),
+                      title: const Text(
+                        'Ürünler',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: const Text('Liste ürünlerini görüntüle / düzenle'),
+                      trailing: const Icon(Icons.chevron_right_outlined),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => _PriceListItemsPage(priceList: priceList),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _PriceListMovementsCard(priceList: priceList, items: items),
+                ],
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => const Center(child: Text('Liste ürünleri yüklenemedi')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FillPriceListSheet extends ConsumerStatefulWidget {
+  final PriceList priceList;
+
+  const _FillPriceListSheet({required this.priceList});
+
+  @override
+  ConsumerState<_FillPriceListSheet> createState() => _FillPriceListSheetState();
+}
+
+class _FillPriceListSheetState extends ConsumerState<_FillPriceListSheet> {
+  bool _isWorking = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final companyId = ref.watch(activeCompanyIdProvider);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Fiyat listesini doldur',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 12),
-            itemsAsync.when(
-              data: (items) {
-                return Expanded(
-                  child: items.isEmpty
-                      ? _EmptyPriceListActions(priceList: priceList)
-                      : _PriceListItemsView(
-                          priceList: priceList,
-                          items: items,
-                        ),
-                );
-              },
-              loading: () => const Expanded(
-                child: Center(child: CircularProgressIndicator()),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text('Eski fiyat listesinden getir'),
+                subtitle: const Text('Seçilen listeyi tutar/yüzde artış ile kopyalar'),
+                trailing: const Icon(Icons.chevron_right_outlined),
+                onTap: _isWorking
+                    ? null
+                    : () async {
+                        Navigator.of(context).pop();
+                        await showDialog<void>(
+                          context: context,
+                          builder: (_) => _ClonePriceListDialog(target: widget.priceList),
+                        );
+                      },
               ),
-              error: (_, __) => const Expanded(
-                child: Center(child: Text('Liste ürünleri yüklenemedi')),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.download_outlined),
+                title: const Text('Ürünlerden getir'),
+                subtitle: const Text(
+                  'Sadece listede olmayan ürünleri, son alış + ürün kâr marjı ile oluşturur',
+                ),
+                trailing: _isWorking
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.chevron_right_outlined),
+                onTap: _isWorking || companyId == null
+                    ? null
+                    : () async {
+                        setState(() {
+                          _isWorking = true;
+                        });
+
+                        final repo = ref.read(priceListRepositoryProvider);
+                        await repo.syncMissingItemsFromProductsWithMargin(
+                          companyId: companyId,
+                          priceListId: widget.priceList.id,
+                        );
+
+                        if (!mounted) return;
+                        Navigator.of(context).pop();
+                      },
               ),
             ),
           ],
@@ -78,75 +226,162 @@ class PricingDetailPage extends ConsumerWidget {
   }
 }
 
-class _EmptyPriceListActions extends ConsumerStatefulWidget {
-  final PriceList priceList;
+class _EditPriceListDialog extends ConsumerStatefulWidget {
+  final PriceList existing;
 
-  const _EmptyPriceListActions({required this.priceList});
+  const _EditPriceListDialog({required this.existing});
 
   @override
-  ConsumerState<_EmptyPriceListActions> createState() =>
-      _EmptyPriceListActionsState();
+  ConsumerState<_EditPriceListDialog> createState() => _EditPriceListDialogState();
 }
 
-class _EmptyPriceListActionsState extends ConsumerState<_EmptyPriceListActions> {
-  bool _isWorking = false;
+class _EditPriceListDialogState extends ConsumerState<_EditPriceListDialog> {
+  late final TextEditingController _nameController;
+  late DateTime _startDate;
+  late DateTime _endDate;
+  late PriceListType _type;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.existing.name);
+    _startDate = widget.existing.startDate;
+    _endDate = widget.existing.endDate;
+    _type = widget.existing.type;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickStart() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _startDate = DateTime(picked.year, picked.month, picked.day);
+      if (_endDate.isBefore(_startDate)) {
+        _endDate = _startDate;
+      }
+    });
+  }
+
+  Future<void> _pickEnd() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate,
+      firstDate: _startDate,
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _endDate = DateTime(picked.year, picked.month, picked.day);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final companyId = ref.watch(activeCompanyIdProvider);
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Bu fiyat listesinde henüz ürün yok'),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isWorking || companyId == null
-                  ? null
-                  : () async {
-                      setState(() {
-                        _isWorking = true;
-                      });
-
-                      final repo = ref.read(priceListRepositoryProvider);
-                      await repo.syncMissingItemsFromProducts(
-                        companyId: companyId,
-                        priceListId: widget.priceList.id,
-                      );
-
-                      if (!mounted) return;
-                      setState(() {
-                        _isWorking = false;
-                      });
-                    },
-              icon: const Icon(Icons.download_outlined),
-              label: Text(
-                _isWorking ? 'Aktarılıyor...' : 'Ürünlerden çek',
+    return AlertDialog(
+      title: const Text('Fiyat Listesini Düzenle'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Liste adı',
+                border: OutlineInputBorder(),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _isWorking
-                  ? null
-                  : () async {
-                      await showDialog<void>(
-                        context: context,
-                        builder: (_) =>
-                            _ClonePriceListDialog(target: widget.priceList),
-                      );
-                    },
-              icon: const Icon(Icons.copy_outlined),
-              label: const Text('Eski listeden kopyala + artış'),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<PriceListType>(
+              value: _type,
+              decoration: const InputDecoration(
+                labelText: 'Liste türü',
+                border: OutlineInputBorder(),
+              ),
+              items: PriceListType.values
+                  .map(
+                    (t) => DropdownMenuItem(
+                      value: t,
+                      child: Text(t.name),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() {
+                  _type = v;
+                });
+              },
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _pickStart,
+                    child: Text(
+                      'Başlangıç: ${_startDate.toLocal().toString().split(' ').first}',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _pickEnd,
+                    child: Text(
+                      'Bitiş: ${_endDate.toLocal().toString().split(' ').first}',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          child: const Text('İptal'),
+        ),
+        ElevatedButton(
+          onPressed: _isSaving || companyId == null
+              ? null
+              : () async {
+                  final name = _nameController.text.trim();
+                  if (name.isEmpty) return;
+
+                  setState(() {
+                    _isSaving = true;
+                  });
+
+                  final repo = ref.read(priceListRepositoryProvider);
+                  await repo.updatePriceList(
+                    companyId: companyId,
+                    priceListId: widget.existing.id,
+                    name: name,
+                    startDate: _startDate,
+                    endDate: _endDate,
+                    type: _type,
+                  );
+
+                  if (!mounted) return;
+                  Navigator.of(context).pop();
+                },
+          child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
+        ),
+      ],
     );
   }
 }
@@ -157,8 +392,7 @@ class _ClonePriceListDialog extends ConsumerStatefulWidget {
   const _ClonePriceListDialog({required this.target});
 
   @override
-  ConsumerState<_ClonePriceListDialog> createState() =>
-      _ClonePriceListDialogState();
+  ConsumerState<_ClonePriceListDialog> createState() => _ClonePriceListDialogState();
 }
 
 class _ClonePriceListDialogState extends ConsumerState<_ClonePriceListDialog> {
@@ -183,7 +417,7 @@ class _ClonePriceListDialogState extends ConsumerState<_ClonePriceListDialog> {
         .toList(growable: false);
 
     return AlertDialog(
-      title: const Text('Eski listeden kopyala'),
+      title: const Text('Eski fiyat listesinden getir'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -257,7 +491,249 @@ class _ClonePriceListDialogState extends ConsumerState<_ClonePriceListDialog> {
                   if (!mounted) return;
                   Navigator.of(context).pop();
                 },
-          child: Text(_isSaving ? 'Kopyalanıyor...' : 'Kopyala'),
+          child: Text(_isSaving ? 'Kopyalanıyor...' : 'Uygula'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PriceListItemsPage extends ConsumerWidget {
+  final PriceList priceList;
+
+  const _PriceListItemsPage({required this.priceList});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final itemsAsync = ref.watch(priceListItemsProvider(priceList.id));
+
+    return AppScaffold(
+      title: 'Ürünler',
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final selected = await showDialog<Product?>(
+            context: context,
+            builder: (_) => _SelectProductDialog(priceListId: priceList.id),
+          );
+          if (selected == null) return;
+
+          await showDialog<void>(
+            context: context,
+            builder: (_) => _EditPriceListItemDialog(
+              priceListId: priceList.id,
+              product: selected,
+              existingItem: null,
+            ),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
+      body: itemsAsync.when(
+        data: (items) => _PriceListItemsView(priceList: priceList, items: items),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(child: Text('Liste ürünleri yüklenemedi')),
+      ),
+    );
+  }
+}
+
+class _EditPriceListItemDialog extends ConsumerStatefulWidget {
+  final String priceListId;
+  final Product product;
+  final PriceListItem? existingItem;
+
+  const _EditPriceListItemDialog({
+    required this.priceListId,
+    required this.product,
+    required this.existingItem,
+  });
+
+  @override
+  ConsumerState<_EditPriceListItemDialog> createState() => _EditPriceListItemDialogState();
+}
+
+class _EditPriceListItemDialogState extends ConsumerState<_EditPriceListItemDialog> {
+  late final TextEditingController _purchaseController;
+  late final TextEditingController _saleController;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _purchaseController = TextEditingController(
+      text: (widget.existingItem?.purchasePrice ?? widget.product.lastPurchasePrice)
+          .toStringAsFixed(2),
+    );
+    _saleController = TextEditingController(
+      text: (widget.existingItem?.salePrice ?? widget.product.salePrice).toStringAsFixed(2),
+    );
+  }
+
+  @override
+  void dispose() {
+    _purchaseController.dispose();
+    _saleController.dispose();
+    super.dispose();
+  }
+
+  double _parseMoney(String raw) {
+    return double.tryParse(raw.trim().replaceAll(',', '.')) ?? 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final companyId = ref.watch(activeCompanyIdProvider);
+
+    return AlertDialog(
+      title: Text(widget.product.name.isNotEmpty ? widget.product.name : 'Ürün'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _purchaseController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Alış fiyatı',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _saleController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Satış fiyatı',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          child: const Text('İptal'),
+        ),
+        ElevatedButton(
+          onPressed: _isSaving || companyId == null
+              ? null
+              : () async {
+                  setState(() {
+                    _isSaving = true;
+                  });
+
+                  final repo = ref.read(priceListRepositoryProvider);
+                  await repo.upsertItemForProduct(
+                    companyId: companyId,
+                    priceListId: widget.priceListId,
+                    product: widget.product,
+                    purchasePrice: _parseMoney(_purchaseController.text),
+                    salePrice: _parseMoney(_saleController.text),
+                  );
+
+                  if (!mounted) return;
+                  Navigator.of(context).pop();
+                },
+          child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SelectProductDialog extends ConsumerStatefulWidget {
+  final String priceListId;
+
+  const _SelectProductDialog({required this.priceListId});
+
+  @override
+  ConsumerState<_SelectProductDialog> createState() => _SelectProductDialogState();
+}
+
+class _SelectProductDialogState extends ConsumerState<_SelectProductDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final companyId = ref.watch(activeCompanyIdProvider);
+    if (companyId == null) {
+      return const AlertDialog(content: Text('Firma seçili değil'));
+    }
+
+    final existing = ref.watch(priceListItemsProvider(widget.priceListId)).asData?.value ??
+        const <PriceListItem>[];
+    final existingIds = existing.map((e) => e.productId).toSet();
+
+    final productsAsync = ref.watch(
+      FutureProvider.autoDispose<List<Product>>((ref) async {
+        final repo = ref.watch(productsRepositoryProvider);
+        return repo.getAllProducts(companyId);
+      }),
+    );
+
+    return AlertDialog(
+      title: const Text('Ürün seç'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(
+                hintText: 'Ara',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) {
+                setState(() {
+                  _query = v.trim().toLowerCase();
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            productsAsync.when(
+              data: (products) {
+                final filtered = products.where((p) {
+                  if (existingIds.contains(p.id)) return false;
+                  if (_query.isEmpty) return true;
+                  return p.name.toLowerCase().contains(_query) ||
+                      p.barcode.toLowerCase().contains(_query);
+                }).toList(growable: false);
+
+                if (filtered.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Text('Eklenecek ürün bulunamadı'),
+                  );
+                }
+
+                return SizedBox(
+                  height: 300,
+                  child: ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final p = filtered[index];
+                      return ListTile(
+                        title: Text(p.name.isNotEmpty ? p.name : p.id),
+                        subtitle: p.barcode.isNotEmpty ? Text(p.barcode) : null,
+                        onTap: () => Navigator.of(context).pop(p),
+                      );
+                    },
+                  ),
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, __) => const Text('Ürünler yüklenemedi'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Kapat'),
         ),
       ],
     );
@@ -291,15 +767,19 @@ class _PriceListItemsView extends ConsumerWidget {
       data: (products) {
         final byId = {for (final p in products) p.id: p};
 
+        final sorted = [...items]..sort((a, b) {
+            final an = byId[a.productId]?.name ?? '';
+            final bn = byId[b.productId]?.name ?? '';
+            return an.compareTo(bn);
+          });
+
         return ListView.separated(
-          itemCount: items.length,
+          itemCount: sorted.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
-            final item = items[index];
+            final item = sorted[index];
             final product = byId[item.productId];
-            final title = product?.name.isNotEmpty == true
-                ? product!.name
-                : item.productId;
+            final title = product?.name.isNotEmpty == true ? product!.name : item.productId;
 
             return Card(
               child: ListTile(
@@ -309,7 +789,19 @@ class _PriceListItemsView extends ConsumerWidget {
                 ),
                 trailing: item.isInherited
                     ? const Icon(Icons.warning_amber_outlined)
-                    : null,
+                    : const Icon(Icons.edit_outlined),
+                onTap: product == null
+                    ? null
+                    : () async {
+                        await showDialog<void>(
+                          context: context,
+                          builder: (_) => _EditPriceListItemDialog(
+                            priceListId: priceList.id,
+                            product: product,
+                            existingItem: item,
+                          ),
+                        );
+                      },
               ),
             );
           },
@@ -319,4 +811,90 @@ class _PriceListItemsView extends ConsumerWidget {
       error: (_, __) => const Center(child: Text('Ürünler yüklenemedi')),
     );
   }
+}
+
+class _PriceListMovementsCard extends ConsumerWidget {
+  final PriceList priceList;
+  final List<PriceListItem> items;
+
+  const _PriceListMovementsCard({required this.priceList, required this.items});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(appSettingsProvider);
+    final pageSize = settings.movementsPageSize;
+
+    final entries = <_MovementEntry>[
+      _MovementEntry(
+        occurredAt: priceList.meta.modifiedDate,
+        title: 'Fiyat listesi güncellendi',
+        subtitle: priceList.meta.modifiedBy,
+      ),
+      ...items.map(
+        (i) => _MovementEntry(
+          occurredAt: i.meta.modifiedDate,
+          title: 'Ürün fiyatı güncellendi',
+          subtitle: i.productId,
+        ),
+      ),
+    ];
+
+    entries.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+
+    final limited = entries.length > pageSize ? entries.sublist(0, pageSize) : entries;
+
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ListTile(
+            title: Text(
+              'Hareketler',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Divider(height: 0),
+          if (limited.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Hareket yok'),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: limited.length,
+              separatorBuilder: (_, __) => const Divider(height: 0),
+              itemBuilder: (context, index) {
+                final e = limited[index];
+                final dateString =
+                    '${e.occurredAt.day.toString().padLeft(2, '0')}.'
+                    '${e.occurredAt.month.toString().padLeft(2, '0')}.'
+                    '${e.occurredAt.year} '
+                    '${e.occurredAt.hour.toString().padLeft(2, '0')}:'
+                    '${e.occurredAt.minute.toString().padLeft(2, '0')}';
+
+                return ListTile(
+                  leading: Text(dateString, style: const TextStyle(fontSize: 12)),
+                  title: Text(e.title),
+                  subtitle: e.subtitle.isEmpty ? null : Text(e.subtitle),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MovementEntry {
+  final DateTime occurredAt;
+  final String title;
+  final String subtitle;
+
+  _MovementEntry({
+    required this.occurredAt,
+    required this.title,
+    required this.subtitle,
+  });
 }
