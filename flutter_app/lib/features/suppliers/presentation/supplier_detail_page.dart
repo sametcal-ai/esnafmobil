@@ -37,6 +37,7 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
   @override
   void dispose() {
     _removeControllerListener?.call();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -61,9 +62,9 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
     }
 
     setState(() {
+      _controller?.dispose();
       _controller = SupplierDetailController(
-        companyId: companyId,
-        supplier: supplier,
+        companyId: company,
         ledgerRepository: ledgerRepo,
       );
 
@@ -103,6 +104,7 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
     }
 
     setState(() {
+      _controller?.dispose();
       _controller = SupplierDetailController(
         companyId: companyId,
         supplier: saved,
@@ -301,7 +303,7 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
       );
     }
 
-    final state = controller.state;
+    final state = controller.value;
     final supplier = state.supplier;
 
     return AppScaffold(

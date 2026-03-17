@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_settings.dart';
 import '../../auth/domain/current_user_provider.dart';
@@ -16,23 +16,23 @@ enum ScanResult {
   notFound,
 }
 
-class PosController extends StateNotifier<PosState> {
-  final String companyId;
-  final String? currentUserId;
-  final ProductRepository _productRepository;
-  final SalesRepository _salesRepository;
-  final AppSettings _settings;
+class PosController extends Notifier<PosState> {
+  late String companyId;
+  late String? currentUserId;
+  late ProductRepository _productRepository;
+  late SalesRepository _salesRepository;
+  late AppSettings _settings;
 
-  PosController({
-    required this.companyId,
-    required this.currentUserId,
-    required AppSettings settings,
-    required ProductRepository productRepository,
-    required SalesRepository salesRepository,
-  })  : _productRepository = productRepository,
-        _salesRepository = salesRepository,
-        _settings = settings,
-        super(PosState.initial());
+  @override
+  PosState build() {
+    _settings = ref.watch(appSettingsProvider);
+    companyId = ref.watch(activeCompanyIdProvider) ?? '';
+    currentUserId = ref.watch(currentUserIdProvider);
+    _productRepository = ref.watch(productsRepositoryProvider);
+    _salesRepository = ref.watch(salesRepositoryProvider);
+
+    return PosState.initial();
+  }
 
   double _calculateUnitPrice(catalog.Product product) {
     return PriceResolver.resolveSellPrice(
@@ -222,18 +222,6 @@ class PosController extends StateNotifier<PosState> {
   }
 }
 
-final posControllerProvider = StateNotifierProvider<PosController, PosState>((ref) {
-  final settings = ref.watch(appSettingsProvider);
-  final companyId = ref.watch(activeCompanyIdProvider);
-  final currentUserId = ref.watch(currentUserIdProvider);
-  final productsRepo = ref.watch(productsRepositoryProvider);
-  final salesRepo = ref.watch(salesRepositoryProvider);
-
-  return PosController(
-    companyId: companyId ?? '',
-    currentUserId: currentUserId,
-    settings: settings,
-    productRepository: productsRepo,
-    salesRepository: salesRepo,
-  );
-});
+final posControllerProvider = NotifierProvider<PosController, PosState>(
+  PosController.new,
+);

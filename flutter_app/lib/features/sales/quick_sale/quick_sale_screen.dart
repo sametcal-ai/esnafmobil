@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_beep/flutter_beep.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/scanner/barcode_scanner_view.dart';
 import '../../../core/config/money_formatter.dart';
@@ -46,14 +46,11 @@ class QuickSalePaymentState {
   }) {
     return QuickSalePaymentState(
       type: type ?? this.type,
-      selectedCustomer: selectedCustomer,
-    );
+      selectedCustomer: selectedCus</old_code><new_code>class QuickSalePaymentController extends Notifier<QuickSalePaymentState> {
+  @override
+  QuickSalePaymentState build() {
+    return QuickSalePaymentState.initial();
   }
-}
-
-class QuickSalePaymentController
-    extends StateNotifier<QuickSalePaymentState> {
-  QuickSalePaymentController() : super(QuickSalePaymentState.initial());
 
   void setType(QuickSalePaymentType type) {
     state = state.copyWith(
@@ -69,15 +66,10 @@ class QuickSalePaymentController
   }
 
   void reset() {
-    state = QuickSalePaymentState.initial();
-  }
-}
-
-final quickSalePaymentProvider =
-    StateNotifierProvider<QuickSalePaymentController, QuickSalePaymentState>(
-        (ref) {
-  return QuickSalePaymentController();
-});
+    state = QuickSalePaymentSta</old_code><new_code>final quickSalePaymentProvider =
+    NotifierProvider<QuickSalePaymentController, QuickSalePaymentState>(
+  QuickSalePaymentController.new,
+);
 
 final quickSaleCustomersProvider = FutureProvider<List<Customer>>((ref) async {
   final companyId = ref.watch(activeCompanyIdProvider);

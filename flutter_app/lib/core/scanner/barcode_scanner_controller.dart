@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 enum ScannerSessionStatus {
@@ -43,24 +43,18 @@ class ScannerSessionState {
       ownerId: ownerId,
       status: status ?? this.status,
       errorMessage: errorMessage,
-      controller: controller,
-    );
-  }
-}
-
-class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
-  ScannerSessionManager() : super(ScannerSessionState.initial());
-
+      controller: contr</old_code><new_code>class ScannerSessionManager extends Notifier<ScannerSessionState> {
   @override
-  void dispose() {
-    final controller = state.controller;
-    state = ScannerSessionState.initial();
-    controller?.dispose();
-    super.dispose();
+  ScannerSessionState build() {
+    ref.onDispose(() {
+      state.controller?.dispose();
+    });
+
+    return ScannerSessionState.initial();
   }
 
   Future<void> acquire(String ownerId) async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
 
     if (state.ownerId == ownerId &&
         (state.status == ScannerSessionStatus.active ||
@@ -83,7 +77,7 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
 
     await _disposeController(previousController);
 
-    if (!mounted) return;
+    if (!ref.mounted) return;
 
     final controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
@@ -94,10 +88,10 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
     try {
       await controller.start();
 
-      if (!mounted) {
+      if (!ref.mounted) {
         controller.dispose();
         return;
-      }
+  }
 
       // The view that requested this session may have been disposed or another
       // screen may have taken ownership while we were awaiting permission/start.
@@ -116,7 +110,7 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
     } catch (e) {
       controller.dispose();
 
-      if (!mounted) return;
+      if (!ref.mounted) return;
       if (state.ownerId != ownerId) return;
 
       state = state.copyWith(
@@ -129,7 +123,7 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
   }
 
   Future<void> release(String ownerId) async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
     if (state.ownerId != ownerId) return;
 
     final controller = state.controller;
@@ -139,7 +133,7 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
   }
 
   Future<void> pause(String ownerId) async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
     if (state.ownerId != ownerId) return;
     if (state.controller == null) return;
     if (state.status != ScannerSessionStatus.active) return;
@@ -147,7 +141,8 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
     try {
       await state.controller!.stop();
     } finally {
-      if (!mounted) return;
+      if (!ref.mounted) return;
+n;
       if (state.ownerId != ownerId) return;
 
       state = state.copyWith(
@@ -160,7 +155,7 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
   }
 
   Future<void> resume(String ownerId) async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
     if (state.ownerId != ownerId) return;
     if (state.controller == null) return;
     if (state.status != ScannerSessionStatus.paused) return;
@@ -168,7 +163,7 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
     try {
       await state.controller!.start();
 
-      if (!mounted) return;
+      if (!ref.mounted) return;
       if (state.ownerId != ownerId) return;
 
       state = state.copyWith(
@@ -183,8 +178,9 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
 
       await _disposeController(controller);
 
-      if (!mounted) return;
+      if (!ref.mounted) return;
       if (state.ownerId != ownerId) return;
+urn;
 
       state = state.copyWith(
         ownerId: ownerId,
@@ -208,6 +204,6 @@ class ScannerSessionManager extends StateNotifier<ScannerSessionState> {
 }
 
 final scannerSessionManagerProvider =
-    StateNotifierProvider<ScannerSessionManager, ScannerSessionState>((ref) {
-  return ScannerSessionManager();
-});
+    NotifierProvider<ScannerSessionManager, ScannerSessionState>(
+  ScannerSessionManager.new,
+);
