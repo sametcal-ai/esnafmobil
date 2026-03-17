@@ -274,6 +274,54 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                     ),
                   ),
                 ),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _SearchBarHeaderDelegate(
+                  minHeight: 76,
+                  maxHeight: 76,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onChanged: _onSearchChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Ürünlerde ara...',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: _openBarcodeScanner,
+                              icon: const Icon(Icons.qr_code_scanner_outlined),
+                              tooltip: 'Barkod Oku',
+                            ),
+                            if (_searchQuery.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: _clearSearch,
+                              ),
+                          ],
+                        ),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (isFilterActive && filteredProducts.isEmpty)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Text(
+                      'Sonuç bulunamadı',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
               SliverPadding(
                 padding: const EdgeInsets.only(
                   left: 16,
