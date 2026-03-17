@@ -138,7 +138,10 @@ class _CustomerDetailPageState extends ConsumerState<CustomerDetailPage> {
       final controller = _controller;
       if (controller != null) {
         final settings = ref.read(appSettingsProvider);
+
+        _removeControllerListener?.call();
         _controller?.dispose();
+
         _controller = CustomerDetailController(
           companyId: companyId,
           customer: saved,
@@ -146,11 +149,10 @@ class _CustomerDetailPageState extends ConsumerState<CustomerDetailPage> {
           pageSize: settings.movementsPageSize,
         );
 
-        _removeControllerListener?.call();
-        _removeControllerListener = _controller!.addListener((_) {
-          if (!mounted) return;
-          setState(() {});
-        });
+        _controller!.addListener(_handleControllerChanged);
+        _removeControllerListener = () {
+          _controller?.removeListener(_handleControllerChanged);
+        };
       }
     });
   }

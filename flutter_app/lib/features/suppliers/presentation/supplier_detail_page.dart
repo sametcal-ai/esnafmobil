@@ -67,17 +67,19 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
     }
 
     setState(() {
+      _removeControllerListener?.call();
       _controller?.dispose();
+
       _controller = SupplierDetailController(
-        companyId: company,
+        companyId: companyId,
+        supplier: supplier,
         ledgerRepository: ledgerRepo,
       );
 
-      _removeControllerListener?.call();
-      _removeControllerListener = _controller!.addListener((_) {
-        if (!mounted) return;
-        setState(() {});
-      });
+      _controller!.addListener(_handleControllerChanged);
+      _removeControllerListener = () {
+        _controller?.removeListener(_handleControllerChanged);
+      };
     });
   }
 
