@@ -175,14 +175,35 @@ export const joinCompanyByCode = onCall<JoinCompanyByCodeInput>(
     const companyId = companySnap.docs[0].id;
     const memberRef = db.doc(`companies/${companyId}/members/${uid}`);
 
-    const existing = await memberRef.get();
-    if (existing.exists) {
-      const data = existing.data() as { status?: string };
-      return { companyId, status: data.status ?? 'active' };
-    }
-
     const email = typeof request.auth.token?.email === 'string' ? request.auth.token.email : null;
     const safeDisplayName = typeof displayName === 'string' ? displayName.trim().slice(0, 64) : '';
+
+    const existing = await memberRef.get();
+    if (existing.exists) {
+      const data = existing.data() as {
+        status?: string;
+        email?: string | null;
+        displayName?: string;
+        uid?: string;
+      };
+
+      // Older member docs might have been created by the client (rules-limited)
+      // and therefore miss displayName/email. Fill them in opportunistically.
+      const patch: Record<string, unknown> = {};
+      if (!data.uid) patch.uid = uid;
+      if ((data.displayName ?? '').trim().isEmpty && safeDisplayName.isNotEmpty) {
+        patch.displayName = safeDisplayName;
+      }
+      if ((data.email ?? '').toString().trim().isEmpty && email) {
+        patch.email = email;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await memberRef.set(patch, { merge: true });
+      }
+
+      return { companyId, status: data.status ?? 'active' };
+    }
 
     await memberRef.create({
       uid,

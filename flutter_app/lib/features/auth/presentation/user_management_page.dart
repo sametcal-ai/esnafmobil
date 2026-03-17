@@ -69,6 +69,7 @@ class UserManagementPage extends ConsumerWidget {
     // In some cases (fresh emulator, token not yet minted/expired) the call can
     // end up unauthenticated. Force-refresh token before invoking.
     final auth = ref.read(firebaseAuthProvider);
+    await auth.currentUser?.reload();
     await auth.currentUser?.getIdToken(true);
 
     final functions = ref.read(firebaseFunctionsProvider);
@@ -117,6 +118,7 @@ class UserManagementPage extends ConsumerWidget {
     if (ok != true) return;
 
     final auth = ref.read(firebaseAuthProvider);
+    await auth.currentUser?.reload();
     await auth.currentUser?.getIdToken(true);
 
     final functions = ref.read(firebaseFunctionsProvider);
