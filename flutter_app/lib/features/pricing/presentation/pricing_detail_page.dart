@@ -238,58 +238,17 @@ class _FillPriceListSheetState extends ConsumerState<_FillPriceListSheet> {
                         Navigator.of(context).pop();
                       },
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-                  child: const Text('İptal'),
-                ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _isWorking ? null : () => Navigator.of(context).pop(),
+                child: const Text('Kapat'),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _isSaving
-                      ? null
-                      : () async {
-                          final name = _nameController.text.trim();
-                          if (name.isEmpty) return;
-
-                          setState(() {
-                            _isSaving = true;
-                          });
-
-                          try {
-                            final repo = ref.read(priceListRepositoryProvider);
-                            await repo.updatePriceList(
-                              companyId: widget.companyId,
-                              priceListId: widget.priceList.id,
-                              name: name,
-                              startDate: _startDate,
-                              endDate: _endDate,
-                            );
-
-                            if (!mounted) return;
-                            Navigator.of(context).pop();
-                          } catch (e) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Güncelleme hatası: $e')),
-                            );
-                            setState(() {
-                              _isSaving = false;
-                            });
-                          }
-                        },
-                  child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
