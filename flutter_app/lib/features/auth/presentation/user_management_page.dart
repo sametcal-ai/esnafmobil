@@ -70,7 +70,7 @@ class UserManagementPage extends ConsumerWidget {
     // end up unauthenticated. Force-refresh token before invoking.
     final auth = ref.read(firebaseAuthProvider);
     await auth.currentUser?.reload();
-    await auth.currentUser?.getIdToken(true);
+    final idToken = await auth.currentUser?.getIdToken(true);
 
     final functions = ref.read(firebaseFunctionsProvider);
     final callable = functions.httpsCallable('approveMember');
@@ -80,6 +80,7 @@ class UserManagementPage extends ConsumerWidget {
         'companyId': companyId,
         'uid': uid,
         'role': role == UserRole.admin ? 'admin' : 'cashier',
+        if (idToken != null) 'idToken': idToken,
       });
     } on FirebaseFunctionsException catch (e) {
       if (!context.mounted) return;
@@ -119,7 +120,7 @@ class UserManagementPage extends ConsumerWidget {
 
     final auth = ref.read(firebaseAuthProvider);
     await auth.currentUser?.reload();
-    await auth.currentUser?.getIdToken(true);
+    final idToken = await auth.currentUser?.getIdToken(true);
 
     final functions = ref.read(firebaseFunctionsProvider);
     final callable = functions.httpsCallable('rejectMember');
@@ -128,6 +129,7 @@ class UserManagementPage extends ConsumerWidget {
       await callable(<String, dynamic>{
         'companyId': companyId,
         'uid': uid,
+        if (idToken != null) 'idToken': idToken,
       });
     } on FirebaseFunctionsException catch (e) {
       if (!context.mounted) return;

@@ -15,11 +15,15 @@ type ApproveMemberInput = {
   companyId: string;
   uid: string;
   role: 'admin' | 'cashier';
+  // Fallback for cases where callable auth context isn't attached.
+  // Client can pass Firebase Auth ID token; we verify it server-side.
+  idToken?: string;
 };
 
 type RejectMemberInput = {
   companyId: string;
   uid: string;
+  idToken?: string;
 };
 
 type JoinCompanyByCodeInput = {
@@ -48,10 +52,22 @@ type GetMyMembershipsOutput = {
   }>;
 };
 
-export const approveMember = onCall<ApproveMemberInput>(callableOptions, async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError('unauthenticated', 'Authentication required.');
+async function getCallerUid(request: any) {
+  // Note: keep this helper small; we only want a safe fallback.
+  const authUid = request.auth?.uid;
+  if (authUid) return authUid;
+
+  const token = (request.data as { idToken?: unknown } | undefined)?.idToken;
+  if (typeof token === 'string' && token.trim().length > 0) {
+    const decoded = await admin.auth().verifyIdToken(token);
+    if (decoded?.uid) return decoded.uid;
   }
+
+  throw new HttpsError('unauthenticated', 'Authentication required.');
+}
+
+export const approveMember = onCall<ApproveMemberInput>(callableOptions, async (request) => {
+  const callerUid = await getCallerUid(request);
 
   const { companyId, uid, role } = request.data || ({} as ApproveMemberInput);
 
@@ -65,7 +81,6 @@ export const approveMember = onCall<ApproveMemberInput>(callableOptions, async (
 
   const db = admin.firestore();
 
-  const callerUid = request.auth.uid;
   const callerRef = db.doc(`companies/${companyId}/members/${callerUid}`);
   const targetRef = db.doc(`companies/${companyId}/members/${uid}`);
 
@@ -100,9 +115,7 @@ export const approveMember = onCall<ApproveMemberInput>(callableOptions, async (
 });
 
 export const rejectMember = onCall<RejectMemberInput>(callableOptions, async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError('unauthenticated', 'Authentication required.');
-  }
+  const callerUid = await getCallerUid(request);
 
   const { companyId, uid } = request.data || ({} as RejectMemberInput);
 
@@ -112,7 +125,6 @@ export const rejectMember = onCall<RejectMemberInput>(callableOptions, async (re
 
   const db = admin.firestore();
 
-  const callerUid = request.auth.uid;
   const callerRef = db.doc(`companies/${companyId}/members/${callerUid}`);
   const targetRef = db.doc(`companies/${companyId}/members/${uid}`);
 
