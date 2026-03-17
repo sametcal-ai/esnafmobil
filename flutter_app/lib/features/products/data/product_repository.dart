@@ -182,7 +182,10 @@ class ProductRepository {
       bumpVersion: true,
     );
 
-    final updated = product.copyWith(meta: updatedMeta);
+    final updated = product.copyWith(
+      stockQuantity: existing.stockQuantity,
+      meta: updatedMeta,
+    );
     await upsertProduct(companyId, updated);
     return updated;
   }

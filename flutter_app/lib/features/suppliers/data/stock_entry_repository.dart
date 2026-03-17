@@ -82,6 +82,7 @@ class StockEntryRepository {
     final entry = StockEntry(
       id: id,
       supplierId: supplierId,
+      supplierName: null,
       productId: productId,
       quantity: quantity,
       unitCost: unitCost,
@@ -98,14 +99,7 @@ class StockEntryRepository {
       SetOptions(merge: true),
     );
 
-    await _productRepository.increaseStock(
-      companyId: companyId,
-      productId: productId,
-      quantity: quantity,
-      purchasePrice: unitCost,
-      marginPercent: marginPercent,
-      currentUserId: actor,
-    );
+    
 
     if (supplierId.isNotEmpty) {
       final supplierRepo = SupplierRepository(_refs, currentUserId: actor);
@@ -140,11 +134,48 @@ class StockEntryRepository {
     final entry = StockEntry(
       id: id,
       supplierId: null,
+      supplierName: null,
       productId: productId,
       quantity: quantity,
       unitCost: 0,
       createdAt: now,
       type: StockMovementType.outgoing,
+      meta: meta,
+    );
+
+    await _refs.stockEntries(companyId).doc(id).set(
+      {
+        ...entry.toMap(),
+        'createdAt': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+
+    return entry;
+  }
+
+  Future<StockEntry> createSystemIncomingEntry({
+    required String companyId,
+    required String productId,
+    required int quantity,
+    double unitCost = 0,
+    String supplierName = 'system',
+    String? currentUserId,
+  }) async {
+    final now = DateTime.now();
+    final id = _uuid.v4();
+    final actor = _requireActor(currentUserId);
+    final meta = AuditMeta.create(createdBy: actor, now: now);
+
+    final entry = StockEntry(
+      id: id,
+      supplierId: null,
+      supplierName: supplierName,
+      productId: productId,
+      quantity: quantity,
+      unitCost: unitCost,
+      createdAt: now,
+      type: StockMovementType.incoming,
       meta: meta,
     );
 

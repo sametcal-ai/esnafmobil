@@ -66,8 +66,9 @@ class StockMovementsPage extends ConsumerWidget {
 
                   final productName =
                       product?.name ?? 'Ürün: ${entry.productId}';
-                  final supplierName =
-                      supplier?.name ?? (isIncoming ? 'Tedarikçi yok' : 'Satış');
+                  final supplierName = (entry.supplierName != null && entry.supplierName!.isNotEmpty)
+                      ? entry.supplierName!
+                      : supplier?.name ?? (isIncoming ? 'Tedarikçi yok' : 'Satış');
                   final dateString =
                       '${entry.createdAt.day.toString().padLeft(2, '0')}.'
                       '${entry.createdAt.month.toString().padLeft(2, '0')}.'

@@ -247,23 +247,12 @@ class PosController extends Notifier<PosState> {
             throw StateError('Insufficient stock');
           }
 
-          final updatedMeta = product.meta.touch(
-            modifiedBy: actor,
-            bumpVersion: true,
-          );
-
-          final updatedProduct = product.copyWith(
-            stockQuantity: product.stockQuantity - item.quantity,
-            meta: updatedMeta,
-          );
-
-          tx.set(productRef, updatedProduct, SetOptions(merge: true));
-
           final stockEntryId = _uuid.v4();
           final stockMeta = AuditMeta.create(createdBy: actor, now: now);
           final stockEntry = StockEntry(
             id: stockEntryId,
             supplierId: null,
+            supplierName: null,
             productId: item.product.id,
             quantity: item.quantity,
             unitCost: 0,
@@ -284,10 +273,11 @@ class PosController extends Notifier<PosState> {
 
         tx.set(
           _refs.sales(companyId).doc(saleId),
-          sale.toMap(),
-          SetOptions(merge: true),
-        );
-      });
+          {
+            ...sale.toMap(),
+            'stockProcessedAt': Timestamp.fromDate(now),
+          },
+          Set      });
     } catch (_) {
       return null;
     }

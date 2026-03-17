@@ -213,9 +213,11 @@ class _ProductMovementsPageState extends ConsumerState<ProductMovementsPage> {
       final quantitySigned = isIncoming ? entry.quantity : -entry.quantity;
       final typeText = isIncoming ? 'Alış (Giriş)' : 'Stok Çıkış';
 
-      final supplierName = entry.supplierId != null
-          ? (suppliersById[entry.supplierId!]?.name ?? 'Bilinmeyen tedarikçi')
-          : (isIncoming ? 'Tedarikçi yok' : 'Stok');
+      final supplierName = (entry.supplierName != null && entry.supplierName!.isNotEmpty)
+          ? entry.supplierName!
+          : entry.supplierId != null
+              ? (suppliersById[entry.supplierId!]?.name ?? 'Bilinmeyen tedarikçi')
+              : (isIncoming ? 'Tedarikçi yok' : 'Stok');
 
       final amount =
           isIncoming && entry.unitCost > 0 ? entry.quantity * entry.unitCost : null;
