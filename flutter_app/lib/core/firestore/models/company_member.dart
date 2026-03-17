@@ -6,6 +6,8 @@ class CompanyMember {
   final String uid;
   final String role;
   final String status;
+  final String email;
+  final String displayName;
   final List<String> permissions;
   final List<String> storeIds;
 
@@ -13,6 +15,8 @@ class CompanyMember {
     required this.uid,
     required this.role,
     required this.status,
+    required this.email,
+    required this.displayName,
     required this.permissions,
     required this.storeIds,
   });
@@ -22,6 +26,8 @@ class CompanyMember {
       'uid': uid,
       'role': role,
       'status': status,
+      'email': email,
+      'displayName': displayName,
       'permissions': permissions,
       'storeIds': storeIds,
     };
@@ -41,6 +47,8 @@ class CompanyMember {
       uid: doc.id,
       role: (data['role'] as String?) ?? 'member',
       status: (data['status'] as String?) ?? 'active',
+      email: (data['email'] as String?) ?? '',
+      displayName: (data['displayName'] as String?) ?? '',
       permissions: _asStringList(data['permissions']),
       storeIds: _asStringList(data['storeIds']),
     );
@@ -54,6 +62,8 @@ class CompanyMember {
       uid: uid,
       role: (data['role'] as String?) ?? 'member',
       status: (data['status'] as String?) ?? 'active',
+      email: (data['email'] as String?) ?? '',
+      displayName: (data['displayName'] as String?) ?? '',
       permissions: _asStringList(data['permissions']),
       storeIds: _asStringList(data['storeIds']),
     );

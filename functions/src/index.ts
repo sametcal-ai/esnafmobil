@@ -24,6 +24,7 @@ type RejectMemberInput = {
 
 type JoinCompanyByCodeInput = {
   companyCode: string;
+  displayName?: string;
 };
 
 type JoinCompanyByCodeOutput = {
@@ -147,7 +148,7 @@ export const joinCompanyByCode = onCall<JoinCompanyByCodeInput>(
       throw new HttpsError('unauthenticated', 'Authentication required.');
     }
 
-    const { companyCode } = request.data || ({} as JoinCompanyByCodeInput);
+    const { companyCode, displayName } = request.data || ({} as JoinCompanyByCodeInput);
 
     if (!companyCode || typeof companyCode !== 'string') {
       throw new HttpsError('invalid-argument', 'companyCode is required.');
@@ -180,8 +181,13 @@ export const joinCompanyByCode = onCall<JoinCompanyByCodeInput>(
       return { companyId, status: data.status ?? 'active' };
     }
 
+    const email = typeof request.auth.token?.email === 'string' ? request.auth.token.email : null;
+    const safeDisplayName = typeof displayName === 'string' ? displayName.trim().slice(0, 64) : '';
+
     await memberRef.create({
       uid,
+      email,
+      displayName: safeDisplayName,
       status: 'pending',
       role: null,
       permissions: [],
@@ -245,8 +251,12 @@ export const createCompany = onCall<CreateCompanyInput>(
         ownerUid: uid,
       });
 
+      const email = typeof request.auth?.token?.email === 'string' ? request.auth.token.email : null;
+
       tx.create(memberRef, {
         uid,
+        email,
+        displayName: '',
         status: 'active',
         role: 'admin',
         permissions: [],

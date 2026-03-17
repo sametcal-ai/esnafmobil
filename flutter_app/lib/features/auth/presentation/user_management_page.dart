@@ -64,6 +64,12 @@ class UserManagementPage extends ConsumerWidget {
 
     if (ok != true || role == null) return;
 
+    // Callable functions attach the Firebase Auth ID token automatically.
+    // In some cases (fresh emulator, token not yet minted/expired) the call can
+    // end up unauthenticated. Force-refresh token before invoking.
+    final auth = ref.read(firebaseAuthProvider);
+    await auth.currentUser?.getIdToken(true);
+
     final functions = ref.read(firebaseFunctionsProvider);
     final callable = functions.httpsCallable('approveMember');
 
@@ -109,6 +115,9 @@ class UserManagementPage extends ConsumerWidget {
 
     if (ok != true) return;
 
+    final auth = ref.read(firebaseAuthProvider);
+    await auth.currentUser?.getIdToken(true);
+
     final functions = ref.read(firebaseFunctionsProvider);
     final callable = functions.httpsCallable('rejectMember');
 
@@ -136,9 +145,21 @@ class UserManagementPage extends ConsumerWidget {
         ? 'pending'
         : 'active • ${member.role.isEmpty ? '-' : member.role}';
 
+    final title = member.displayName.isNotEmpty
+        ? member.displayName
+        : (member.email.isNotEmpty ? member.email : member.uid);
+
+    final details = <String>[
+      if (member.email.isNotEmpty) member.email,
+      if (member.displayName.isNotEmpty && member.email.isNotEmpty)
+        member.uid,
+      if (member.displayName.isEmpty && member.email.isEmpty) member.uid,
+      subtitle,
+    ].join(' • ');
+
     return ListTile(
-      title: Text(member.uid),
-      subtitle: Text(subtitle),
+      title: Text(title),
+      subtitle: Text(details),
       trailing: isPending
           ? Wrap(
               spacing: 8,
