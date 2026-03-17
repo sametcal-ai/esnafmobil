@@ -38,8 +38,6 @@ class PosController extends Notifier<PosState> {
     currentUserId = ref.watch(currentUserIdProvider);
     _productRepository = ref.watch(productsRepositoryProvider);
     _refs = ref.watch(firestoreRefsProvider);
-ryProvider);
-    _refs = ref.watch(firestoreRefsProvider);
 
     return PosState.initial();
   }
