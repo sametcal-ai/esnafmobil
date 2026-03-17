@@ -5,6 +5,8 @@ import 'models/company.dart';
 import 'models/company_member.dart';
 import 'models/store.dart';
 import 'models/product.dart';
+import 'models/price_list.dart';
+import 'models/price_list_item.dart';
 
 class FirestoreRefs {
   FirestoreRefs(this._db);
@@ -63,6 +65,27 @@ class FirestoreRefs {
     return company(companyId).collection('products').withConverter<Product>(
           fromFirestore: (snap, _) => Product.fromDoc(snap),
           toFirestore: (p, _) => p.toFirestoreMap(),
+        );
+  }
+
+  CollectionReference<PriceList> priceListsRef(String companyId) {
+    return company(companyId).collection('priceLists').withConverter<PriceList>(
+          fromFirestore: (snap, _) => PriceList.fromDoc(snap),
+          toFirestore: (pl, _) => pl.toFirestoreMap(),
+        );
+  }
+
+  CollectionReference<PriceListItem> priceListItemsRef(
+    String companyId,
+    String priceListId,
+  ) {
+    return company(companyId)
+        .collection('priceLists')
+        .doc(priceListId)
+        .collection('items')
+        .withConverter<PriceListItem>(
+          fromFirestore: (snap, _) => PriceListItem.fromDoc(snap),
+          toFirestore: (item, _) => item.toFirestoreMap(),
         );
   }
 

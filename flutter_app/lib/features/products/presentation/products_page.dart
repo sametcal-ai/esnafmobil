@@ -16,6 +16,7 @@ import '../../company/domain/active_company_provider.dart';
 import '../../company/domain/company_memberships_provider.dart';
 import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
 import '../../pricing/domain/price_resolver.dart';
+import '../../pricing/data/price_list_repository.dart';
 import '../../suppliers/data/stock_entry_repository.dart';
 import '../data/product_repository.dart';
 import '../domain/product.dart';
@@ -644,6 +645,8 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
   }
 
   Future<void> _save() async {
+    final isEdit = widget.existing != null;
+
     final name = _nameController.text.trim();
     final brand = _brandController.text.trim();
     final barcode = _barcodeController.text.trim();
@@ -679,7 +682,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     }
 
     double purchasePrice = 0;
-    if (purchasePriceText.isNotEmpty) {
+    if (!isEdit && purchasePriceText.isNotEmpty) {
       final parsed =
           double.tryParse(purchasePriceText.replaceAll(',', '.'));
       if (parsed == null || parsed < 0) {
@@ -710,7 +713,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     }
 
     double salePrice = 0;
-    if (salePriceText.isNotEmpty) {
+    if (!isEdit && salePriceText.isNotEmpty) {
       final parsed = double.tryParse(salePriceText.replaceAll(',', '.'));
       if (parsed == null || parsed < 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -726,19 +729,21 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
 
     final settings = ref.read(appSettingsProvider);
 
-    final bool isManualPriceInput = salePriceText.isNotEmpty;
+    final bool isManualPriceInput = !isEdit && salePriceText.isNotEmpty;
 
-    if (!isManualPriceInput && purchasePrice > 0) {
-      final autoMargin = settings.defaultMarginPercent;
-      if (autoMargin > 0) {
-        marginPercent = autoMargin;
-        salePrice = purchasePrice * (1 + autoMargin / 100);
+    if (!isEdit) {
+      if (!isManualPriceInput && purchasePrice > 0) {
+        final autoMargin = settings.defaultMarginPercent;
+        if (autoMargin > 0) {
+          marginPercent = autoMargin;
+          salePrice = purchasePrice * (1 + autoMargin / 100);
+        } else {
+          salePrice = purchasePrice;
+        }
       } else {
-        salePrice = purchasePrice;
-      }
-    } else {
-      if (purchasePrice > 0 && salePrice > 0 && marginPercent == 0) {
-        marginPercent = ((salePrice / purchasePrice) - 1) * 100;
+        if (purchasePrice > 0 && salePrice > 0 && marginPercent == 0) {
+          marginPercent = ((salePrice / purchasePrice) - 1) * 100;
+        }
       }
     }
 
@@ -814,7 +819,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
       }
     }
 
-    final bool isManualPrice = salePriceText.isNotEmpty;
+    final bool isManualPrice = !isEdit && salePriceText.isNotEmpty;
 
     if (widget.existing == null) {
       final product = await repo.createProduct(
@@ -836,6 +841,12 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
         externalDate: _externalDate,
       );
 
+      final priceListRepo = ref.read(priceListRepositoryProvider);
+      await priceListRepo.ensureProductInActiveList(
+        companyId: companyId,
+        product: product,
+      );
+
       if (stockQuantity > 0) {
         final stockRepo = ref.read(stockEntryRepositoryProvider);
         await stockRepo.createSystemIncomingEntry(
@@ -852,10 +863,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
         barcode: barcode,
         imageUrl: _lookupImageUrl ?? widget.existing!.imageUrl,
         tags: tags,
-        lastPurchasePrice: purchasePrice,
-        salePrice: salePrice,
         marginPercent: marginPercent,
-        isManualPrice: isManualPrice ? true : widget.existing!.isManualPrice,
         externalPrice: _externalPrice ?? widget.existing!.externalPrice,
         externalTax: _externalTax ?? widget.existing!.externalTax,
         externalTaxRate:
@@ -966,11 +974,15 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _purchasePriceController,
+              enabled: !isEdit,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Son alış fiyatı',
-                border: OutlineInputBorder(),
+                helperText: isEdit
+                    ? 'Fiyatlar aktif fiyat listesinden güncellenir, buradan değiştirilemez.'
+                    : null,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -991,6 +1003,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
                 Expanded(
                   child: TextField(
                     controller: _salePriceController,
+                    enabled: !isEdit,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(

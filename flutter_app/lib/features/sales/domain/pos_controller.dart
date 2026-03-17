@@ -9,6 +9,7 @@ import '../../auth/domain/current_user_provider.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../company/domain/company_memberships_provider.dart';
 import '../../pricing/domain/price_resolver.dart';
+import '../../pricing/domain/price_list_providers.dart';
 import '../../products/data/product_repository.dart';
 import '../../products/domain/product.dart' as catalog;
 import '../../suppliers/domain/stock_entry.dart';
@@ -30,6 +31,7 @@ class PosController extends Notifier<PosState> {
   late ProductRepository _productRepository;
   late FirestoreRefs _refs;
   late AppSettings _settings;
+  late Map<String, double> _activePriceMap;
 
   @override
   PosState build() {
@@ -38,11 +40,23 @@ class PosController extends Notifier<PosState> {
     currentUserId = ref.watch(currentUserIdProvider);
     _productRepository = ref.watch(productsRepositoryProvider);
     _refs = ref.watch(firestoreRefsProvider);
+    _activePriceMap = ref.watch(activePriceListPriceMapProvider);
 
     return PosState.initial();
   }
 
   double _calculateUnitPrice(catalog.Product product) {
+    final priceFromList = _activePriceMap[product.id];
+    if (priceFromList != null && priceFromList > 0) {
+      return priceFromList;
+    }
+
+    // Aktif fiyat listesi var ama bu üründe fiyat yoksa satışı 0 ile engelle.
+    if (_activePriceMap.isNotEmpty) {
+      return 0;
+    }
+
+    // Henüz aktif liste yoksa (ilk kurulum vb.) eski davranışa düş.
     return PriceResolver.resolveSellPrice(
       product: product,
       settings: _settings,

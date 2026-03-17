@@ -3,64 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/config/app_settings.dart';
-import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../auth/domain/user.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
 import '../../company/domain/active_company_provider.dart';
-import '../../products/data/product_repository.dart';
-import '../../products/domain/product.dart';
-import '../domain/price_resolver.dart';
+import '../data/price_list_repository.dart';
+import '../domain/price_list.dart';
+import '../domain/price_list_providers.dart';
 import 'pricing_detail_page.dart';
-
-class PricingItem {
-  final Product product;
-  final double salePrice;
-  final double taxRate;
-  final bool isManualPrice;
-
-  const PricingItem({
-    required this.product,
-    required this.salePrice,
-    required this.taxRate,
-    required this.isManualPrice,
-  });
-
-  double get purchasePrice => product.lastPurchasePrice;
-  String get productName => product.name;
-}
-
-final pricingProvider =
-    FutureProvider.autoDispose<List<PricingItem>>((ref) async {
-  final companyId = ref.watch(activeCompanyIdProvider);
-  if (companyId == null) return const <PricingItem>[];
-
-  final productRepo = ref.watch(productsRepositoryProvider);
-  final products = await productRepo.getAllProducts(companyId);
-  final settings = ref.watch(appSettingsProvider);
-
-  // Pricing'i tek gerçek kaynak olacak şekilde hesapla:
-  // - Manuel fiyatı (isManualPrice == true) her zaman kullan.
-  // - Aksi halde sistem varsayılan kâr marjıyla otomatik hesapla.
-  return products
-      .map(
-        (p) {
-          final resolvedPrice = PriceResolver.resolveSellPrice(
-            product: p,
-            settings: settings,
-          );
-
-          final bool isManual = p.isManualPrice && p.salePrice > 0;
-
-          return PricingItem(
-            product: p,
-            salePrice: resolvedPrice,
-            taxRate: 20,
-            isManualPrice: isManual,
-          );
-        },
-      )
-      .toList(growable: false);
-});
 
 class PricingPage extends ConsumerStatefulWidget {
   const PricingPage({super.key});
@@ -83,7 +33,7 @@ class _PricingPageState extends ConsumerState<PricingPage> {
 
   void _onSearchChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(const Duration(milliseconds: 250), () {
       setState(() {
         _searchQuery = value;
       });
@@ -98,50 +48,98 @@ class _PricingPageState extends ConsumerState<PricingPage> {
     });
   }
 
+  String _typeText(PriceListType type) {
+    switch (type) {
+      case PriceListType.cash:
+        return 'Nakit';
+      case PriceListType.card:
+        return 'K.Kartı';
+      case PriceListType.credit:
+        return 'Veresiye';
+      case PriceListType.general:
+        return 'Genel';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pricingAsync = ref.watch(pricingProvider);
-    final settings = ref.watch(appSettingsProvider);
-    final minChars = settings.searchFilterMinChars;
+    final listsAsync = ref.watch(priceListsProvider);
+    final activeAsync = ref.watch(activePriceListProvider);
+
+    final currentUser = ref.watch(currentUserProvider);
+    final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
 
     return AppScaffold(
       title: 'Fiyat Listeleri',
-      body: pricingAsync.when(
-        data: (pricingModels) {
-          if (pricingModels.isEmpty) {
-            return const Center(
-              child: Text('Henüz ürün bulunamadı'),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                await showDialog<void>(
+                  context: context,
+                  builder: (_) => const _CreatePriceListDialog(),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Yeni Liste'),
+            )
+          : null,
+      body: listsAsync.when(
+        data: (lists) {
+          final query = _searchQuery.trim().toLowerCase();
+          final filtered = query.isEmpty
+              ? lists
+              : lists
+                  .where((pl) => pl.name.toLowerCase().contains(query))
+                  .toList(growable: false);
+
+          if (filtered.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Fiyat listesinde ara',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: _clearSearch,
+                            )
+                          : null,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Center(child: Text('Henüz fiyat listesi yok')),
+                  if (isAdmin) ...[
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await showDialog<void>(
+                          context: context,
+                          builder: (_) => const _CreatePriceListDialog(),
+                        );
+                      },
+                      child: const Text('Fiyat Listesi Oluştur'),
+                    ),
+                  ],
+                ],
+              ),
             );
           }
 
-          final query = _searchQuery.trim().toLowerCase();
-          final isFilterActive =
-              query.isNotEmpty && query.length >= minChars;
-
-          final filteredModels = isFilterActive
-              ? pricingModels.where((model) {
-                  final name = model.productName.toLowerCase();
-                  final brand = model.product.brand.toLowerCase();
-                  final barcode = model.product.barcode.toLowerCase();
-                  final tags = model.product.tags
-                      .map((t) => t.toLowerCase())
-                      .join(' ');
-                  return name.contains(query) ||
-                      brand.contains(query) ||
-                      barcode.contains(query) ||
-                      tags.contains(query);
-                }).toList()
-              : pricingModels;
+          final activeId = activeAsync.asData?.value?.id;
 
           return ListView.separated(
             padding: const EdgeInsets.all(16),
-            itemCount: filteredModels.length + 1,
-            separatorBuilder: (context, index) {
-              if (index == 0) {
-                return const SizedBox(height: 12);
-              }
-              return const SizedBox(height: 8);
-            },
+            itemCount: filtered.length + 1,
+            separatorBuilder: (context, index) =>
+                const SizedBox(height: 8),
             itemBuilder: (context, index) {
               if (index == 0) {
                 return TextField(
@@ -162,32 +160,48 @@ class _PricingPageState extends ConsumerState<PricingPage> {
                 );
               }
 
-              final model = filteredModels[index - 1];
+              final pl = filtered[index - 1];
+              final isActive = pl.id == activeId;
+
+              final dateText =
+                  '${pl.startDate.toLocal().toString().split(' ').first} - ${pl.endDate.toLocal().toString().split(' ').first}';
+
               return Card(
                 child: ListTile(
-                  title: Text(model.productName),
-                  subtitle: const Text('Detay için tıklayın'),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Alış: ${formatMoney(model.purchasePrice)}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      Text(
-                        'Satış: ${formatMoney(model.salePrice)}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  title: Text(
+                    pl.name,
+                    style: TextStyle(
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                    ),
                   ),
+                  subtitle: Text(
+                    '${_typeText(pl.type)}  •  $dateText'
+                    '${pl.inactiveReason != null ? '\n${pl.inactiveReason}' : ''}',
+                  ),
+                  trailing: isActive
+                      ? const Chip(label: Text('Aktif'))
+                      : isAdmin
+                          ? TextButton(
+                              onPressed: () async {
+                                final companyId =
+                                    ref.read(activeCompanyIdProvider);
+                                if (companyId == null) return;
+
+                                final repo =
+                                    ref.read(priceListRepositoryProvider);
+                                await repo.setActivePriceList(
+                                  companyId: companyId,
+                                  priceListId: pl.id,
+                                  previousExpired: false,
+                                );
+                              },
+                              child: const Text('Aktif Et'),
+                            )
+                          : null,
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => PricingDetailPage(item: model),
+                        builder: (_) => PricingDetailPage(priceList: pl),
                       ),
                     );
                   },
@@ -197,10 +211,171 @@ class _PricingPageState extends ConsumerState<PricingPage> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(
-          child: Text('Fiyat listeleri yüklenemedi'),
+        error: (_, __) => const Center(child: Text('Fiyat listeleri yüklenemedi')),
+      ),
+    );
+  }
+}
+
+class _CreatePriceListDialog extends ConsumerStatefulWidget {
+  const _CreatePriceListDialog();
+
+  @override
+  ConsumerState<_CreatePriceListDialog> createState() =>
+      _CreatePriceListDialogState();
+}
+
+class _CreatePriceListDialogState extends ConsumerState<_CreatePriceListDialog> {
+  final TextEditingController _nameController = TextEditingController();
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(days: 30));
+  PriceListType _type = PriceListType.general;
+  bool _makeActive = true;
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickStart() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _startDate = DateTime(picked.year, picked.month, picked.day);
+      if (_endDate.isBefore(_startDate)) {
+        _endDate = _startDate;
+      }
+    });
+  }
+
+  Future<void> _pickEnd() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate,
+      firstDate: _startDate,
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _endDate = DateTime(picked.year, picked.month, picked.day);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Yeni Fiyat Listesi'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Liste adı',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<PriceListType>(
+              value: _type,
+              decoration: const InputDecoration(
+                labelText: 'Liste türü',
+                border: OutlineInputBorder(),
+              ),
+              items: PriceListType.values
+                  .map(
+                    (t) => DropdownMenuItem(
+                      value: t,
+                      child: Text(t.name),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() {
+                  _type = v;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _pickStart,
+                    child: Text(
+                      'Başlangıç: ${_startDate.toLocal().toString().split(' ').first}',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _pickEnd,
+                    child: Text(
+                      'Bitiş: ${_endDate.toLocal().toString().split(' ').first}',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              value: _makeActive,
+              onChanged: (v) {
+                setState(() {
+                  _makeActive = v ?? true;
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Oluşturunca aktif yap'),
+            ),
+          ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          child: const Text('İptal'),
+        ),
+        ElevatedButton(
+          onPressed: _isSaving
+              ? null
+              : () async {
+                  final name = _nameController.text.trim();
+                  if (name.isEmpty) return;
+
+                  final companyId = ref.read(activeCompanyIdProvider);
+                  if (companyId == null) return;
+
+                  setState(() {
+                    _isSaving = true;
+                  });
+
+                  final repo = ref.read(priceListRepositoryProvider);
+                  await repo.createPriceList(
+                    companyId: companyId,
+                    name: name,
+                    startDate: _startDate,
+                    endDate: _endDate,
+                    type: _type,
+                    makeActive: _makeActive,
+                  );
+
+                  if (!mounted) return;
+                  Navigator.of(context).pop();
+                },
+          child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
+        ),
+      ],
     );
   }
 }
