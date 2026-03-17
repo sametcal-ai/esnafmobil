@@ -25,7 +25,6 @@ class _SupplierPaymentsPageState
   List<SupplierLedgerEntry> _payments = const [];
   bool _isLoading = true;
 
-  String _selectedMethod = 'Nakit';
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
@@ -77,7 +76,10 @@ class _SupplierPaymentsPageState
     });
   }
 
-  Future<void> _addPayment(BuildContext dialogContext) async {
+  Future<void> _addPayment(
+    BuildContext dialogContext, {
+    required String selectedMethod,
+  }) async {
     final text = _amountController.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -110,7 +112,7 @@ class _SupplierPaymentsPageState
 
     final note = _noteController.text.trim();
     final fullNote = [
-      _selectedMethod.trim(),
+      selectedMethod.trim(),
       if (note.isNotEmpty) note,
     ].join(' - ');
 
@@ -129,81 +131,82 @@ class _SupplierPaymentsPageState
   Future<void> _openAddPaymentDialog() async {
     _amountController.clear();
     _noteController.clear();
-    _selectedMethod = 'Nakit';
 
     await showDialog<void>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Ödeme Ekle'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Wrap(
-                  spacing: 8,
+        var selectedMethod = 'Nakit';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Ödeme Ekle'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    ChoiceChip(
-                      label: const Text('Nakit'),
-                      selected: _selectedMethod == 'Nakit',
-                      onSelected: (_) {
-                        setState(() {
-                          _selectedMethod = 'Nakit';
-                        });
-                      },
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: 'Nakit',
+                            label: Text('Nakit'),
+                          ),
+                          ButtonSegment(
+                            value: 'K.Kartı',
+                            label: Text('K.Kartı'),
+                          ),
+                          ButtonSegment(
+                            value: 'Havale',
+                            label: Text('Havale'),
+                          ),
+                        ],
+                        selected: {selectedMethod},
+                        onSelectionChanged: (selection) {
+                          setDialogState(() {
+                            selectedMethod = selection.first;
+                          });
+                        },
+                      ),
                     ),
-                    ChoiceChip(
-                      label: const Text('Havale'),
-                      selected: _selectedMethod == 'Havale',
-                      onSelected: (_) {
-                        setState(() {
-                          _selectedMethod = 'Havale';
-                        });
-                      },
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _amountController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Tutar',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                    ChoiceChip(
-                      label: const Text('K.Kartı'),
-                      selected: _selectedMethod == 'K.Kartı',
-                      onSelected: (_) {
-                        setState(() {
-                          _selectedMethod = 'K.Kartı';
-                        });
-                      },
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _noteController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Açıklama (opsiyonel)',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Tutar',
-                    border: OutlineInputBorder(),
-                  ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('İptal'),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _noteController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Açıklama (opsiyonel)',
-                    border: OutlineInputBorder(),
+                ElevatedButton(
+                  onPressed: () => _addPayment(
+                    context,
+                    selectedMethod: selectedMethod,
                   ),
+                  child: const Text('Kaydet'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('İptal'),
-            ),
-            ElevatedButton(
-              onPressed: () => _addPayment(context),
-              child: const Text('Kaydet'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
