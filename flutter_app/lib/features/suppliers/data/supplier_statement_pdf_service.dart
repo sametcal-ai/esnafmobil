@@ -9,7 +9,9 @@ import '../../products/data/product_repository.dart';
 import '../data/stock_entry_repository.dart';
 import '../domain/stock_entry.dart';
 import '../domain/supplier.dart';
-import '../domain/sup</old_code><new_code>class SupplierStatementPdfService {
+import '../domain/supplier_ledger.dart';
+
+class SupplierStatementPdfService {
   final StockEntryRepository _stockRepo;
   final ProductRepository _productRepo;
 
@@ -19,7 +21,7 @@ import '../domain/sup</old_code><new_code>class SupplierStatementPdfService {
   })  : _stockRepo = stockRepo,
         _productRepo = productRepo;
 
-  Future<pw.Font
+  Future<pw.Font> _loadTtfFont(String assetPath) async {
     final data = await rootBundle.load(assetPath);
     final bytes = data.buffer.asUint8List();
 
