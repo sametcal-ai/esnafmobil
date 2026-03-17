@@ -10,21 +10,35 @@ class NoCompanyPage extends ConsumerWidget {
   const NoCompanyPage({super.key});
 
   Future<void> _joinByCode(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
+    final codeController = TextEditingController();
+    final nameController = TextEditingController();
 
-    final companyCode = await showDialog<String>(
+    final form = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) {
         return AlertDialog(
           title: const Text('Davet kodu ile katıl'),
-          content: TextField(
-            controller: controller,
-            textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
-              labelText: 'Firma Kodu',
-              hintText: 'Örn: ABC123',
-            ),
-            autofocus: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: codeController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Firma Kodu',
+                  hintText: 'Örn: ABC123',
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Takma İsim',
+                  hintText: 'Örn: Ahmet',
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -32,7 +46,10 @@ class NoCompanyPage extends ConsumerWidget {
               child: const Text('Vazgeç'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(controller.text),
+              onPressed: () => Navigator.of(ctx).pop({
+                'companyCode': codeController.text,
+                'displayName': nameController.text,
+              }),
               child: const Text('Gönder'),
             ),
           ],
@@ -40,8 +57,16 @@ class NoCompanyPage extends ConsumerWidget {
       },
     );
 
-    final trimmed = (companyCode ?? '').trim();
+    final trimmed = (form?['companyCode'] ?? '').trim();
+    final displayName = (form?['displayName'] ?? '').trim();
     if (trimmed.isEmpty) return;
+    if (displayName.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Takma isim zorunlu.')),
+      );
+      return;
+    }
 
     final functions = ref.read(firebaseFunctionsProvider);
     final callable = functions.httpsCallable('joinCompanyByCode');
@@ -49,6 +74,7 @@ class NoCompanyPage extends ConsumerWidget {
     try {
       final res = await callable(<String, dynamic>{
         'companyCode': trimmed,
+        'displayName': displayName,
       });
 
       final data = res.data;
