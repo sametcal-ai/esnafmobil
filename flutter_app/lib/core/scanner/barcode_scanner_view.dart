@@ -29,6 +29,8 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
   late final ScannerSessionManager _sessionManager;
   bool _effectiveEnabled = false;
 
+  MobileScannerController? _startPendingController;
+
   String? _lastBarcode;
   DateTime? _lastScanAt;
 
@@ -89,6 +91,7 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
     if (!previous && next) {
       _initAndStart();
     } else if (previous && !next) {
+      _startPendingController = null;
       _sessionManager.release(widget.ownerId);
     }
 
@@ -143,6 +146,7 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _startPendingController = null;
 
     // Avoid async notifier state updates while the widget tree is being unmounted.
     Future.microtask(() {
@@ -188,6 +192,29 @@ class _BarcodeScannerViewState extends ConsumerState<BarcodeScannerView>
             session.status != ScannerSessionStatus.paused &&
             session.status != ScannerSessionStatus.acquiring)) {
       return const _ScannerInfoCard(message: 'Kamera hazırlanıyor...');
+    }
+
+    if (session.status == ScannerSessionStatus.acquiring &&
+        _startPendingController != controller) {
+      _startPendingController = controller;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        if (!_effectiveEnabled) return;
+
+        final current = ref.read(scannerSessionManagerProvider);
+        if (current.ownerId != widget.ownerId || current.controller != controller) {
+          return;
+        }
+
+        try {
+          await controller.start();
+          if (!mounted) return;
+          _sessionManager.markActive(widget.ownerId, controller);
+        } catch (e) {
+          if (!mounted) return;
+          await _sessionManager.fail(widget.ownerId, controller, e);
+        }
+      });
     }
 
     return MobileScanner(

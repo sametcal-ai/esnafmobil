@@ -89,40 +89,57 @@ class ScannerSessionManager extends Notifier<ScannerSessionState> {
       autoStart: false,
     );
 
-    try {
-      await controller.start();
-
-      if (!ref.mounted) {
-        controller.dispose();
-        return;
-      }
-
-      // Another view may have taken ownership while we were awaiting permission.
-      if (state.ownerId != ownerId ||
-          state.status != ScannerSessionStatus.acquiring) {
-        controller.dispose();
-        return;
-      }
-
-      state = state.copyWith(
-        ownerId: ownerId,
-        status: ScannerSessionStatus.active,
-        errorMessage: null,
-        controller: controller,
-      );
-    } catch (e) {
+    // IMPORTANT: Don't call controller.start() here.
+    // MobileScannerController throws controllerNotAttached if started before the
+    // MobileScanner widget is built with this controller.
+    if (state.ownerId != ownerId || state.status != ScannerSessionStatus.acquiring) {
       controller.dispose();
-
-      if (!ref.mounted) return;
-      if (state.ownerId != ownerId) return;
-
-      state = state.copyWith(
-        ownerId: ownerId,
-        status: ScannerSessionStatus.error,
-        errorMessage: e.toString(),
-        controller: null,
-      );
+      return;
     }
+
+    state = state.copyWith(
+      ownerId: ownerId,
+      status: ScannerSessionStatus.acquiring,
+      errorMessage: null,
+      controller: controller,
+    );
+  }
+
+  void markActive(String ownerId, MobileScannerController controller) {
+    if (!ref.mounted) return;
+    if (state.ownerId != ownerId) return;
+    if (state.controller != controller) return;
+    if (state.status != ScannerSessionStatus.acquiring) return;
+
+    state = state.copyWith(
+      ownerId: ownerId,
+      status: ScannerSessionStatus.active,
+      errorMessage: null,
+    );
+  }
+
+  Future<void> fail(
+    String ownerId,
+    MobileScannerController controller,
+    Object error,
+  ) async {
+    if (!ref.mounted) return;
+    if (state.ownerId != ownerId) return;
+    if (state.controller != controller) return;
+
+    state = state.copyWith(controller: null);
+
+    await _disposeController(controller);
+
+    if (!ref.mounted) return;
+    if (state.ownerId != ownerId) return;
+
+    state = state.copyWith(
+      ownerId: ownerId,
+      status: ScannerSessionStatus.error,
+      errorMessage: error.toString(),
+      controller: null,
+    );
   }
 
   Future<void> release(String ownerId) async {
