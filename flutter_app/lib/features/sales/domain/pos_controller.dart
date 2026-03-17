@@ -277,7 +277,9 @@ class PosController extends Notifier<PosState> {
             ...sale.toMap(),
             'stockProcessedAt': Timestamp.fromDate(now),
           },
-          Set      });
+          SetOptions(merge: true),
+        );
+      });
     } catch (_) {
       return null;
     }
