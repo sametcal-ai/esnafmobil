@@ -217,8 +217,15 @@ class PriceListRepository {
     final actor = _requireActor(currentUserId);
     final now = DateTime.now();
 
-    await _refs.priceListsRef(companyId).doc(priceListId).set(
-      {
+    // _refs.priceListsRef uses withConverter<PriceList>, so .set expects a PriceList.
+    // For partial updates we use the raw reference.
+    await FirebaseFirestore.instance
+        .collection('companies')
+        .doc(companyId)
+        .collection('priceLists')
+        .doc(priceListId)
+        .set(
+      <String, dynamic>{
         'name': name,
         'startDate': Timestamp.fromDate(startDate),
         'endDate': Timestamp.fromDate(endDate),
