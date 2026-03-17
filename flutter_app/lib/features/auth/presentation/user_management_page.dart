@@ -64,6 +64,12 @@ class UserManagementPage extends ConsumerWidget {
 
     if (ok != true || role == null) return;
 
+    // Callable functions attach the Firebase Auth ID token automatically.
+    // In some cases (fresh emulator, token not yet minted/expired) the call can
+    // end up unauthenticated. Force-refresh token before invoking.
+    final auth = ref.read(firebaseAuthProvider);
+    await auth.currentUser?.getIdToken(true);
+
     final functions = ref.read(firebaseFunctionsProvider);
     final callable = functions.httpsCallable('approveMember');
 
@@ -108,6 +114,9 @@ class UserManagementPage extends ConsumerWidget {
     );
 
     if (ok != true) return;
+
+    final auth = ref.read(firebaseAuthProvider);
+    await auth.currentUser?.getIdToken(true);
 
     final functions = ref.read(firebaseFunctionsProvider);
     final callable = functions.httpsCallable('rejectMember');
