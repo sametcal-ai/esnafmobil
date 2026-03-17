@@ -108,6 +108,7 @@ class AppSettingsController extends Notifier<AppSettings> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
   String? _listeningCompanyId;
   bool? _lastDocExists;
+  int _companyChangeToken = 0;
   final Set<String> _attemptedDefaultCreateForCompany = <String>{};
 
   @override
@@ -132,8 +133,10 @@ class AppSettingsController extends Notifier<AppSettings> {
     });
 
     ref.onDispose(() {
+      _companyChangeToken++;
       _sub?.cancel();
     });
+
 
     return AppSettings.initial();
   }
@@ -151,6 +154,9 @@ class AppSettingsController extends Notifier<AppSettings> {
   void _onCompanyChanged(String? companyId) {
     if (companyId == _listeningCompanyId) return;
 
+    _companyChangeToken++;
+    final token = _companyChangeToken;
+
     _sub?.cancel();
     _sub = null;
     _listeningCompanyId = companyId;
@@ -163,6 +169,10 @@ class AppSettingsController extends Notifier<AppSettings> {
 
     Future.microtask(() async {
       final snap = await docRef.get();
+      if (!ref.mounted) return;
+      if (token != _companyChangeToken) return;
+      if (companyId != _listeningCompanyId) return;
+
       _lastDocExists = snap.exists;
 
       if (!snap.exists &&
@@ -180,6 +190,10 @@ class AppSettingsController extends Notifier<AppSettings> {
     });
 
     _sub = docRef.snapshots().listen((snap) {
+      if (!ref.mounted) return;
+      if (token != _companyChangeToken) return;
+      if (companyId != _listeningCompanyId) return;
+
       _lastDocExists = snap.exists;
 
       if (!snap.exists) {
