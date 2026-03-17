@@ -29,6 +29,26 @@ class AppSettings {
     required this.movementsPageSize,
   });
 
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other is AppSettings &&
+            other.barcodeScanDelaySeconds == barcodeScanDelaySeconds &&
+            other.defaultMarginPercent == defaultMarginPercent &&
+            other.productDefaultMarginPercent == productDefaultMarginPercent &&
+            other.searchFilterMinChars == searchFilterMinChars &&
+            other.movementsPageSize == movementsPageSize);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        barcodeScanDelaySeconds,
+        defaultMarginPercent,
+        productDefaultMarginPercent,
+        searchFilterMinChars,
+        movementsPageSize,
+      );
+
   factory AppSettings.initial() {
     return const AppSettings(
       barcodeScanDelaySeconds: 2.0,
@@ -129,6 +149,20 @@ class AppSettingsController extends Notifier<AppSettings> {
     return user != null && user.role == UserRole.admin;
   }
 
+  Future<void> _ensureDefaultsIfMissing(String companyId) async {
+    if (!_isAdmin()) return;
+    if (_attemptedDefaultCreateForCompany.contains(companyId)) return;
+
+    final docRef = _systemSettingsDoc(companyId);
+    final snap = await docRef.get();
+    _lastDocExists = snap.exists;
+
+    if (snap.exists) return;
+
+    _attemptedDefaultCreateForCompany.add(companyId);
+    await docRef.set(AppSettings.initial().toMap());
+  }
+
   void _onCompanyChanged(String? companyId) {
     if (companyId == _listeningCompanyId) return;
 
@@ -146,10 +180,6 @@ class AppSettingsController extends Notifier<AppSettings> {
       _lastDocExists = snap.exists;
 
       if (!snap.exists) {
-        if (_isAdmin() && !_attemptedDefaultCreateForCompany.contains(companyId)) {
-          _attemptedDefaultCreateForCompany.add(companyId);
-          docRef.set(AppSettings.initial().toMap());
-        }
         return;
       }
 
@@ -158,6 +188,8 @@ class AppSettingsController extends Notifier<AppSettings> {
 
       state = AppSettings.fromMap(data);
     });
+
+    Future.microtask(() => _ensureDefaultsIfMissing(companyId));
   }
 
   Future<void> save(AppSettings next) async {
