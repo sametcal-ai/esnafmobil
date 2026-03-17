@@ -57,10 +57,20 @@ async function getCallerUid(request: any) {
   const authUid = request.auth?.uid;
   if (authUid) return authUid;
 
-  const token = (request.data as { idToken?: unknown } | undefined)?.idToken;
-  if (typeof token === 'string' && token.trim().length > 0) {
-    const decoded = await admin.auth().verifyIdToken(token);
+  const dataToken = (request.data as { idToken?: unknown } | undefined)?.idToken;
+  if (typeof dataToken === 'string' && dataToken.trim().length > 0) {
+    const decoded = await admin.auth().verifyIdToken(dataToken);
     if (decoded?.uid) return decoded.uid;
+  }
+
+  const headerAuth = request.rawRequest?.headers?.authorization;
+  if (typeof headerAuth === 'string') {
+    const m = headerAuth.match(/^Bearer\s+(.+)$/i);
+    const bearer = m?.[1]?.trim();
+    if (bearer) {
+      const decoded = await admin.auth().verifyIdToken(bearer);
+      if (decoded?.uid) return decoded.uid;
+    }
   }
 
   throw new HttpsError('unauthenticated', 'Authentication required.');
