@@ -194,7 +194,8 @@ class PriceListRepository {
     final active = await getActivePriceList(companyId);
     if (active == null || active.id != priceListId) return;
 
-    final prev = await _findMostRecentOtherList(companyId, excludeId: priceListId);
+    final prev =
+        await _findMostRecentOtherList(companyId, excludeId: priceListId);
     if (prev == null) return;
 
     await _fillMissingItemsFromPrevious(

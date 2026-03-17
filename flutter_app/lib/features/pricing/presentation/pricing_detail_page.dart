@@ -17,11 +17,31 @@ class PricingDetailPage extends ConsumerWidget {
 
   const PricingDetailPage({super.key, required this.priceList});
 
+  String _dateText(DateTime dt) {
+    final d = dt.toLocal();
+    final day = d.day.toString().padLeft(2, '0');
+    final month = d.month.toString().padLeft(2, '0');
+    final year = d.year.toString();
+    return '$day.$month.$year';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final companyId = ref.watch(activeCompanyIdProvider);
+    final lists = ref.watch(priceListsProvider).asData?.value;
+    PriceList? latest;
+    if (lists != null) {
+      for (final p in lists) {
+        if (p.id == priceList.id) {
+          latest = p;
+          break;
+        }
+      }
+    }
+    final pl = latest ?? priceList;
+
     final activeId = ref.watch(activePriceListProvider).asData?.value?.id;
-    final isActive = companyId != null && activeId == priceList.id;
+    final isActive = companyId != null && activeId == pl.id;
 
     final itemsAsync = ref.watch(priceListItemsProvider(priceList.id));
 
@@ -218,9 +238,58 @@ class _FillPriceListSheetState extends ConsumerState<_FillPriceListSheet> {
                         Navigator.of(context).pop();
                       },
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                  child: const Text('İptal'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isSaving
+                      ? null
+                      : () async {
+                          final name = _nameController.text.trim();
+                          if (name.isEmpty) return;
+
+                          setState(() {
+                            _isSaving = true;
+                          });
+
+                          try {
+                            final repo = ref.read(priceListRepositoryProvider);
+                            await repo.updatePriceList(
+                              companyId: widget.companyId,
+                              priceListId: widget.priceList.id,
+                              name: name,
+                              startDate: _startDate,
+                              endDate: _endDate,
+                            );
+
+                            if (!mounted) return;
+                            Navigator.of(context).pop();
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Güncelleme hatası: $e')),
+                            );
+                            setState(() {
+                              _isSaving = false;
+                            });
+                          }
+                        },
+                  child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
