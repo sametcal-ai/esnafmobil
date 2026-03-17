@@ -46,7 +46,12 @@ class QuickSalePaymentState {
   }) {
     return QuickSalePaymentState(
       type: type ?? this.type,
-      selectedCustomer: selectedCus</old_code><new_code>class QuickSalePaymentController extends Notifier<QuickSalePaymentState> {
+      selectedCustomer: selectedCustomer,
+    );
+  }
+}
+
+class QuickSalePaymentController extends Notifier<QuickSalePaymentState> {
   @override
   QuickSalePaymentState build() {
     return QuickSalePaymentState.initial();
@@ -66,7 +71,11 @@ class QuickSalePaymentState {
   }
 
   void reset() {
-    state = QuickSalePaymentSta</old_code><new_code>final quickSalePaymentProvider =
+    state = QuickSalePaymentState.initial();
+  }
+}
+
+final quickSalePaymentProvider =
     NotifierProvider<QuickSalePaymentController, QuickSalePaymentState>(
   QuickSalePaymentController.new,
 );

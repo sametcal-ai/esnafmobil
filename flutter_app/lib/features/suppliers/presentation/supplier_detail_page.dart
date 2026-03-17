@@ -28,6 +28,11 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
   SupplierDetailController? _controller;
   VoidCallback? _removeControllerListener;
 
+  void _handleControllerChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -104,18 +109,19 @@ class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
     }
 
     setState(() {
+      _removeControllerListener?.call();
       _controller?.dispose();
+
       _controller = SupplierDetailController(
         companyId: companyId,
         supplier: saved,
         ledgerRepository: ref.read(supplierLedgerRepositoryProvider),
       );
 
-      _removeControllerListener?.call();
-      _removeControllerListener = _controller!.addListener((_) {
-        if (!mounted) return;
-        setState(() {});
-      });
+      _controller!.addListener(_handleControllerChanged);
+      _removeControllerListener = () {
+        _controller?.removeListener(_handleControllerChanged);
+      };
     });
   }
 

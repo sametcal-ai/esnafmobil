@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/firebase_auth_repository.dart';
+import 'firebase_auth_controller.dart';
 
 class AuthState {
   final fb.User? firebaseUser;
@@ -126,12 +127,11 @@ class AuthController extends Notifier<AuthState> {
   }
 }
 
-final firebaseAuthProvider = Provider<fb.FirebaseAuth>((ref) {
-  return fb.FirebaseAuth.instance;
-});
-
 final firebaseAuthRepositoryProvider = Provider<FirebaseAuthRepository>((ref) {
   final auth = ref.watch(firebaseAuthProvider);
-  return FirebaseAuthRe</old_code><new_code>final authControllerProvider = NotifierProvider<AuthController, AuthState>(
+  return FirebaseAuthRepository(auth);
+});
+
+final authControllerProvider = NotifierProvider<AuthController, AuthState>(
   AuthController.new,
 );

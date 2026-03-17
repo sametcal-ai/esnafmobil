@@ -10,7 +10,7 @@ class AccountPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authUser = ref.watch(authStateProvider).value;
+    final authUser = ref.watch(authStateProvider).asData?.value;
     final activeCompanyId = ref.watch(activeCompanyIdProvider);
 
     return AppScaffold(

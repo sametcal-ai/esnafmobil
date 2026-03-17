@@ -26,10 +26,14 @@ class CustomerDetailPage extends ConsumerStatefulWidget {
       _CustomerDetailPageState();
 }
 
-class _CustomerDetailPageState
-    extends ConsumerState<CustomerDetailPage> {
+class _CustomerDetailPageState extends ConsumerState<CustomerDetailPage> {
   CustomerDetailController? _controller;
   VoidCallback? _removeControllerListener;
+
+  void _handleControllerChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -71,7 +75,9 @@ class _CustomerDetailPageState
     final settings = ref.read(appSettingsProvider);
 
     setState(() {
+      _removeControllerListener?.call();
       _controller?.dispose();
+
       _controller = CustomerDetailController(
         companyId: companyId,
         customer: customer,
@@ -79,11 +85,10 @@ class _CustomerDetailPageState
         pageSize: settings.movementsPageSize,
       );
 
-      _removeControllerListener?.call();
-      _removeControllerListener = _controller!.addListener((_) {
-        if (!mounted) return;
-        setState(() {});
-      });
+      _controller!.addListener(_handleControllerChanged);
+      _removeControllerListener = () {
+        _controller?.removeListener(_handleControllerChanged);
+      };
     });
   }
 

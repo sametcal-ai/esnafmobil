@@ -20,7 +20,12 @@ class FirebaseAuthState {
   }) {
     return FirebaseAuthState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMe</old_code><new_code>class FirebaseAuthController extends Notifier<FirebaseAuthState> {
+      errorMessage: errorMessage,
+    );
+  }
+}
+
+class FirebaseAuthController extends Notifier<FirebaseAuthState> {
   late final fb.FirebaseAuth _auth;
 
   @override
@@ -36,7 +41,10 @@ class FirebaseAuthState {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
       state = state.copyWith(isLoading: false, errorMessage: null);
       return true;
     } on fb.FirebaseAuthException catch (e) {
@@ -52,7 +60,10 @@ class FirebaseAuthState {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
       state = state.copyWith(isLoading: false, errorMessage: null);
       return true;
     } on fb.FirebaseAuthException catch (e) {
@@ -72,7 +83,10 @@ final firebaseAuthProvider = Provider<fb.FirebaseAuth>((ref) {
 
 final authStateProvider = StreamProvider<fb.User?>((ref) {
   final auth = ref.watch(firebaseAuthProvider);
-  return auth.auth</old_code><new_code>final firebaseAuthControllerProvider =
+  return auth.authStateChanges();
+});
+
+final firebaseAuthControllerProvider =
     NotifierProvider<FirebaseAuthController, FirebaseAuthState>(
   FirebaseAuthController.new,
 );

@@ -19,7 +19,7 @@ final currentUserProvider = Provider<User?>((ref) {
   if (fbUser == null) return null;
 
   final companyId = ref.watch(activeCompanyIdProvider);
-  final memberships = ref.watch(companyMembershipsProvider).valueOrNull ?? const [];
+  final memberships = ref.watch(companyMembershipsProvider).asData?.value ?? const [];
 
   final roleStr = memberships
       .where((m) => m.companyId == companyId)

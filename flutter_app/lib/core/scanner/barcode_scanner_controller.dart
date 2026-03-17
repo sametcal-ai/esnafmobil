@@ -40,10 +40,15 @@ class ScannerSessionState {
     MobileScannerController? controller,
   }) {
     return ScannerSessionState(
-      ownerId: ownerId,
+      ownerId: ownerId ?? this.ownerId,
       status: status ?? this.status,
       errorMessage: errorMessage,
-      controller: contr</old_code><new_code>class ScannerSessionManager extends Notifier<ScannerSessionState> {
+      controller: controller ?? this.controller,
+    );
+  }
+}
+
+class ScannerSessionManager extends Notifier<ScannerSessionState> {
   @override
   ScannerSessionState build() {
     ref.onDispose(() {
@@ -76,7 +81,6 @@ class ScannerSessionState {
     );
 
     await _disposeController(previousController);
-
     if (!ref.mounted) return;
 
     final controller = MobileScannerController(
@@ -91,10 +95,9 @@ class ScannerSessionState {
       if (!ref.mounted) {
         controller.dispose();
         return;
-  }
+      }
 
-      // The view that requested this session may have been disposed or another
-      // screen may have taken ownership while we were awaiting permission/start.
+      // Another view may have taken ownership while we were awaiting permission.
       if (state.ownerId != ownerId ||
           state.status != ScannerSessionStatus.acquiring) {
         controller.dispose();
@@ -142,14 +145,12 @@ class ScannerSessionState {
       await state.controller!.stop();
     } finally {
       if (!ref.mounted) return;
-n;
       if (state.ownerId != ownerId) return;
 
       state = state.copyWith(
         ownerId: ownerId,
         status: ScannerSessionStatus.paused,
         errorMessage: null,
-        controller: state.controller,
       );
     }
   }
@@ -170,7 +171,6 @@ n;
         ownerId: ownerId,
         status: ScannerSessionStatus.active,
         errorMessage: null,
-        controller: state.controller,
       );
     } catch (e) {
       final controller = state.controller;
@@ -180,7 +180,6 @@ n;
 
       if (!ref.mounted) return;
       if (state.ownerId != ownerId) return;
-urn;
 
       state = state.copyWith(
         ownerId: ownerId,
