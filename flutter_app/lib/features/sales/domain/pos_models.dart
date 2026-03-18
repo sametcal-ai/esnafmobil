@@ -7,11 +7,16 @@ class Product {
   final String barcode;
   final double unitPrice;
 
+  /// Aktif fiyat listesi varken bu ürün için fiyat bulunamadı.
+  /// UI tarafında uyarı/renk değiştirme için kullanılır.
+  final bool missingPriceListPrice;
+
   const Product({
     required this.id,
     required this.name,
     required this.barcode,
     required this.unitPrice,
+    this.missingPriceListPrice = false,
   });
 }
 

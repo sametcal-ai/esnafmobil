@@ -14,7 +14,9 @@ import '../../products/domain/product.dart';
 import '../data/price_list_repository.dart';
 import '../domain/price_list.dart';
 import '../domain/price_list_item.dart';
-import '../domain/price_li</old_code><new_code>final _allProductsProvider = FutureProvider.family.autoDispose<List<Product>, String>((ref, companyId) {
+import '../domain/price_list_providers.dart';
+
+final _allProductsProvider = FutureProvider.family.autoDispose<List<Product>, String>((ref, companyId) {
   final repo = ref.watch(productsRepositoryProvider);
   return repo.getAllProducts(companyId);
 });
