@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -17,9 +19,13 @@ class ExternalSearchException implements Exception {
 
 class JojapiExternalSearchService {
   final http.Client _client;
+  final String _apiKey;
 
-  JojapiExternalSearchService({http.Client? client})
-      : _client = client ?? http.Client();
+  JojapiExternalSearchService({
+    http.Client? client,
+    String? apiKey,
+  })  : _client = client ?? http.Client(),
+        _apiKey = apiKey ?? ApiKeys.jojapiKey;
 
   Future<ExternalProduct> searchProductByBarcode(String barcode) async {
     final trimmed = barcode.trim();
@@ -27,8 +33,9 @@ class JojapiExternalSearchService {
       throw ExternalSearchException('Geçerli bir barkod değeri gerekli.');
     }
 
-    final apiKey = ApiKeys.jojapiKey;
+    final apiKey = _apiKey;
     if (apiKey.isEmpty) {
+sEmpty) {
       if (kDebugMode) {
         debugPrint(
           'JOJAPI_KEY tanımlı değil. '
@@ -61,11 +68,46 @@ class JojapiExternalSearchService {
               'X-JoJAPI-Key': apiKey,
             },
           )
-          .timeout(const Duration(seconds: 12));
-    } on Exception {
+          .timeout(const Duration(seconds: 20));
+    } on TimeoutException catch (e) {
+      if (kDebugMode) {
+        debugPrint('JojapiExternalSearchService timeout: $e');
+      }
+      throw ExternalSearchException(
+        'Dış servis yanıt vermedi (zaman aşımı). '
+        'Lütfen tekrar deneyin.',
+      );
+    } on SocketException catch (e) {
+      if (kDebugMode) {
+        debugPrint('JojapiExternalSearchService socket error: $e');
+      }
+      throw ExternalSearchException(
+        'Dış servise bağlanılamadı. '
+        'Ağ bağlantınızı ve DNS ayarlarınızı kontrol edip tekrar deneyin.',
+      );
+    } on HandshakeException catch (e) {
+      if (kDebugMode) {
+        debugPrint('JojapiExternalSearchService TLS handshake error: $e');
+      }
+      throw ExternalSearchException(
+        'Dış servis ile güvenli bağlantı kurulamadı. '
+        'Cihaz tarih/saat ayarlarını kontrol edip tekrar deneyin.',
+      );
+    } on http.ClientException catch (e) {
+      if (kDebugMode) {
+        debugPrint('JojapiExternalSearchService client error: $e');
+      }
       throw ExternalSearchException(
         'Dış servis ile bağlantı kurulamadı. '
-        'Lütfen internet bağlantınızı kontrol edip tekrar deneyin.',
+        'Lütfen daha sonra tekrar deneyin.',
+      );
+    } on Exception catch (e) {
+      if (kDebugMode) {
+        debugPrint('JojapiExternalSearchService unexpected error: $e');
+      }
+      throw ExternalSearchException(
+        'Dış servis ile bağlantı kurulamadı. '
+        'Lütfen daha sonra tekrar deneyin.',
       );
     }
 
