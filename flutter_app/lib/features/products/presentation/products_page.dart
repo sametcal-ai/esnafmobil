@@ -480,6 +480,8 @@ class EditProductDialog extends ConsumerStatefulWidget {
 }
 
 class _EditProductDialogState extends ConsumerState<EditProductDialog> {
+  final _snackBarKey = GlobalKey<ScaffoldMessengerState>();
+
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _brandController = TextEditingController();
   final TextEditingController _barcodeController = TextEditingController();
@@ -587,9 +589,23 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     _lastLookupCategory = null;
     _lastLookupImageUrl = null;
 
+    if (widget.existing == null) {
+      final settings = ref.read(appSettingsProvider);
+      _marginController.text = settings.defaultMarginPercent.toStringAsFixed(0);
+    }
+
     setState(() {
       _isLookingUp = false;
     });
+  }
+
+  void _showSnack(String message) {
+    _snackBarKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _clearBarcode() {
@@ -652,6 +668,11 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     final trimmed = barcode.trim();
     if (trimmed.isEmpty) return;
 
+    final isEdit = widget.existing != null;
+    if (!isEdit && _lastLookupBarcode != null && _lastLookupBarcode != trimmed) {
+      _resetFormFields(clearBarcode: false);
+    }
+
     if (_lastLookupBarcode == trimmed &&
         (_lastLookupName != null ||
             _lastLookupBrand != null ||
@@ -707,23 +728,13 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
       setState(() {
         _isLookingUp = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showSnack(e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _isLookingUp = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ürün bilgileri alınırken bir hata oluştu.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showSnack('Ürün bilgileri alınırken bir hata oluştu.');
     }
   }
 
@@ -747,12 +758,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
       _lookupImageUrl = imageUrl;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Ürün bilgileri otomatik dolduruldu'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    _showSnack('Ürün bilgileri otomatik dolduruldu');
   }
 
   Future<void> _save() async {
@@ -768,12 +774,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     final marginText = _marginController.text.trim();
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ürün adı boş olamaz'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showSnack('Ürün adı boş olamaz');
       return;
     }
 
@@ -781,12 +782,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     if (stockText.isNotEmpty) {
       final parsed = int.tryParse(stockText);
       if (parsed == null || parsed < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Geçerli bir stok miktarı girin'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showSnack('Geçerli bir stok miktarı girin');
         return;
       }
       stockQuantity = parsed;
@@ -797,12 +793,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
       final parsed =
           double.tryParse(purchasePriceText.replaceAll(',', '.'));
       if (parsed == null || parsed < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Geçerli bir alış fiyatı girin'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showSnack('Geçerli bir alış fiyatı girin');
         return;
       }
       purchasePrice = parsed;
@@ -812,12 +803,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     if (marginText.isNotEmpty) {
       final parsed = double.tryParse(marginText.replaceAll(',', '.'));
       if (parsed == null || parsed < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Geçerli bir kâr marjı girin'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showSnack('Geçerli bir kâr marjı girin');
         return;
       }
       marginPercent = parsed;
@@ -827,12 +813,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     if (!isEdit && salePriceText.isNotEmpty) {
       final parsed = double.tryParse(salePriceText.replaceAll(',', '.'));
       if (parsed == null || parsed < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Geçerli bir satış fiyatı girin'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showSnack('Geçerli bir satış fiyatı girin');
         return;
       }
       salePrice = parsed;
@@ -919,12 +900,7 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
           setState(() {
             _isSaving = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Bu barkod başka bir ürüne ait'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          _showSnack('Bu barkod başka bir ürüne ait');
           return;
         }
       }
@@ -996,12 +972,14 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
 
-    return AlertDialog(
-      title: Text(isEdit ? 'Ürünü Düzenle' : 'Yeni Ürün'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+    return ScaffoldMessenger(
+      key: _snackBarKey,
+      child: AlertDialog(
+        title: Text(isEdit ? 'Ürünü Düzenle' : 'Yeni Ürün'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             TextField(
               controller: _barcodeController,
               textInputAction: TextInputAction.next,
