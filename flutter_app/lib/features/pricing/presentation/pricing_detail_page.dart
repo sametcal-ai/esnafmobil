@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/firestore/models/company_member.dart';
+import '../../../core/scanner/barcode_scanner_view.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
 import '../../auth/domain/user.dart';
@@ -46,6 +49,43 @@ final _companyMemberProvider = FutureProvider.family.autoDispose<CompanyMember?,
   final snap = await refs.member(key.companyId, key.uid).get();
   return snap.data();
 });
+
+class _SearchBarHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double minHeight;
+  final double maxHeight;
+  final Widget child;
+
+  _SearchBarHeaderDelegate({
+    required this.minHeight,
+    required this.maxHeight,
+    required this.child,
+  });
+
+  @override
+  double get minExtent => minHeight;
+
+  @override
+  double get maxExtent => maxHeight;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SearchBarHeaderDelegate oldDelegate) {
+    return minHeight != oldDelegate.minHeight ||
+        maxHeight != oldDelegate.maxHeight ||
+        child != oldDelegate.child;
+  }
+}
 
 class PricingDetailPage extends ConsumerWidget {
   final PriceList priceList;
@@ -802,7 +842,7 @@ class _SelectProductDialogState extends ConsumerState<_SelectProductDialog> {
   }
 }
 
-class _PriceListItemsView extends ConsumerWidget {
+class _PriceListItemsView extends ConsumerStatefulWidget {
   final PriceList priceList;
   final List<PriceListItem> items;
 
@@ -812,7 +852,90 @@ class _PriceListItemsView extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PriceListItemsView> createState() => _PriceListItemsViewState();
+}
+
+class _PriceListItemsViewState extends ConsumerState<_PriceListItemsView> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      setState(() {
+        _searchQuery = value;
+      });
+    });
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+    });
+  }
+
+  Future<void> _openBarcodeScanner() async {
+    var isPopping = false;
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SizedBox(
+          height: 320,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Barkodu kameraya hizalayın',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BarcodeScannerView(
+                    ownerId: 'price_list_items_scanner',
+                    enabled: true,
+                    onBarcode: (value) {
+                      if (isPopping) return;
+                      final trimmed = value.trim();
+                      if (trimmed.isEmpty) return;
+
+                      isPopping = true;
+                      Navigator.of(context).pop(trimmed);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || result == null || result.isEmpty) return;
+
+    _searchController.text = result;
+    setState(() {
+      _searchQuery = result;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final companyId = ref.watch(activeCompanyIdProvider);
     if (companyId == null) {
       return const Center(child: Text('Firma seçili değil'));
@@ -823,83 +946,163 @@ class _PriceListItemsView extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider);
     final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
 
+    final settings = ref.watch(appSettingsProvider);
+    final minChars = settings.searchFilterMinChars;
+
     return productsAsync.when(
       data: (products) {
         final byId = {for (final p in products) p.id: p};
 
-        final sorted = [...items]..sort((a, b) {
+        final sorted = [...widget.items]..sort((a, b) {
             final an = byId[a.productId]?.name ?? '';
             final bn = byId[b.productId]?.name ?? '';
             return an.compareTo(bn);
           });
 
-        return ListView.separated(
-          itemCount: sorted.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final item = sorted[index];
-            final product = byId[item.productId];
-            final title = product?.name.isNotEmpty == true ? product!.name : item.productId;
+        final query = _searchQuery.trim().toLowerCase();
+        final isFilterActive = query.isNotEmpty && query.length >= minChars;
 
-            return Card(
-              child: ListTile(
-                title: Text(title),
-                subtitle: Text(
-                  'Alış: ${formatMoney(item.purchasePrice)}  •  Satış: ${formatMoney(item.salePrice)}',
-                ),
-                trailing: isAdmin
-                    ? IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: 'Sil',
-                        onPressed: () async {
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (context) {
-                              return AlertDialog(
-                                title: const Text('Silinsin mi?'),
-                                content: Text('"$title" ürünü bu fiyat listesinden silinecek.'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(false),
-                                    child: const Text('İptal'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () => Navigator.of(context).pop(true),
-                                    child: const Text('Sil'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
+        final filtered = isFilterActive
+            ? sorted.where((item) {
+                final p = byId[item.productId];
+                final name = (p?.name ?? '').toLowerCase();
+                final barcode = (p?.barcode ?? '').toLowerCase();
+                return name.contains(query) || barcode.contains(query);
+              }).toList(growable: false)
+            : sorted;
 
-                          if (ok != true) return;
-
-                          final repo = ref.read(priceListRepositoryProvider);
-                          await repo.deleteItemForProduct(
-                            companyId: companyId,
-                            priceListId: priceList.id,
-                            productId: item.productId,
-                          );
-                        },
-                      )
-                    : (item.isInherited
-                        ? const Icon(Icons.warning_amber_outlined)
-                        : const Icon(Icons.edit_outlined)),
-                onTap: product == null
-                    ? null
-                    : () async {
-                        await showDialog<void>(
-                          context: context,
-                          builder: (_) => _EditPriceListItemDialog(
-                            priceListId: priceList.id,
-                            product: product,
-                            existingItem: item,
+        return CustomScrollView(
+          slivers: [
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _SearchBarHeaderDelegate(
+                minHeight: 76,
+                maxHeight: 76,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Ürünlerde ara...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: _openBarcodeScanner,
+                            icon: const Icon(Icons.qr_code_scanner_outlined),
+                            tooltip: 'Barkod Oku',
                           ),
-                        );
-                      },
+                          if (_searchQuery.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: _clearSearch,
+                            ),
+                        ],
+                      ),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                ),
               ),
-            );
-          },
+            ),
+            if (isFilterActive && filtered.isEmpty)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Text(
+                    'Sonuç bulunamadı',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index.isOdd) {
+                      return const SizedBox(height: 8);
+                    }
+
+                    final item = filtered[index ~/ 2];
+                    final product = byId[item.productId];
+                    final title =
+                        product?.name.isNotEmpty == true ? product!.name : item.productId;
+
+                    return Card(
+                      child: ListTile(
+                        title: Text(title),
+                        subtitle: Text(
+                          'Alış: ${formatMoney(item.purchasePrice)}  •  Satış: ${formatMoney(item.salePrice)}',
+                        ),
+                        trailing: isAdmin
+                            ? IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                tooltip: 'Sil',
+                                onPressed: () async {
+                                  final ok = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) {
+                                      return AlertDialog(
+                                        title: const Text('Silinsin mi?'),
+                                        content: Text(
+                                          '"$title" ürünü bu fiyat listesinden silinecek.',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(false),
+                                            child: const Text('İptal'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
+                                            child: const Text('Sil'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+
+                                  if (ok != true) return;
+
+                                  final repo = ref.read(priceListRepositoryProvider);
+                                  await repo.deleteItemForProduct(
+                                    companyId: companyId,
+                                    priceListId: widget.priceList.id,
+                                    productId: item.productId,
+                                  );
+                                },
+                              )
+                            : (item.isInherited
+                                ? const Icon(Icons.warning_amber_outlined)
+                                : const Icon(Icons.edit_outlined)),
+                        onTap: product == null
+                            ? null
+                            : () async {
+                                await showDialog<void>(
+                                  context: context,
+                                  builder: (_) => _EditPriceListItemDialog(
+                                    priceListId: widget.priceList.id,
+                                    product: product,
+                                    existingItem: item,
+                                  ),
+                                );
+                              },
+                      ),
+                    );
+                  },
+                  childCount: filtered.isEmpty ? 0 : (filtered.length * 2) - 1,
+                ),
+              ),
+            ),
+          ],
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
