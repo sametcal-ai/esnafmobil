@@ -28,6 +28,13 @@ class JojapiExternalSearchService {
         _apiKey = apiKey ?? ApiKeys.jojapiKey;
 
   Future<ExternalProduct> searchProductByBarcode(String barcode) async {
+    if (kDebugMode) {
+      debugPrint(
+        'JojapiExternalSearchService.searchProductByBarcode apiKey dolu mu: '
+        '${_apiKey.trim().isNotEmpty} (length: ${_apiKey.length})',
+      );
+    }
+
     final trimmed = barcode.trim();
     if (trimmed.isEmpty) {
       throw ExternalSearchException('Geçerli bir barkod değeri gerekli.');
