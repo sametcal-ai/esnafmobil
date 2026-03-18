@@ -226,19 +226,28 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
           final isFilterActive =
               query.isNotEmpty && query.length >= minChars;
 
+          String normalizeForSearch(String value) {
+            return value
+                .toLowerCase()
+                // "İ" -> "i\u0307" (i + combining dot). Remove the combining dot.
+                .replaceAll('\u0307', '')
+                // Treat Turkish dotless i as i to make search more forgiving.
+                .replaceAll('ı', 'i');
+          }
+
+          final normalizedQuery = normalizeForSearch(query);
+
           final filteredProducts = isFilterActive
               ? products.where((product) {
-                  final name = product.name.toLowerCase();
-                  final brand = product.brand.toLowerCase();
-                  final barcode = product.barcode.toLowerCase();
-                  final tags = product.tags
-                      .map((t) => t.toLowerCase())
-                      .join(' ');
+                  final name = normalizeForSearch(product.name);
+                  final brand = normalizeForSearch(product.brand);
+                  final barcode = normalizeForSearch(product.barcode);
+                  final tags = product.tags.map(normalizeForSearch).join(' ');
 
-                  return name.contains(query) ||
-                      brand.contains(query) ||
-                      barcode.contains(query) ||
-                      tags.contains(query);
+                  return name.contains(normalizedQuery) ||
+                      brand.contains(normalizedQuery) ||
+                      barcode.contains(normalizedQuery) ||
+                      tags.contains(normalizedQuery);
                 }).toList()
               : products;
 

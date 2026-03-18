@@ -16,16 +16,30 @@ List<Product> filterProductsForQuickSale(
           .toList(growable: false)
       : <String>[query];
 
+  String normalizeForSearch(String value) {
+    return value
+        .toLowerCase()
+        // "İ" -> "i\u0307" (i + combining dot). Remove the combining dot.
+        .replaceAll('\u0307', '')
+        // Treat Turkish dotless i as i to make search more forgiving.
+        .replaceAll('ı', 'i');
+  }
+
   bool matchesToken(Product p, String token) {
-    final name = p.name.toLowerCase();
-    final brand = p.brand.toLowerCase();
-    final barcode = p.barcode.toLowerCase();
-    if (name.contains(token) || brand.contains(token) || barcode.contains(token)) {
+    final normalizedToken = normalizeForSearch(token);
+
+    final name = normalizeForSearch(p.name);
+    final brand = normalizeForSearch(p.brand);
+    final barcode = normalizeForSearch(p.barcode);
+
+    if (name.contains(normalizedToken) ||
+        brand.contains(normalizedToken) ||
+        barcode.contains(normalizedToken)) {
       return true;
     }
 
     for (final tag in p.tags) {
-      if (tag.toLowerCase().contains(token)) {
+      if (normalizeForSearch(tag).contains(normalizedToken)) {
         return true;
       }
     }

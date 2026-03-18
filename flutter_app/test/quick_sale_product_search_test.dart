@@ -11,7 +11,7 @@ void main() {
       Product(
         id: '1',
         name: 'Coca Cola 1L',
-        brand: 'Coca Cola',
+        brand: 'İstanbul Su',
         barcode: '8690000000001',
         tags: const ['içecek', 'soğuk'],
         stockQuantity: 10,
@@ -34,6 +34,9 @@ void main() {
     expect(filterProductsForQuickSale(products, 'nestle').single.id, '2');
     expect(filterProductsForQuickSale(products, '8690000').single.id, '1');
     expect(filterProductsForQuickSale(products, 'kahve').single.id, '2');
+
+    // Turkish casing: "İ" lowercases to "i\u0307" (i + combining dot), which can break contains.
+    expect(filterProductsForQuickSale(products, 'istanbul').single.id, '1');
 
     // Comma-separated query acts as AND across tokens.
     expect(filterProductsForQuickSale(products, 'içecek, soğuk').single.id, '1');
