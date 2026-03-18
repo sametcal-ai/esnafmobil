@@ -511,6 +511,12 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
   @override
   void initState() {
     super.initState();
+
+    _barcodeController.addListener(() {
+      if (!mounted) return;
+      setState(() {});
+    });
+
     final existing = widget.existing;
     if (existing != null) {
       _nameController.text = existing.name;
@@ -553,6 +559,41 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     _salePriceController.dispose();
     _marginController.dispose();
     super.dispose();
+  }
+
+  void _resetFormFields({bool clearBarcode = true}) {
+    if (clearBarcode) {
+      _barcodeController.clear();
+    }
+    _nameController.clear();
+    _brandController.clear();
+    _tagsController.clear();
+    _stockController.clear();
+    _purchasePriceController.clear();
+    _salePriceController.clear();
+    _marginController.clear();
+
+    _lookupImageUrl = null;
+
+    _externalPrice = null;
+    _externalTax = null;
+    _externalTaxRate = null;
+    _externalTotal = null;
+    _externalDate = null;
+
+    _lastLookupBarcode = null;
+    _lastLookupName = null;
+    _lastLookupBrand = null;
+    _lastLookupCategory = null;
+    _lastLookupImageUrl = null;
+
+    setState(() {
+      _isLookingUp = false;
+    });
+  }
+
+  void _clearBarcode() {
+    _resetFormFields();
   }
 
   Future<void> _openBarcodeScanner() async {
@@ -598,6 +639,10 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     );
 
     if (!mounted || result == null || result.isEmpty) return;
+
+    if (widget.existing == null) {
+      _resetFormFields(clearBarcode: false);
+    }
 
     _barcodeController.text = result;
     await _lookupAndFillFromBarcode(result);
@@ -958,43 +1003,24 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _nameController,
+              controller: _barcodeController,
               textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Ürün adı',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _brandController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Marka',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _barcodeController,
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (value) => _lookupAndFillFromBarcode(value),
-                    decoration: const InputDecoration(
-                      labelText: 'Barkod',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
+              onSubmitted: (value) => _lookupAndFillFromBarcode(value),
+              decoration: InputDecoration(
+                labelText: 'Barkod',
+                prefixIcon: IconButton(
                   onPressed: _isSaving ? null : _openBarcodeScanner,
                   icon: const Icon(Icons.qr_code_scanner_outlined),
                   tooltip: 'Barkod Oku',
                 ),
-              ],
+                suffixIcon: _barcodeController.text.trim().isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: _isSaving ? null : _clearBarcode,
+                      )
+                    : null,
+                border: const OutlineInputBorder(),
+              ),
             ),
             if (_isLookingUp) ...[
               const SizedBox(height: 8),
@@ -1014,6 +1040,24 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
                 ),
               ),
             ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _nameController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Ürün adı',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _brandController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Marka',
+                border: OutlineInputBorder(),
+              ),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _tagsController,
