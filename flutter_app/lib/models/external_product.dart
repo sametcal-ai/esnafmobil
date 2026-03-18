@@ -25,16 +25,27 @@ class ExternalProduct {
     this.total,
   });
 
+  static String? _readNullableString(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value.trim();
+    return value.toString().trim();
+  }
+
+  static String _readString(dynamic value) {
+    return _readNullableString(value) ?? '';
+  }
+
   factory ExternalProduct.fromJson(Map<String, dynamic> json) {
     return ExternalProduct(
-      barcode: (json['barcode'] as String?)?.trim() ?? '',
-      brand: (json['brand'] as String?)?.trim(),
-      category: (json['category'] as String?)?.trim(),
-      imageUrl: (json['imageUrl'] as String?)?.trim(),
+      // Bazı servisler barkodu numara olarak döndürebiliyor.
+      barcode: _readString(json['barcode']),
+      brand: _readNullableString(json['brand']),
+      category: _readNullableString(json['category']),
+      imageUrl: _readNullableString(json['imageUrl']),
       markets: json['markets'],
-      name: (json['name'] as String?)?.trim(),
+      name: _readNullableString(json['name']),
       price: (json['price'] as num?)?.toDouble(),
-      salesUnit: (json['salesUnit'] as String?)?.trim(),
+      salesUnit: _readNullableString(json['salesUnit']),
       tax: (json['tax'] as num?)?.toDouble(),
       taxRate: (json['taxRate'] as num?)?.toDouble(),
       total: (json['total'] as num?)?.toDouble(),
