@@ -627,8 +627,11 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
     });
 
     try {
-      final externalProduct =
-          await _externalSearchService.searchProductByBarcode(trimmed);
+      final settings = ref.read(appSettingsProvider);
+      final externalProduct = await _externalSearchService.searchProductByBarcode(
+        trimmed,
+        searchType: settings.productSearchType,
+      );
 
       if (!mounted) return;
 
