@@ -1172,7 +1172,6 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
           ),
         ],
       ),
-          ),
         ),
       ),
     );
