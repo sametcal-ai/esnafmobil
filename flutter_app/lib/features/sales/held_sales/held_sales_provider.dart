@@ -36,6 +36,7 @@ class HeldSale {
                 'name': i.product.name,
                 'barcode': i.product.barcode,
                 'unitPrice': i.product.unitPrice,
+                'missingPriceListPrice': i.product.missingPriceListPrice,
               },
               'quantity': i.quantity,
             },
@@ -56,6 +57,7 @@ class HeldSale {
               name: (productMap['name'] ?? '').toString(),
               barcode: (productMap['barcode'] ?? '').toString(),
               unitPrice: (productMap['unitPrice'] as num?)?.toDouble() ?? 0,
+              missingPriceListPrice: (productMap['missingPriceListPrice'] as bool?) ?? false,
             );
             return CartItem(
               product: product,

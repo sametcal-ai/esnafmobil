@@ -45,7 +45,18 @@ class PosController extends Notifier<PosState> {
     return PosState.initial();
   }
 
-  double _calculateUnitPrice(catalog.Product product) {
+  bool hasActivePriceList() {
+    return _activePriceMap.isNotEmpty;
+  }
+
+  bool isMissingPriceListPrice(catalog.Product product) {
+    if (_activePriceMap.isEmpty) return false;
+
+    final priceFromList = _activePriceMap[product.id];
+    return priceFromList == null || priceFromList <= 0;
+  }
+
+  double resolveUnitPriceFromActiveList(catalog.Product product) {
     final priceFromList = _activePriceMap[product.id];
     if (priceFromList != null && priceFromList > 0) {
       return priceFromList;
@@ -63,6 +74,12 @@ class PosController extends Notifier<PosState> {
     );
   }
 
+  double resolveFallbackUnitPrice(catalog.Product product) {
+    final p = product.salePrice;
+    if (p > 0) return p;
+    return 0;
+  }
+
   ScanResult _addCatalogProduct(catalog.Product catalogProduct) {
     // Sepette aynı ürün varsa miktarını artırırken güncel fiyatı da uygula.
     final existingIndex =
@@ -74,7 +91,8 @@ class PosController extends Notifier<PosState> {
         id: catalogProduct.id,
         name: catalogProduct.name,
         barcode: catalogProduct.barcode,
-        unitPrice: _calculateUnitPrice(catalogProduct),
+        unitPrice: resolveUnitPriceFromActiveList(catalogProduct),
+        missingPriceListPrice: isMissingPriceListPrice(catalogProduct),
       );
       final updatedItem = existing.copyWith(
         product: updatedCartProduct,
@@ -92,7 +110,8 @@ class PosController extends Notifier<PosState> {
       id: catalogProduct.id,
       name: catalogProduct.name,
       barcode: catalogProduct.barcode,
-      unitPrice: _calculateUnitPrice(catalogProduct),
+      unitPrice: resolveUnitPriceFromActiveList(catalogProduct),
+      missingPriceListPrice: isMissingPriceListPrice(catalogProduct),
     );
 
     final newItem = CartItem(product: cartProduct, quantity: 1);
@@ -125,6 +144,51 @@ class PosController extends Notifier<PosState> {
   ScanResult addProduct(catalog.Product product) {
     return _addCatalogProduct(product);
   }
+
+  /// UI tarafında kullanıcı onayı ile (ör. fiyat listesinde yoksa)
+  /// ürün kartındaki salePrice gibi bir fallback fiyatı ile sepete eklemek için.
+  ScanResult addProductWithUnitPrice(
+    catalog.Product product, {
+    required double unitPrice,
+    required bool missingPriceListPrice,
+  }) {
+    final existingIndex =
+        state.items.indexWhere((item) => item.product.id == product.id);
+
+    if (existingIndex >= 0) {
+      final existing = state.items[existingIndex];
+      final updatedCartProduct = Product(
+        id: product.id,
+        name: product.name,
+        barcode: product.barcode,
+        unitPrice: unitPrice,
+        missingPriceListPrice: missingPriceListPrice,
+      );
+      final updatedItem = existing.copyWith(
+        product: updatedCartProduct,
+        quantity: existing.quantity + 1,
+      );
+      final updatedItems = [...state.items];
+      updatedItems[existingIndex] = updatedItem;
+
+      state = state.copyWith(items: updatedItems);
+      return ScanResult.incremented;
+    }
+
+    final cartProduct = Product(
+      id: product.id,
+      name: product.name,
+      barcode: product.barcode,
+      unitPrice: unitPrice,
+      missingPriceListPrice: missingPriceListPrice,
+    );
+
+    final newItem = CartItem(product: cartProduct, quantity: 1);
+    state = state.copyWith(items: [...state.items, newItem]);
+
+    return ScanResult.added;
+  }
+
 
   void setPercentageDiscount(double percent) {
     if (percent <= 0) {

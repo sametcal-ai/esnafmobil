@@ -166,6 +166,84 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     super.dispose();
   }
 
+  Future<bool> _confirmMissingPriceListAndAdd(catalog.Product product) async {
+    final posController = ref.read(posControllerProvider.notifier);
+    final missing = posController.hasActivePriceList() &&
+        posController.isMissingPriceListPrice(product);
+
+    if (!missing) {
+      posController.addProduct(product);
+      return true;
+    }
+
+    final shouldContinue = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Fiyat listesinde fiyat yok'),
+          content: Text(
+            '"${product.name}" ürünü aktif fiyat listesinde tanımlı değil.\n\nDevam etmek isterseniz ürün kartındaki satış fiyatı kullanılacak.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Devam Et'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldContinue != true) {
+      return false;
+    }
+
+    final fallback = posController.resolveFallbackUnitPrice(product);
+    if (fallback <= 0) {
+      if (!mounted) return false;
+      await showDialog<void>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Satış yapılamıyor'),
+            content: const Text(
+              'Bu ürün için fiyat listesinde fiyat yok ve ürün kartında satış fiyatı (salePrice) tanımlı değil.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Tamam'),
+              ),
+            ],
+          );
+        },
+      );
+      await FlutterBeep.error();
+      return false;
+    }
+
+    posController.addProductWithUnitPrice(
+      product,
+      unitPrice: fallback,
+      missingPriceListPrice: true,
+    );
+
+    if (!mounted) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Fiyat listesinde yok: ürün kartı satış fiyatı kullanıldı'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    return true;
+  }
+
   Future<void> _handleBarcode(
     String value, {
     bool fromCamera = false,
@@ -196,14 +274,20 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
       _lastManualScanAt = now;
     }
 
-    final posController = ref.read(posControllerProvider.notifier);
-    final result = await posController.handleBarcode(trimmed);
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) {
+      await FlutterBeep.error();
+      return;
+    }
+
+    final repo = ref.read(productsRepositoryProvider);
+    final catalogProduct = await repo.findProductByBarcode(companyId, trimmed);
 
     if (!fromCamera) {
       _barcodeController.clear();
     }
 
-    if (result == ScanResult.notFound) {
+    if (catalogProduct == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -214,7 +298,11 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
         );
       }
       await FlutterBeep.error();
-    } else {
+      return;
+    }
+
+    final added = await _confirmMissingPriceListAndAdd(catalogProduct);
+    if (added) {
       await FlutterBeep.success();
     }
   }
@@ -224,8 +312,7 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   }
 
   Future<void> _addProductToCart(catalog.Product product) async {
-    final posController = ref.read(posControllerProvider.notifier);
-    posController.addProduct(product);
+    final added = await _confirmMissingPriceListAndAdd(product);
 
     _barcodeController.clear();
 
@@ -233,7 +320,9 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
       FocusScope.of(context).requestFocus(_barcodeFocusNode);
     }
 
-    await FlutterBeep.success();
+    if (added) {
+      await FlutterBeep.success();
+    }
   }
 
   @override
@@ -416,12 +505,18 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
                           child: ListTile(
                             title: Text(
                               item.product.name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w600,
+                                color: item.product.missingPriceListPrice
+                                    ? Colors.red.shade700
+                                    : null,
                               ),
                             ),
                             subtitle: Text(
                               '${item.quantity} x ${formatMoney(item.product.unitPrice)} = ${formatMoney(item.lineTotal)}',
+                              style: item.product.missingPriceListPrice
+                                  ? TextStyle(color: Colors.red.shade700)
+                                  : null,
                             ),
                             trailing: SizedBox(
                               width: 170,
@@ -630,6 +725,29 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     PosController posController,
   ) async {
     if (!posState.hasItems) return;
+
+    final hasInvalidPrice = posState.items.any((i) => i.product.unitPrice <= 0);
+    if (hasInvalidPrice) {
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Satış yapılamıyor'),
+            content: const Text(
+              'Sepette fiyatı olmayan ürün var. Lütfen ürün fiyatlarını kontrol edin.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Tamam'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
 
     _suppressBarcodeRefocus = true;
     FocusScope.of(context).unfocus();
