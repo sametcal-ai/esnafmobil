@@ -9,6 +9,7 @@ import '../../features/auth/domain/user.dart';
 import '../../features/company/domain/active_company_provider.dart';
 import '../../features/company/domain/company_memberships_provider.dart';
 import '../firestore/firestore_refs.dart';
+import 'product_search_type.dart';
 
 @immutable
 class AppSettings {
@@ -21,12 +22,18 @@ class AppSettings {
   /// Müşteri/ürün hareket listelerinde sayfa başına kayıt sayısı.
   final int movementsPageSize;
 
+  /// Ürün bilgi arama yöntemi.
+  /// companies/<id>/settings/system altındaki productSearchType alanından okunur.
+  /// "api" | "scrap"
+  final ProductSearchType productSearchType;
+
   const AppSettings({
     required this.barcodeScanDelaySeconds,
     required this.defaultMarginPercent,
     required this.productDefaultMarginPercent,
     required this.searchFilterMinChars,
     required this.movementsPageSize,
+    required this.productSearchType,
   });
 
   factory AppSettings.initial() {
@@ -37,6 +44,7 @@ class AppSettings {
       searchFilterMinChars: 2,
       // Hareket listesi varsayılanı: 25 (5,10,15,...,100 aralığında bir değer)
       movementsPageSize: 25,
+      productSearchType: ProductSearchType.api,
     );
   }
 
@@ -53,6 +61,8 @@ class AppSettings {
           (map['searchFilterMinChars'] as num?)?.toInt() ?? initial.searchFilterMinChars,
       movementsPageSize:
           (map['movementsPageSize'] as num?)?.toInt() ?? initial.movementsPageSize,
+      productSearchType:
+          productSearchTypeFromString(map['productSearchType']?.toString()),
     );
   }
 
@@ -63,6 +73,7 @@ class AppSettings {
       'productDefaultMarginPercent': productDefaultMarginPercent,
       'searchFilterMinChars': searchFilterMinChars,
       'movementsPageSize': movementsPageSize,
+      'productSearchType': productSearchTypeToString(productSearchType),
     };
   }
 
@@ -72,6 +83,7 @@ class AppSettings {
     double? productDefaultMarginPercent,
     int? searchFilterMinChars,
     int? movementsPageSize,
+    ProductSearchType? productSearchType,
   }) {
     return AppSettings(
       barcodeScanDelaySeconds:
@@ -81,6 +93,7 @@ class AppSettings {
           productDefaultMarginPercent ?? this.productDefaultMarginPercent,
       searchFilterMinChars: searchFilterMinChars ?? this.searchFilterMinChars,
       movementsPageSize: movementsPageSize ?? this.movementsPageSize,
+      productSearchType: productSearchType ?? this.productSearchType,
     );
   }
 
@@ -91,7 +104,8 @@ class AppSettings {
         other.defaultMarginPercent == defaultMarginPercent &&
         other.productDefaultMarginPercent == productDefaultMarginPercent &&
         other.searchFilterMinChars == searchFilterMinChars &&
-        other.movementsPageSize == movementsPageSize;
+        other.movementsPageSize == movementsPageSize &&
+        other.productSearchType == productSearchType;
   }
 
   @override
@@ -101,6 +115,7 @@ class AppSettings {
         productDefaultMarginPercent,
         searchFilterMinChars,
         movementsPageSize,
+        productSearchType,
       );
 }
 

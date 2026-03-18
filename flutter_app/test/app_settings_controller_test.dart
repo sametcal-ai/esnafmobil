@@ -94,6 +94,7 @@ void main() {
       'productDefaultMarginPercent': 11.0,
       'searchFilterMinChars': 3,
       'movementsPageSize': 50,
+      'productSearchType': 'api',
     });
 
     await fakeDb.doc('companies/c2/settings/system').set({
@@ -102,6 +103,7 @@ void main() {
       'productDefaultMarginPercent': 21.0,
       'searchFilterMinChars': 4,
       'movementsPageSize': 25,
+      'productSearchType': 'scrap',
     });
 
     final container = ProviderContainer(
