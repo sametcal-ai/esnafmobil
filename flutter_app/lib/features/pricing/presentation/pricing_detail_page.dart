@@ -797,8 +797,18 @@ class _SelectProductDialogState extends ConsumerState<_SelectProductDialog> {
                 final filtered = products.where((p) {
                   if (existingIds.contains(p.id)) return false;
                   if (_query.isEmpty) return true;
-                  return p.name.toLowerCase().contains(_query) ||
-                      p.barcode.toLowerCase().contains(_query);
+
+                  final name = p.name.toLowerCase();
+                  final barcode = p.barcode.toLowerCase();
+                  final brand = p.brand.toLowerCase();
+                  final matchesTag = p.tags.any(
+                    (tag) => tag.toLowerCase().contains(_query),
+                  );
+
+                  return name.contains(_query) ||
+                      barcode.contains(_query) ||
+                      brand.contains(_query) ||
+                      matchesTag;
                 }).toList(growable: false);
 
                 if (filtered.isEmpty) {
@@ -965,9 +975,17 @@ class _PriceListItemsViewState extends ConsumerState<_PriceListItemsView> {
         final filtered = isFilterActive
             ? sorted.where((item) {
                 final p = byId[item.productId];
-                final name = (p?.name ?? '').toLowerCase();
-                final barcode = (p?.barcode ?? '').toLowerCase();
-                return name.contains(query) || barcode.contains(query);
+                if (p == null) return false;
+
+                final name = p.name.toLowerCase();
+                final barcode = p.barcode.toLowerCase();
+                final brand = p.brand.toLowerCase();
+                final matchesTag = p.tags.any((tag) => tag.toLowerCase().contains(query));
+
+                return name.contains(query) ||
+                    barcode.contains(query) ||
+                    brand.contains(query) ||
+                    matchesTag;
               }).toList(growable: false)
             : sorted;
 
