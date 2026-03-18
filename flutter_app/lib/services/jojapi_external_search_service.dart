@@ -35,7 +35,6 @@ class JojapiExternalSearchService {
 
     final apiKey = _apiKey;
     if (apiKey.isEmpty) {
-sEmpty) {
       if (kDebugMode) {
         debugPrint(
           'JOJAPI_KEY tanımlı değil. '
