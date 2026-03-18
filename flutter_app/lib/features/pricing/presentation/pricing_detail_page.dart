@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
+import '../../../core/firestore/firestore_refs.dart';
+import '../../../core/firestore/models/company_member.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
 import '../../auth/domain/user.dart';
@@ -12,11 +14,35 @@ import '../../products/domain/product.dart';
 import '../data/price_list_repository.dart';
 import '../domain/price_list.dart';
 import '../domain/price_list_item.dart';
-import '../domain/price_list_providers.dart';
-
-final _allProductsProvider = FutureProvider.family.autoDispose<List<Product>, String>((ref, companyId) {
+import '../domain/price_li</old_code><new_code>final _allProductsProvider = FutureProvider.family.autoDispose<List<Product>, String>((ref, companyId) {
   final repo = ref.watch(productsRepositoryProvider);
   return repo.getAllProducts(companyId);
+});
+
+class _MemberKey {
+  final String companyId;
+  final String uid;
+
+  const _MemberKey({
+    required this.companyId,
+    required this.uid,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _MemberKey && other.companyId == companyId && other.uid == uid;
+  }
+
+  @override
+  int get hashCode => Object.hash(companyId, uid);
+}
+
+final _companyMemberProvider = FutureProvider.family.autoDispose<CompanyMember?, _MemberKey>((ref, key) async {
+  if (key.uid.trim().isEmpty) return null;
+
+  final refs = ref.watch(firestoreRefsProvider);
+  final snap = await refs.member(key.companyId, key.uid).get();
+  return snap.data();
 });
 
 class PricingDetailPage extends ConsumerWidget {
@@ -67,102 +93,106 @@ class PricingDetailPage extends ConsumerWidget {
                 },
         ),
       ],
-      body: ListView(
+      body: Padding(
         padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          pl.name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
+        child: Column(
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pl.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Başlangıç: ${pl.startDate.toLocal().toString().split(' ').first}',
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Bitiş: ${pl.endDate.toLocal().toString().split(' ').first}',
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            'Başlangıç: ${pl.startDate.toLocal().toString().split(' ').first}',
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Bitiş: ${pl.endDate.toLocal().toString().split(' ').first}',
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (isActive) const Chip(label: Text('Aktif')),
-                ],
+                    if (isActive) const Chip(label: Text('Aktif')),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: companyId == null
-                  ? null
-                  : () async {
-                      await showModalBottomSheet<void>(
-                        context: context,
-                        builder: (_) => _FillPriceListSheet(priceList: pl),
-                      );
-                    },
-              child: const Text('Fiyat listesini doldur'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          itemsAsync.when(
-            data: (items) {
-              return Column(
-                children: [
-                  Card(
-                    child: ListTile(
-                      title: const Text(
-                        'Aktif ürün sayısı',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      trailing: Text(
-                        items.length.toString(),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.inventory_2_outlined),
-                      title: const Text(
-                        'Ürünler',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: const Text('Liste ürünlerini görüntüle / düzenle'),
-                      trailing: const Icon(Icons.chevron_right_outlined),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => _PriceListItemsPage(priceList: pl),
-                          ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: companyId == null
+                    ? null
+                    : () async {
+                        await showModalBottomSheet<void>(
+                          context: context,
+                          builder: (_) => _FillPriceListSheet(priceList: pl),
                         );
                       },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _PriceListMovementsCard(priceList: pl, items: items),
-                ],
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Center(child: Text('Liste ürünleri yüklenemedi')),
-          ),
-        ],
+                child: const Text('Fiyat listesini doldur'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: itemsAsync.when(
+                data: (items) {
+                  return Column(
+                    children: [
+                      Card(
+                        child: ListTile(
+                          title: const Text(
+                            'Aktif ürün sayısı',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          trailing: Text(
+                            items.length.toString(),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.inventory_2_outlined),
+                          title: const Text(
+                            'Ürünler',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: const Text('Liste ürünlerini görüntüle / düzenle'),
+                          trailing: const Icon(Icons.chevron_right_outlined),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => _PriceListItemsPage(priceList: pl),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(child: _PriceListMovementsCard(priceList: pl, items: items)),
+                    ],
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, __) => const Center(child: Text('Liste ürünleri yüklenemedi')),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -882,6 +912,28 @@ class _PriceListMovementsCard extends ConsumerWidget {
 
   const _PriceListMovementsCard({required this.priceList, required this.items});
 
+  String _actorLabel({
+    required CompanyMember? member,
+    required String fallback,
+  }) {
+    final m = member;
+    if (m != null) {
+      final dn = m.displayName.trim();
+      if (dn.isNotEmpty) return dn;
+
+      final email = m.email.trim();
+      if (email.isNotEmpty) return email;
+    }
+
+    return fallback.trim();
+  }
+
+  String _subtitleWithActor(String title, String actor) {
+    final trimmed = actor.trim();
+    if (trimmed.isEmpty) return title;
+    return '$title • $trimmed';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final companyId = ref.watch(activeCompanyIdProvider);
@@ -903,17 +955,12 @@ class _PriceListMovementsCard extends ConsumerWidget {
         final settings = ref.watch(appSettingsProvider);
         final pageSize = settings.movementsPageSize;
 
-        String _subtitleWithActor(String title, String actor) {
-          final trimmed = actor.trim();
-          if (trimmed.isEmpty) return title;
-          return '$title • $trimmed';
-        }
-
         final entries = <_MovementEntry>[
           _MovementEntry(
             occurredAt: priceList.meta.modifiedDate,
             title: 'Fiyat listesi güncellendi',
-            subtitle: _subtitleWithActor(priceList.name, priceList.meta.modifiedBy),
+            subject: priceList.name,
+            actorId: priceList.meta.modifiedBy,
           ),
           ...items.map(
             (i) {
@@ -921,7 +968,8 @@ class _PriceListMovementsCard extends ConsumerWidget {
               return _MovementEntry(
                 occurredAt: i.meta.modifiedDate,
                 title: 'Ürün fiyatı güncellendi',
-                subtitle: _subtitleWithActor(productName, i.meta.modifiedBy),
+                subject: productName,
+                actorId: i.meta.modifiedBy,
               );
             },
           ),
@@ -948,26 +996,59 @@ class _PriceListMovementsCard extends ConsumerWidget {
                   child: Text('Hareket yok'),
                 )
               else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: limited.length,
-                  separatorBuilder: (_, __) => const Divider(height: 0),
-                  itemBuilder: (context, index) {
-                    final e = limited[index];
-                    final dateString =
-                        '${e.occurredAt.day.toString().padLeft(2, '0')}.'
-                        '${e.occurredAt.month.toString().padLeft(2, '0')}.'
-                        '${e.occurredAt.year} '
-                        '${e.occurredAt.hour.toString().padLeft(2, '0')}:'
-                        '${e.occurredAt.minute.toString().padLeft(2, '0')}';
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: limited.length,
+                    separatorBuilder: (_, __) => const Divider(height: 0),
+                    itemBuilder: (context, index) {
+                      final e = limited[index];
 
-                    return ListTile(
-                      leading: Text(dateString, style: const TextStyle(fontSize: 12)),
-                      title: Text(e.title),
-                      subtitle: e.subtitle.isEmpty ? null : Text(e.subtitle),
-                    );
-                  },
+                      final local = e.occurredAt.toLocal();
+                      final dateStr =
+                          '${local.day.toString().padLeft(2, '0')}.'
+                          '${local.month.toString().padLeft(2, '0')}.'
+                          '${local.year}';
+                      final timeStr =
+                          '${local.hour.toString().padLeft(2, '0')}:'
+                          '${local.minute.toString().padLeft(2, '0')}';
+
+                      return Consumer(
+                        builder: (context, ref, _) {
+                          final rawActor = e.actorId.trim();
+                          final looksLikeEmail = rawActor.contains('@');
+
+                          final memberAsync = looksLikeEmail || rawActor.isEmpty
+                              ? null
+                              : ref.watch(
+                                  _companyMemberProvider(
+                                    _MemberKey(companyId: companyId, uid: rawActor),
+                                  ),
+                                );
+
+                          final actor = _actorLabel(
+                            member: memberAsync?.asData?.value,
+                            fallback: rawActor,
+                          );
+
+                          return ListTile(
+                            leading: SizedBox(
+                              width: 64,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(dateStr, style: const TextStyle(fontSize: 12)),
+                                  Text(timeStr, style: const TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            title: Text(e.title),
+                            subtitle: Text(_subtitleWithActor(e.subject, actor)),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
             ],
           ),
@@ -992,11 +1073,13 @@ class _PriceListMovementsCard extends ConsumerWidget {
 class _MovementEntry {
   final DateTime occurredAt;
   final String title;
-  final String subtitle;
+  final String subject;
+  final String actorId;
 
   _MovementEntry({
     required this.occurredAt,
     required this.title,
-    required this.subtitle,
+    required this.subject,
+    required this.actorId,
   });
 }
