@@ -974,12 +974,15 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
 
     return ScaffoldMessenger(
       key: _snackBarKey,
-      child: AlertDialog(
-        title: Text(isEdit ? 'Ürünü Düzenle' : 'Yeni Ürün'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
+          child: AlertDialog(
+            title: Text(isEdit ? 'Ürünü Düzenle' : 'Yeni Ürün'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
               TextField(
                 controller: _barcodeController,
                 textInputAction: TextInputAction.next,
@@ -1168,6 +1171,9 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
             child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
           ),
         ],
+      ),
+          ),
+        ),
       ),
     );
   }
