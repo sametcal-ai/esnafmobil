@@ -151,6 +151,8 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
       return;
     }
 
+    final settings = ref.read(appSettingsProvider);
+
     setState(() {
       _lines.add(
         _PurchaseLine(
@@ -159,8 +161,15 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
           unitCost: unitCost,
         ),
       );
+
+      _selectedProduct = null;
+      _productQuery = '';
+      _productAutocompleteController?.text = '';
+
       _quantityController.clear();
       _unitCostController.clear();
+
+      _marginController.text = settings.defaultMarginPercent.toStringAsFixed(0);
     });
   }
 
@@ -290,11 +299,20 @@ class _StockEntryPageState extends ConsumerState<StockEntryPage> {
 
     if (!mounted) return;
 
+    final settings = ref.read(appSettingsProvider);
+
     setState(() {
       _isSaving = false;
       _lines.clear();
+
+      _selectedProduct = null;
+      _productQuery = '';
+      _productAutocompleteController?.text = '';
+
       _quantityController.clear();
       _unitCostController.clear();
+
+      _marginController.text = settings.defaultMarginPercent.toStringAsFixed(0);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
