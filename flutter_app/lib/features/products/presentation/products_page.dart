@@ -980,194 +980,195 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            TextField(
-              controller: _barcodeController,
-              textInputAction: TextInputAction.next,
-              onSubmitted: (value) => _lookupAndFillFromBarcode(value),
-              decoration: InputDecoration(
-                labelText: 'Barkod',
-                prefixIcon: IconButton(
-                  onPressed: _isSaving ? null : _openBarcodeScanner,
-                  icon: const Icon(Icons.qr_code_scanner_outlined),
-                  tooltip: 'Barkod Oku',
-                ),
-                suffixIcon: _barcodeController.text.trim().isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: _isSaving ? null : _clearBarcode,
-                      )
-                    : null,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            if (_isLookingUp) ...[
-              const SizedBox(height: 8),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 8),
-                    Text('Ürün bilgileri sorgulanıyor...'),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Ürün adı',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _brandController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Marka',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _tagsController,
-              decoration: const InputDecoration(
-                labelText:
-                    'Etiketler (virgülle ayırın, örn: kola, soğuk içecek)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _stockController,
-              enabled: !isEdit,
-              keyboardType:
-                  const TextInputType.numberWithOptions(signed: false),
-              decoration: InputDecoration(
-                labelText: 'Stok miktarı',
-                helperText: isEdit
-                    ? 'Stok; alış/satış hareketlerinden hesaplanır, buradan değiştirilemez.'
-                    : null,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _purchasePriceController,
-              enabled: !isEdit,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: 'Son alış fiyatı',
-                helperText: isEdit
-                    ? 'Fiyatlar aktif fiyat listesinden güncellenir, buradan değiştirilemez.'
-                    : null,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _marginController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Kâr marjı (%)',
-                      border: OutlineInputBorder(),
-                    ),
+              TextField(
+                controller: _barcodeController,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (value) => _lookupAndFillFromBarcode(value),
+                decoration: InputDecoration(
+                  labelText: 'Barkod',
+                  prefixIcon: IconButton(
+                    onPressed: _isSaving ? null : _openBarcodeScanner,
+                    icon: const Icon(Icons.qr_code_scanner_outlined),
+                    tooltip: 'Barkod Oku',
                   ),
+                  suffixIcon: _barcodeController.text.trim().isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: _isSaving ? null : _clearBarcode,
+                        )
+                      : null,
+                  border: const OutlineInputBorder(),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _salePriceController,
-                    enabled: !isEdit,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Satış fiyatı',
-                      border: OutlineInputBorder(),
-                    ),
+              ),
+              if (_isLookingUp) ...[
+                const SizedBox(height: 8),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Ürün bilgileri sorgulanıyor...'),
+                    ],
                   ),
                 ),
               ],
-            ),
-            if (_externalTotal != null) ...[
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dış fiyat (KDV dahil): ${formatMoney(_externalTotal!)}',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
+              TextField(
+                controller: _nameController,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Ürün adı',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _brandController,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Marka',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _tagsController,
+                decoration: const InputDecoration(
+                  labelText:
+                      'Etiketler (virgülle ayırın, örn: kola, soğuk içecek)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _stockController,
+                enabled: !isEdit,
+                keyboardType:
+                    const TextInputType.numberWithOptions(signed: false),
+                decoration: InputDecoration(
+                  labelText: 'Stok miktarı',
+                  helperText: isEdit
+                      ? 'Stok; alış/satış hareketlerinden hesaplanır, buradan değiştirilemez.'
+                      : null,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _purchasePriceController,
+                enabled: !isEdit,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Son alış fiyatı',
+                  helperText: isEdit
+                      ? 'Fiyatlar aktif fiyat listesinden güncellenir, buradan değiştirilemez.'
+                      : null,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _marginController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Kâr marjı (%)',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                    if (_externalDate != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Son veri çekme tarihi: ${_externalDate!.toLocal()}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _salePriceController,
+                      enabled: !isEdit,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Satış fiyatı',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_externalTotal != null) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dış fiyat (KDV dahil): ${formatMoney(_externalTotal!)}',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      if (_externalDate != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Son veri çekme tarihi: ${_externalDate!.toLocal()}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+              if (_lookupImageUrl != null) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Ürün görseli (dış arama):',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 120,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _lookupImageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox(),
                           ),
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
-            if (_lookupImageUrl != null) ...[
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Ürün görseli (dış arama):',
-                      style: TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 120,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          _lookupImageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const SizedBox(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: _isSaving ? null : _save,
+            child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('İptal'),
-        ),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _save,
-          child: Text(_isSaving ? 'Kaydediliyor...' : 'Kaydet'),
-        ),
-      ],
     );
   }
 }
