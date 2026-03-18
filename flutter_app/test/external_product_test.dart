@@ -30,4 +30,18 @@ void main() {
     expect(product.taxRate, 20);
     expect(product.total, 35);
   });
+
+  test('ExternalProduct.fromJson accepts numeric barcode', () {
+    final json = {
+      'barcode': 8692641003001,
+      'brand': 'POLO',
+      'name': 'Polo Çakmak Gazı 270Ml',
+    };
+
+    final product = ExternalProduct.fromJson(json);
+
+    expect(product.barcode, '8692641003001');
+    expect(product.brand, 'POLO');
+    expect(product.name, 'Polo Çakmak Gazı 270Ml');
+  });
 }
