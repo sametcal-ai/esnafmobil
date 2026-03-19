@@ -520,9 +520,24 @@ export const onStockEntryCreated = onDocumentCreated(
         { merge: true },
       );
 
-      // Incoming stok hareketlerinde aktif fiyat listesini güncelle.
+      // Ürün kartındaki cache alanı: lastPurchasePrice sadece stok hareketi ile güncellenir.
+      tx.set(
+        productRef,
+        {
+          lastPurchasePrice: unitCost,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      // Incoming stok hareketlerinde, ürün parametresi autoPrice=true ise aktif fiyat listesini güncelle.
       if (type !== 'incoming') return;
       if (!activePriceListId) return;
+
+      const paramsRaw = (productSnap.data() || {}) as { parameters?: unknown };
+      const parameters = paramsRaw.parameters as any;
+      const autoPrice = parameters?.autoPrice === true;
+      if (!autoPrice) return;
 
       const priceListId = activePriceListId;
 
@@ -558,16 +573,6 @@ export const onStockEntryCreated = onDocumentCreated(
           isVisible: true,
           isActived: true,
           isDeleted: false,
-        },
-        { merge: true },
-      );
-
-      // Ürün kartındaki cache alanı: lastPurchasePrice sadece stok hareketi ile güncellenir.
-      tx.set(
-        productRef,
-        {
-          lastPurchasePrice: unitCost,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true },
       );

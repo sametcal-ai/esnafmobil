@@ -2,6 +2,53 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../models/auditable.dart';
 
+class ProductParameters {
+  final int criticalStockLevel;
+  final int safeStockLevel;
+  final bool autoPrice;
+
+  const ProductParameters({
+    this.criticalStockLevel = 0,
+    this.safeStockLevel = 0,
+    this.autoPrice = false,
+  });
+
+  ProductParameters copyWith({
+    int? criticalStockLevel,
+    int? safeStockLevel,
+    bool? autoPrice,
+  }) {
+    return ProductParameters(
+      criticalStockLevel: criticalStockLevel ?? this.criticalStockLevel,
+      safeStockLevel: safeStockLevel ?? this.safeStockLevel,
+      autoPrice: autoPrice ?? this.autoPrice,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'criticalStockLevel': criticalStockLevel,
+      'safeStockLevel': safeStockLevel,
+      'autoPrice': autoPrice,
+    };
+  }
+
+  factory ProductParameters.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const ProductParameters();
+
+    final critical = map['criticalStockLevel'];
+    final safe = map['safeStockLevel'];
+    final auto = map['autoPrice'];
+
+    return ProductParameters(
+      criticalStockLevel:
+          critical is num ? critical.toInt() : int.tryParse('$critical') ?? 0,
+      safeStockLevel: safe is num ? safe.toInt() : int.tryParse('$safe') ?? 0,
+      autoPrice: auto is bool ? auto : auto?.toString().toLowerCase() == 'true',
+    );
+  }
+}
+
 class Product {
   final String id;
   final String name;
@@ -20,6 +67,9 @@ class Product {
   /// Satış fiyatı manuel olarak mı girildi?
   /// true ise, stok girişiyle alış fiyatı değiştiğinde otomatik güncellenmez.
   final bool isManualPrice;
+
+  /// Ürün özel parametreleri.
+  final ProductParameters parameters;
 
   /// Dış ürün arama servisinden gelen fiyat bilgileri.
   /// Bu alanlar yalnızca referans amaçlıdır; ürünün kendi satış fiyatı için
@@ -47,6 +97,7 @@ class Product {
     this.salePrice = 0,
     this.marginPercent = 0,
     this.isManualPrice = false,
+    this.parameters = const ProductParameters(),
     this.externalPrice,
     this.externalTax,
     this.externalTaxRate,
@@ -67,6 +118,7 @@ class Product {
     double? salePrice,
     double? marginPercent,
     bool? isManualPrice,
+    ProductParameters? parameters,
     double? externalPrice,
     double? externalTax,
     double? externalTaxRate,
@@ -86,6 +138,7 @@ class Product {
       salePrice: salePrice ?? this.salePrice,
       marginPercent: marginPercent ?? this.marginPercent,
       isManualPrice: isManualPrice ?? this.isManualPrice,
+      parameters: parameters ?? this.parameters,
       externalPrice: externalPrice ?? this.externalPrice,
       externalTax: externalTax ?? this.externalTax,
       externalTaxRate: externalTaxRate ?? this.externalTaxRate,
@@ -109,6 +162,7 @@ class Product {
       'salePrice': salePrice,
       'marginPercent': marginPercent,
       'isManualPrice': isManualPrice,
+      'parameters': parameters.toMap(),
       'externalPrice': externalPrice,
       'externalTax': externalTax,
       'externalTaxRate': externalTaxRate,
@@ -132,6 +186,7 @@ class Product {
       'salePrice': salePrice,
       'marginPercent': marginPercent,
       'isManualPrice': isManualPrice,
+      'parameters': parameters.toMap(),
       'externalPrice': externalPrice,
       'externalTax': externalTax,
       'externalTaxRate': externalTaxRate,
@@ -164,6 +219,11 @@ class Product {
 
     final meta = AuditMeta.fromMap(map);
 
+    final rawParameters = map['parameters'];
+    final parameters = rawParameters is Map
+        ? ProductParameters.fromMap(Map<String, dynamic>.from(rawParameters))
+        : const ProductParameters();
+
     return Product(
       id: map['id'] as String,
       name: map['name'] as String,
@@ -176,6 +236,7 @@ class Product {
       salePrice: (map['salePrice'] as num?)?.toDouble() ?? 0,
       marginPercent: (map['marginPercent'] as num?)?.toDouble() ?? 0,
       isManualPrice: (map['isManualPrice'] as bool?) ?? false,
+      parameters: parameters,
       externalPrice: (map['externalPrice'] as num?)?.toDouble(),
       externalTax: (map['externalTax'] as num?)?.toDouble(),
       externalTaxRate: (map['externalTaxRate'] as num?)?.toDouble(),
