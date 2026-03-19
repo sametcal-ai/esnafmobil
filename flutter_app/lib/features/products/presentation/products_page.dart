@@ -433,11 +433,49 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                                           Icons.delete_outline,
                                         ),
                                         onPressed: () async {
+                                          final confirmed = await showDialog<bool>(
+                                            context: context,
+                                            builder: (context) {
+                                              return AlertDialog(
+                                                title: const Text('Ürünü sil?'),
+                                                content: Text(
+                                                  '"${product.name}" ürünü silinecek. Bu işlemi onaylıyor musunuz?',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.of(context).pop(false),
+                                                    child: const Text('İptal'),
+                                                  ),
+                                                  ElevatedButton(
+                                                    onPressed: () =>
+                                                        Navigator.of(context).pop(true),
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: Theme.of(context)
+                                                          .colorScheme
+                                                          .error,
+                                                      foregroundColor: Theme.of(context)
+                                                          .colorScheme
+                                                          .onError,
+                                                    ),
+                                                    child: const Text('Sil'),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                          );
+
+                                          if (confirmed != true) return;
+
                                           final companyId = ref.read(activeCompanyIdProvider);
                                           if (companyId == null) return;
 
-                                          final repo = ref.read(productsRepositoryProvider);
-                                          await repo.deleteProduct(companyId, product.id);
+                                          final repo =
+                                              ref.read(productsRepositoryProvider);
+                                          await repo.deleteProduct(
+                                            companyId,
+                                            product.id,
+                                          );
                                         },
                                       ),
                                     ),
@@ -821,19 +859,24 @@ class _EditProductDialogState extends ConsumerState<EditProductDialog> {
 
     final settings = ref.read(appSettingsProvider);
 
-    final bool isManualPriceInput = !isEdit && salePriceText.isNotEmpty;
+    final bool hasManualSalePrice = !isEdit && salePriceText.isNotEmpty;
+    final bool hasManualMargin = marginText.isNotEmpty;
 
     if (!isEdit) {
-      if (!isManualPriceInput && purchasePrice > 0) {
-        final autoMargin = settings.defaultMarginPercent;
-        if (autoMargin > 0) {
-          marginPercent = autoMargin;
-          salePrice = purchasePrice * (1 + autoMargin / 100);
+      if (!hasManualSalePrice && purchasePrice > 0) {
+        if (hasManualMargin && marginPercent > 0) {
+          salePrice = purchasePrice * (1 + marginPercent / 100);
         } else {
-          salePrice = purchasePrice;
+          final autoMargin = settings.defaultMarginPercent;
+          if (autoMargin > 0) {
+            marginPercent = autoMargin;
+            salePrice = purchasePrice * (1 + autoMargin / 100);
+          } else {
+            salePrice = purchasePrice;
+          }
         }
       } else {
-        if (purchasePrice > 0 && salePrice > 0 && marginPercent == 0) {
+        if (purchasePrice > 0 && salePrice > 0 && !hasManualMargin) {
           marginPercent = ((salePrice / purchasePrice) - 1) * 100;
         }
       }
