@@ -468,6 +468,8 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               children: [
+                _buildParametersSection(product),
+                const SizedBox(height: 8),
                 _buildPurchasesSection(product, settings.movementsPageSize),
                 const SizedBox(height: 8),
                 // Ürün ekstresi butonu (müşteri detay sayfasındaki Ekstre kartına benzer)
@@ -563,6 +565,57 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildParametersSection(Product product) {
+    final params = product.parameters;
+
+    final subtitle =
+        'Kritik: ${params.criticalStockLevel} • Güvenli: ${params.safeStockLevel} • Otomatik fiyat: ${params.autoPrice ? 'Açık' : 'Kapalı'}';
+
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.tune_outlined),
+        title: const Text(
+          'Parametreler',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right_outlined),
+        onTap: () async {
+          final updated = await showDialog<ProductParameters>(
+            context: context,
+            builder: (context) => _EditProductParametersDialog(
+              initial: params,
+            ),
+          );
+
+          if (updated == null) return;
+
+          final companyId = ref.read(activeCompanyIdProvider);
+          if (companyId == null) return;
+
+          final repo = ref.read(productsRepositoryProvider);
+          final saved = await repo.updateProduct(
+            companyId,
+            product.copyWith(parameters: updated),
+          );
+
+          if (!mounted) return;
+
+          if (saved == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Parametreler kaydedilemedi')),
+            );
+            return;
+          }
+
+          setState(() {
+            _product = saved;
+          });
+        },
+      ),
     );
   }
 
@@ -697,4 +750,130 @@ class _ProductMovement {
     required this.subtitle,
     required this.sourceId,
   });
+}
+
+class _EditProductParametersDialog extends StatefulWidget {
+  final ProductParameters initial;
+
+  const _EditProductParametersDialog({
+    required this.initial,
+  });
+
+  @override
+  State<_EditProductParametersDialog> createState() =>
+      _EditProductParametersDialogState();
+}
+
+class _EditProductParametersDialogState
+    extends State<_EditProductParametersDialog> {
+  final TextEditingController _criticalController = TextEditingController();
+  final TextEditingController _safeController = TextEditingController();
+  bool _autoPrice = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _criticalController.text =
+        widget.initial.criticalStockLevel.toString();
+    _safeController.text = widget.initial.safeStockLevel.toString();
+    _autoPrice = widget.initial.autoPrice;
+  }
+
+  @override
+  void dispose() {
+    _criticalController.dispose();
+    _safeController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final criticalText = _criticalController.text.trim();
+    final safeText = _safeController.text.trim();
+
+    final critical = int.tryParse(criticalText);
+    final safe = int.tryParse(safeText);
+
+    if (critical == null || critical < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Geçerli bir kritik stok seviyesi girin')),
+      );
+      return;
+    }
+
+    if (safe == null || safe < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Geçerli bir güvenli stok seviyesi girin')),
+      );
+      return;
+    }
+
+    final params = widget.initial.copyWith(
+      criticalStockLevel: critical,
+      safeStockLevel: safe,
+      autoPrice: _autoPrice,
+    );
+
+    Navigator.of(context).pop(params);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Parametreler'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _criticalController,
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: false,
+                decimal: false,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Kritik stok seviyesi',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _safeController,
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: false,
+                decimal: false,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Güvenli stok seviyesi',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _autoPrice,
+              title: const Text('Otomatik fiyat'),
+              subtitle: const Text(
+                'Aktifse satış fiyatı kâr marjı ve alış fiyatına göre otomatik hesaplanır.',
+              ),
+              onChanged: (v) {
+                setState(() {
+                  _autoPrice = v;
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('İptal'),
+        ),
+        ElevatedButton(
+          onPressed: _save,
+          child: const Text('Kaydet'),
+        ),
+      ],
+    );
+  }
 }
