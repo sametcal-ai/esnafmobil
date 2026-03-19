@@ -74,7 +74,7 @@ class JojapiExternalSearchService {
       {
         'query': barcode,
         'marketPrices': 'true',
-        'preferredMarkets': 'A101,Şok Market',
+        'preferredMarkets': 'A101,Şok Market,BİM,Migros',
         'historyPrices': 'true',
       },
     );
