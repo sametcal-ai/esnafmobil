@@ -243,6 +243,17 @@ class SalesRepository {
     final deletedSaleMeta = sale.meta.softDelete(modifiedBy: actor, now: now);
 
     try {
+      // Transaction API'si Query okumayı desteklemediği için ilgili kayıtları önce okuyoruz.
+      final customerId = sale.customerId;
+      final ledgerDocs = (customerId != null && customerId.trim().isNotEmpty)
+          ? await _refs
+              .customerLedger(companyId, customerId)
+              .where('saleId', isEqualTo: sale.id)
+              .get()
+          : null;
+
+      final stockDocs = await _refs.stockEntries(companyId).where('saleId', isEqualTo: sale.id).get();
+
       await FirebaseFirestore.instance.runTransaction((tx) async {
         tx.set(
           _refs.sales(companyId).doc(sale.id),
@@ -255,17 +266,9 @@ class SalesRepository {
         );
 
         // Eğer veresiye satış ise (customer ledger'a yazıldıysa) ledger kayıtlarını soft delete.
-        final customerId = sale.customerId;
-        if (customerId != null && customerId.trim().isNotEmpty) {
-          final ledgerQuery = await tx.get(
-            _refs
-                .customerLedger(companyId, customerId)
-                .where('saleId', isEqualTo: sale.id),
-          );
-
-          for (final d in ledgerQuery.docs) {
+        if (ledgerDocs != null) {
+          for (final d in ledgerDocs.docs) {
             final data = d.data();
-            if (data == null) continue;
             final meta = AuditMeta.fromMap(data);
             if (meta.isDeleted) continue;
             final deleted = meta.softDelete(modifiedBy: actor, now: now);
@@ -281,13 +284,8 @@ class SalesRepository {
         }
 
         // İlgili satıştan oluşan stok çıkış (ve/veya düzeltme) kayıtlarını soft delete.
-        final stockQuery = await tx.get(
-          _refs.stockEntries(companyId).where('saleId', isEqualTo: sale.id),
-        );
-
-        for (final d in stockQuery.docs) {
+        for (final d in stockDocs.docs) {
           final data = d.data();
-          if (data == null) continue;
           final meta = AuditMeta.fromMap(data);
           if (meta.isDeleted) continue;
           final deleted = meta.softDelete(modifiedBy: actor, now: now);
