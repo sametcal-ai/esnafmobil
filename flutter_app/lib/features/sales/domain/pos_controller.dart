@@ -371,7 +371,6 @@ class PosController extends Notifier<PosState> {
     required Sale originalSale,
   }) async {
     if (companyId.isEmpty) return false;
-    if (state.items.isEmpty) return false;
 
     final actor = currentUserId;
     if (actor == null || actor.isEmpty) return false;
@@ -415,59 +414,164 @@ class PosController extends Notifier<PosState> {
       meta: touchedMeta,
     );
 
-    final oldQty = <String, int>{
-      for (final i in originalSale.items) i.productId: i.quantity,
-    };
-
     final newQty = <String, int>{
       for (final i in state.items) i.product.id: i.quantity,
     };
 
-    final productIds = <String>{...oldQty.keys, ...newQty.keys}.toList(growable: false);
+    final stockEntriesSnap = await _refs
+        .stockEntries(companyId)
+        .where('saleId', isEqualTo: originalSale.id)
+        .get();
+
+    final entriesByProduct = <String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>{};
+    for (final d in stockEntriesSnap.docs) {
+      final data = d.data();
+      if (data == null) continue;
+      final meta = AuditMeta.fromMap(data);
+      if (meta.isDeleted) continue;
+
+      final productId = data['productId'] as String?;
+      if (productId == null || productId.isEmpty) continue;
+
+      entriesByProduct.putIfAbsent(productId, () => []).add(d);
+    }
+
+    final productIds = <String>{
+      ...entriesByProduct.keys,
+      ...newQty.keys,
+    }.toList(growable: false);
 
     try {
       await FirebaseFirestore.instance.runTransaction((tx) async {
         for (final productId in productIds) {
-          final delta = (newQty[productId] ?? 0) - (oldQty[productId] ?? 0);
-          if (delta == 0) continue;
+          final desiredQty = newQty[productId] ?? 0;
 
-          if (delta > 0) {
+          // Mevcut (silinmemiş) stok hareketlerinden bu satışın net etkisini hesapla.
+          // outgoing => satış (stok düşer), incoming => iade/düzeltme (stok artar)
+          final existingDocs = entriesByProduct[productId] ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+          int currentNetOutgoing = 0;
+          for (final d in existingDocs) {
+            final data = d.data();
+            final typeName = (data['type'] as String?) ?? 'incoming';
+            final qty = (data['quantity'] as num?)?.toInt() ?? 0;
+            if (qty <= 0) continue;
+
+            if (typeName == StockMovementType.outgoing.name) {
+              currentNetOutgoing += qty;
+            } else {
+              currentNetOutgoing -= qty;
+            }
+          }
+          if (currentNetOutgoing < 0) currentNetOutgoing = 0;
+
+          final additionalNeeded = desiredQty - currentNetOutgoing;
+          if (additionalNeeded > 0) {
             final productRef = _refs.productsRef(companyId).doc(productId);
             final productSnap = await tx.get(productRef);
             final product = productSnap.data();
             if (product == null || product.meta.isDeleted) {
               throw StateError('Product not found');
             }
-            if (product.stockQuantity < delta) {
+            if (product.stockQuantity < additionalNeeded) {
               throw StateError('Insufficient stock');
             }
           }
 
-          final stockEntryId = _uuid.v4();
-          final stockMeta = AuditMeta.create(createdBy: actor, now: now);
-          final stockEntry = StockEntry(
-            id: stockEntryId,
-            supplierId: null,
-            supplierName: null,
-            productId: productId,
-            quantity: delta.abs(),
-            unitCost: 0,
-            createdAt: now,
-            type: delta > 0
-                ? StockMovementType.outgoing
-                : StockMovementType.incoming,
-            saleId: originalSale.id,
-            meta: stockMeta,
+          // Tek bir aktif sale-stockEntry bırak: varsa birini update et, diğerlerini soft delete.
+          QueryDocumentSnapshot<Map<String, dynamic>>? primary;
+          for (final d in existingDocs) {
+            final data = d.data();
+            final typeName = (data['type'] as String?) ?? '';
+            if (primary == null && typeName == StockMovementType.outgoing.name) {
+              primary = d;
+            }
+          }
+          primary ??= existingDocs.isNotEmpty ? existingDocs.first : null;
+
+          if (desiredQty <= 0) {
+            for (final d in existingDocs) {
+              final data = d.data();
+              final meta = AuditMeta.fromMap(data).softDelete(
+                modifiedBy: actor,
+                now: now,
+              );
+              tx.set(
+                d.reference,
+                {
+                  ...data,
+                  ...meta.toMap(),
+                },
+                SetOptions(merge: true),
+              );
+            }
+            continue;
+          }
+
+          if (primary == null) {
+            final stockEntryId = _uuid.v4();
+            final stockMeta = AuditMeta.create(createdBy: actor, now: now);
+            final stockEntry = StockEntry(
+              id: stockEntryId,
+              supplierId: null,
+              supplierName: null,
+              productId: productId,
+              quantity: desiredQty,
+              unitCost: 0,
+              createdAt: now,
+              type: StockMovementType.outgoing,
+              saleId: originalSale.id,
+              meta: stockMeta,
+            );
+
+            tx.set(
+              _refs.stockEntries(companyId).doc(stockEntryId),
+              {
+                ...stockEntry.toMap(),
+                'createdAt': Timestamp.fromDate(now),
+              },
+              SetOptions(merge: true),
+            );
+            continue;
+          }
+
+          final primaryData = primary.data();
+          final touchedStockMeta = AuditMeta.fromMap(primaryData).touch(
+            modifiedBy: actor,
+            bumpVersion: true,
+            now: now,
           );
 
           tx.set(
-            _refs.stockEntries(companyId).doc(stockEntryId),
+            primary.reference,
             {
-              ...stockEntry.toMap(),
-              'createdAt': Timestamp.fromDate(now),
+              ...primaryData,
+              'productId': productId,
+              'quantity': desiredQty,
+              'unitCost': 0,
+              'type': StockMovementType.outgoing.name,
+              'saleId': originalSale.id,
+              ...touchedStockMeta.toMap(),
             },
             SetOptions(merge: true),
           );
+
+          for (final d in existingDocs) {
+            if (d.id == primary.id) continue;
+            final data = d.data();
+            final meta = AuditMeta.fromMap(data).softDelete(
+              modifiedBy: actor,
+              now: now,
+            );
+            tx.set(
+              d.reference,
+              {
+                ...data,
+                ...meta.toMap(),
+              },
+              SetOptions(merge: true),
+            );
+          }
         }
 
         tx.set(

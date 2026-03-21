@@ -493,14 +493,17 @@ export const onStockEntryCreated = onDocumentCreated(
         type?: unknown;
         unitCost?: unknown;
         createdBy?: unknown;
+        isDeleted?: unknown;
       };
 
       const productId = typeof entry.productId === 'string' ? entry.productId : '';
       const qty = typeof entry.quantity === 'number' ? entry.quantity : Number(entry.quantity);
       const type = typeof entry.type === 'string' ? entry.type : 'incoming';
       const unitCost = typeof entry.unitCost === 'number' ? entry.unitCost : Number(entry.unitCost ?? 0);
+      const isDeleted = entry.isDeleted === true;
 
       if (!productId || !Number.isFinite(qty) || qty <= 0) return;
+      if (isDeleted) return;
 
       const delta = type === 'outgoing' ? -qty : qty;
 
@@ -573,6 +576,63 @@ export const onStockEntryCreated = onDocumentCreated(
           isVisible: true,
           isActived: true,
           isDeleted: false,
+        },
+        { merge: true },
+      );
+    });
+  },
+);
+
+export const onStockEntryWritten = onDocumentWritten(
+  'companies/{companyId}/stockEntries/{entryId}',
+  async (event) => {
+    const { companyId } = event.params;
+
+    const before = event.data?.before;
+    const after = event.data?.after;
+
+    // Create zaten onStockEntryCreated ile işleniyor.
+    if (!before || !before.exists) return;
+    if (!after || !after.exists) return;
+
+    const beforeData = before.data() as any;
+    const afterData = after.data() as any;
+
+    const productId = typeof afterData?.productId === 'string' ? afterData.productId : '';
+    if (!productId) return;
+
+    function signedQty(d: any): number {
+      if (!d || d.isDeleted === true) return 0;
+      const qtyRaw = d.quantity;
+      const qty = typeof qtyRaw === 'number' ? qtyRaw : Number(qtyRaw);
+      if (!Number.isFinite(qty) || qty <= 0) return 0;
+
+      const type = typeof d.type === 'string' ? d.type : 'incoming';
+      return type === 'outgoing' ? -qty : qty;
+    }
+
+    const beforeSigned = signedQty(beforeData);
+    const afterSigned = signedQty(afterData);
+
+    const delta = afterSigned - beforeSigned;
+    if (!Number.isFinite(delta) || delta === 0) return;
+
+    const db = admin.firestore();
+    const productRef = db.doc(`companies/${companyId}/products/${productId}`);
+
+    await db.runTransaction(async (tx) => {
+      const productSnap = await tx.get(productRef);
+      if (!productSnap.exists) return;
+
+      const product = (productSnap.data() || {}) as { stockQuantity?: unknown };
+      const stockBefore = typeof product.stockQuantity === 'number' ? product.stockQuantity : Number(product.stockQuantity ?? 0);
+      const stockAfter = stockBefore + delta;
+
+      tx.set(
+        productRef,
+        {
+          stockQuantity: stockAfter,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
