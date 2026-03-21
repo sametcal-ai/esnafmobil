@@ -191,7 +191,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
   }
 
   @override
-  void didUpdateWidget(covariant QuickSaleScreen oldWidget) {
+  void didUpdateWidget(covariant _PosScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     // /sales route'u aynı branch içinde cached kaldığı için initState her zaman

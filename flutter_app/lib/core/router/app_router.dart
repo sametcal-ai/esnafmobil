@@ -39,6 +39,7 @@ import '../../features/alerts/presentation/alerts_page.dart';
 import '../../features/operations/presentation/operations_page.dart';
 import '../../features/operations/presentation/stock_adjustment_page.dart';
 import '../widgets/app_shell_scaffold.dart';
+import '../widgets/app_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
