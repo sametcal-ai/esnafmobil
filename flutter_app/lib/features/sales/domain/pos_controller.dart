@@ -465,22 +465,50 @@ class PosController extends Notifier<PosState> {
           }
           if (currentNetOutgoing < 0) currentNetOutgoing = 0;
 
-          final delta = desiredQty - currentNetOutgoing;
-
-          // Satış miktarı artıyorsa ek stok düş (outgoing), azalıyorsa stok iade et (incoming).
-          // Bu yaklaşım, stockEntry UPDATE/softDelete'ine bağlı kalmadan sadece yeni entry
-          // oluşturarak onStockEntryCreated trigger'ı ile stokQuantity'nin doğru kalmasını sağlar.
-          if (delta > 0) {
+          final additionalNeeded = desiredQty - currentNetOutgoing;
+          if (additionalNeeded > 0) {
             final productRef = _refs.productsRef(companyId).doc(productId);
             final productSnap = await tx.get(productRef);
             final product = productSnap.data();
             if (product == null || product.meta.isDeleted) {
               throw StateError('Product not found');
             }
-            if (product.stockQuantity < delta) {
+            if (product.stockQuantity < additionalNeeded) {
               throw StateError('Insufficient stock');
             }
+          }
 
+          // Tek bir aktif sale-stockEntry bırak: varsa birini update et, diğerlerini soft delete.
+          QueryDocumentSnapshot<Map<String, dynamic>>? primary;
+          for (final d in existingDocs) {
+            final data = d.data();
+            final typeName = (data['type'] as String?) ?? '';
+            if (primary == null && typeName == StockMovementType.outgoing.name) {
+              primary = d;
+            }
+          }
+          primary ??= existingDocs.isNotEmpty ? existingDocs.first : null;
+
+          if (desiredQty <= 0) {
+            for (final d in existingDocs) {
+              final data = d.data();
+              final meta = AuditMeta.fromMap(data).softDelete(
+                modifiedBy: actor,
+                now: now,
+              );
+              tx.set(
+                d.reference,
+                {
+                  ...data,
+                  ...meta.toMap(),
+                },
+                SetOptions(merge: true),
+              );
+            }
+            continue;
+          }
+
+          if (primary == null) {
             final stockEntryId = _uuid.v4();
             final stockMeta = AuditMeta.create(createdBy: actor, now: now);
             final stockEntry = StockEntry(
@@ -488,7 +516,7 @@ class PosController extends Notifier<PosState> {
               supplierId: null,
               supplierName: null,
               productId: productId,
-              quantity: delta,
+              quantity: desiredQty,
               unitCost: 0,
               createdAt: now,
               type: StockMovementType.outgoing,
@@ -504,27 +532,42 @@ class PosController extends Notifier<PosState> {
               },
               SetOptions(merge: true),
             );
-          } else if (delta < 0) {
-            final stockEntryId = _uuid.v4();
-            final stockMeta = AuditMeta.create(createdBy: actor, now: now);
-            final stockEntry = StockEntry(
-              id: stockEntryId,
-              supplierId: null,
-              supplierName: null,
-              productId: productId,
-              quantity: -delta,
-              unitCost: 0,
-              createdAt: now,
-              type: StockMovementType.incoming,
-              saleId: originalSale.id,
-              meta: stockMeta,
-            );
+            continue;
+          }
 
+          final primaryData = primary.data();
+          final touchedStockMeta = AuditMeta.fromMap(primaryData).touch(
+            modifiedBy: actor,
+            bumpVersion: true,
+            now: now,
+          );
+
+          tx.set(
+            primary.reference,
+            {
+              ...primaryData,
+              'productId': productId,
+              'quantity': desiredQty,
+              'unitCost': 0,
+              'type': StockMovementType.outgoing.name,
+              'saleId': originalSale.id,
+              ...touchedStockMeta.toMap(),
+            },
+            SetOptions(merge: true),
+          );
+
+          for (final d in existingDocs) {
+            if (d.id == primary.id) continue;
+            final data = d.data();
+            final meta = AuditMeta.fromMap(data).softDelete(
+              modifiedBy: actor,
+              now: now,
+            );
             tx.set(
-              _refs.stockEntries(companyId).doc(stockEntryId),
+              d.reference,
               {
-                ...stockEntry.toMap(),
-                'createdAt': Timestamp.fromDate(now),
+                ...data,
+                ...meta.toMap(),
               },
               SetOptions(merge: true),
             );
