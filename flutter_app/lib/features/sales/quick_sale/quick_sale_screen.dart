@@ -130,6 +130,33 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   String? _lastManualBarcode;
   DateTime? _lastManualScanAt;
 
+  void _applyEditArgs(SaleEditArgs? args) {
+    final posController = ref.read(posControllerProvider.notifier);
+
+    if (args == null) {
+      // StatefulShellRoute branch'i cached tuttuğu için, farklı sayfalardan
+      // /sales'e tekrar dönüldüğünde eski sepet kalabiliyor.
+      posController.clearCart();
+      return;
+    }
+
+    posController.loadCartItems(
+      args.sale.items
+          .map(
+            (i) => CartItem(
+              product: Product(
+                id: i.productId,
+                name: i.productName,
+                barcode: i.barcode ?? '',
+                unitPrice: i.unitPrice,
+              ),
+              quantity: i.quantity,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -137,26 +164,24 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     _barcodeController.addListener(_handleBarcodeTextChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final args = widget.editArgs;
-      if (args == null) return;
-
-      final posController = ref.read(posControllerProvider.notifier);
-      posController.loadCartItems(
-        args.sale.items
-            .map(
-              (i) => CartItem(
-                product: Product(
-                  id: i.productId,
-                  name: i.productName,
-                  barcode: i.barcode ?? '',
-                  unitPrice: i.unitPrice,
-                ),
-                quantity: i.quantity,
-              ),
-            )
-            .toList(growable: false),
-      );
+      _applyEditArgs(widget.editArgs);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant QuickSaleScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // /sales route'u aynı branch içinde cached kaldığı için initState her zaman
+    // çalışmıyor. extra ile yeni editArgs geldiğinde sepeti burada yükle.
+    final oldSaleId = oldWidget.editArgs?.sale.id;
+    final newSaleId = widget.editArgs?.sale.id;
+    if (oldSaleId != newSaleId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _applyEditArgs(widget.editArgs);
+      });
+    }
   }
 
   void _handleBarcodeTextChanged() {

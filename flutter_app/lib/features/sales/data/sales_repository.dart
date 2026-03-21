@@ -231,6 +231,82 @@ class SalesRepository {
     await _refs.sales(companyId).doc(id).set(sale.toMap(), SetOptions(merge: true));
     return id;
   }
+
+  Future<bool> softDeleteSaleCascade({
+    required String companyId,
+    required Sale sale,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    final deletedSaleMeta = sale.meta.softDelete(modifiedBy: actor, now: now);
+
+    try {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        tx.set(
+          _refs.sales(companyId).doc(sale.id),
+          {
+            ...sale.toMap(),
+            ...deletedSaleMeta.toMap(),
+            'createdAt': Timestamp.fromDate(sale.createdAt),
+          },
+          SetOptions(merge: true),
+        );
+
+        // Eğer veresiye satış ise (customer ledger'a yazıldıysa) ledger kayıtlarını soft delete.
+        final customerId = sale.customerId;
+        if (customerId != null && customerId.trim().isNotEmpty) {
+          final ledgerQuery = await tx.get(
+            _refs
+                .customerLedger(companyId, customerId)
+                .where('saleId', isEqualTo: sale.id),
+          );
+
+          for (final d in ledgerQuery.docs) {
+            final data = d.data();
+            if (data == null) continue;
+            final meta = AuditMeta.fromMap(data);
+            if (meta.isDeleted) continue;
+            final deleted = meta.softDelete(modifiedBy: actor, now: now);
+            tx.set(
+              d.reference,
+              {
+                ...data,
+                ...deleted.toMap(),
+              },
+              SetOptions(merge: true),
+            );
+          }
+        }
+
+        // İlgili satıştan oluşan stok çıkış (ve/veya düzeltme) kayıtlarını soft delete.
+        final stockQuery = await tx.get(
+          _refs.stockEntries(companyId).where('saleId', isEqualTo: sale.id),
+        );
+
+        for (final d in stockQuery.docs) {
+          final data = d.data();
+          if (data == null) continue;
+          final meta = AuditMeta.fromMap(data);
+          if (meta.isDeleted) continue;
+          final deleted = meta.softDelete(modifiedBy: actor, now: now);
+          tx.set(
+            d.reference,
+            {
+              ...data,
+              ...deleted.toMap(),
+            },
+            SetOptions(merge: true),
+          );
+        }
+      });
+    } catch (_) {
+      return false;
+    }
+
+    return true;
+  }
 }
 
 final salesRepositoryProvider = Provider<SalesRepository>((ref) {

@@ -336,6 +336,7 @@ class PosController extends Notifier<PosState> {
             unitCost: 0,
             createdAt: now,
             type: StockMovementType.outgoing,
+            saleId: saleId,
             meta: stockMeta,
           );
 
@@ -455,6 +456,7 @@ class PosController extends Notifier<PosState> {
             type: delta > 0
                 ? StockMovementType.outgoing
                 : StockMovementType.incoming,
+            saleId: originalSale.id,
             meta: stockMeta,
           );
 
