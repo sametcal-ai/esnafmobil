@@ -183,7 +183,7 @@ class SalesListPage extends ConsumerWidget {
                   onPressed: () {
                     Navigator.of(ctx).pop();
                     context.goNamed(
-                      'sales',
+                      'sale_edit',
                       extra: SaleEditArgs(sale: sale),
                     );
                   },
