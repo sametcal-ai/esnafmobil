@@ -194,6 +194,43 @@ class StockEntryRepository {
     return entry;
   }
 
+  Future<StockEntry> createSystemOutgoingEntry({
+    required String companyId,
+    required String productId,
+    required int quantity,
+    double unitCost = 0,
+    String supplierName = 'system',
+    String? currentUserId,
+  }) async {
+    final now = DateTime.now();
+    final id = _uuid.v4();
+    final actor = _requireActor(currentUserId);
+    final meta = AuditMeta.create(createdBy: actor, now: now);
+
+    final entry = StockEntry(
+      id: id,
+      supplierId: null,
+      supplierName: supplierName,
+      productId: productId,
+      quantity: quantity,
+      unitCost: unitCost,
+      createdAt: now,
+      type: StockMovementType.outgoing,
+      saleId: null,
+      meta: meta,
+    );
+
+    await _refs.stockEntries(companyId).doc(id).set(
+      {
+        ...entry.toMap(),
+        'createdAt': Timestamp.fromDate(now),
+      },
+      SetOptions(merge: true),
+    );
+
+    return entry;
+  }
+
   Future<int> softDeleteEntriesBySaleId({
     required String companyId,
     required String saleId,
