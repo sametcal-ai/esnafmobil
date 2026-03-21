@@ -103,19 +103,41 @@ final quickSaleProductsProvider = StreamProvider<List<catalog.Product>>((ref) {
   return repo.watchProducts(companyId);
 });
 
-class QuickSaleScreen extends ConsumerStatefulWidget {
+class QuickSaleScreen extends ConsumerWidget {
+  const QuickSaleScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return const _PosScreen();
+  }
+}
+
+class SaleEditScreen extends ConsumerWidget {
+  final SaleEditArgs editArgs;
+
+  const SaleEditScreen({
+    super.key,
+    required this.editArgs,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _PosScreen(editArgs: editArgs);
+  }
+}
+
+class _PosScreen extends ConsumerStatefulWidget {
   final SaleEditArgs? editArgs;
 
-  const QuickSaleScreen({
-    super.key,
+  const _PosScreen({
     this.editArgs,
   });
 
   @override
-  ConsumerState<QuickSaleScreen> createState() => _QuickSaleScreenState();
+  ConsumerState<_PosScreen> createState() => _PosScreenState();
 }
 
-class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
+class _PosScreenState extends ConsumerState<_PosScreen> {
   final TextEditingController _barcodeController = TextEditingController();
   final FocusNode _barcodeFocusNode = FocusNode();
 

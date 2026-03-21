@@ -152,6 +152,11 @@ class _ProductMovementsPageState extends ConsumerState<ProductMovementsPage> {
     final customersById = <String, Customer>{for (final c in customers) c.id: c};
     final allSales = await salesRepo.getAllSales(companyId);
 
+    bool isSaleGeneratedStockOut(StockEntry e) {
+      final saleId = e.saleId;
+      return e.type == StockMovementType.outgoing && saleId != null && saleId.trim().isNotEmpty;
+    }
+
     // Açılış stokunu hesapla (başlangıç tarihinden önceki tüm hareketler)
     int openingStock = 0;
     int totalIncoming = 0;
@@ -162,6 +167,8 @@ class _ProductMovementsPageState extends ConsumerState<ProductMovementsPage> {
       if (entry.meta.isDeleted || !entry.meta.isVisible || !entry.meta.isActived) {
         continue;
       }
+      // Satıştan oluşan stok çıkışları satış kalemleriyle zaten listelendiği için burada saymayalım.
+      if (isSaleGeneratedStockOut(entry)) continue;
 
       final isIncoming = entry.type == StockMovementType.incoming;
       final qtySigned = isIncoming ? entry.quantity : -entry.quantity;
@@ -205,6 +212,8 @@ class _ProductMovementsPageState extends ConsumerState<ProductMovementsPage> {
       if (entry.meta.isDeleted || !entry.meta.isVisible || !entry.meta.isActived) {
         continue;
       }
+      // Satıştan oluşan stok çıkışları satış satırlarında görünecek.
+      if (isSaleGeneratedStockOut(entry)) continue;
       if (entry.createdAt.isBefore(start) || entry.createdAt.isAfter(end)) {
         continue;
       }

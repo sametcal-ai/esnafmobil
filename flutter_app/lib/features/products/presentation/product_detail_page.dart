@@ -121,6 +121,11 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
 
       final allSales = await salesRepo.getAllSales(companyId);
 
+      bool isSaleGeneratedStockOut(StockEntry e) {
+        final saleId = e.saleId;
+        return e.type == StockMovementType.outgoing && saleId != null && saleId.trim().isNotEmpty;
+      }
+
       final movements = <_ProductMovement>[];
 
       // Stok hareketleri
@@ -129,6 +134,8 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
         if (entry.meta.isDeleted || !entry.meta.isVisible || !entry.meta.isActived) {
           continue;
         }
+        // Satıştan oluşan stok çıkışları satış satırlarında görünecek.
+        if (isSaleGeneratedStockOut(entry)) continue;
         if (!_isInRange(entry.createdAt, _movementsStart, _movementsEnd)) {
           continue;
         }

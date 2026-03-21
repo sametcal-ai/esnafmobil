@@ -233,6 +233,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => const SalesListPage(),
               ),
               GoRoute(
+                path: '/sales-list/edit',
+                name: 'sale_edit',
+                parentNavigatorKey: _rootNavigatorKey,
+                builder: (context, state) {
+                  final extra = state.extra;
+                  if (extra is! SaleEditArgs) {
+                    return const AppScaffold(
+                      title: 'Satışı Düzenle',
+                      body: Center(child: Text('Satış bilgisi eksik')),
+                    );
+                  }
+                  return SaleEditScreen(editArgs: extra);
+                },
+              ),
+              GoRoute(
                 path: '/users',
                 name: 'users',
                 builder: (context, state) => const UserManagementPage(),
@@ -283,12 +298,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/sales',
                 name: 'sales',
-                builder: (context, state) {
-                  final extra = state.extra;
-                  return QuickSaleScreen(
-                    editArgs: extra is SaleEditArgs ? extra : null,
-                  );
-                },
+                builder: (context, state) => const QuickSaleScreen(),
               ),
               GoRoute(
                 path: '/scan',
