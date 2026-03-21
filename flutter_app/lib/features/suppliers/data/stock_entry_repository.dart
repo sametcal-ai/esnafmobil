@@ -88,6 +88,7 @@ class StockEntryRepository {
       unitCost: unitCost,
       createdAt: now,
       type: StockMovementType.incoming,
+      saleId: null,
       meta: meta,
     );
 
@@ -124,6 +125,7 @@ class StockEntryRepository {
     required String companyId,
     required String productId,
     required int quantity,
+    String? saleId,
     String? currentUserId,
   }) async {
     final now = DateTime.now();
@@ -140,6 +142,7 @@ class StockEntryRepository {
       unitCost: 0,
       createdAt: now,
       type: StockMovementType.outgoing,
+      saleId: saleId,
       meta: meta,
     );
 
@@ -176,6 +179,7 @@ class StockEntryRepository {
       unitCost: unitCost,
       createdAt: now,
       type: StockMovementType.incoming,
+      saleId: null,
       meta: meta,
     );
 
@@ -188,6 +192,40 @@ class StockEntryRepository {
     );
 
     return entry;
+  }
+
+  Future<int> softDeleteEntriesBySaleId({
+    required String companyId,
+    required String saleId,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    final query = await _refs
+        .stockEntries(companyId)
+        .where('saleId', isEqualTo: saleId)
+        .get();
+
+    int touched = 0;
+    for (final doc in query.docs) {
+      final data = doc.data();
+      if (data == null) continue;
+      final meta = AuditMeta.fromMap(data);
+      if (meta.isDeleted) continue;
+
+      final deleted = meta.softDelete(modifiedBy: actor, now: now);
+      await doc.reference.set(
+        {
+          ...data,
+          ...deleted.toMap(),
+        },
+        SetOptions(merge: true),
+      );
+      touched++;
+    }
+
+    return touched;
   }
 }
 

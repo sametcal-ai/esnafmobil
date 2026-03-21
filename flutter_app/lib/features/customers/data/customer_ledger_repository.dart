@@ -178,6 +178,41 @@ class CustomerLedgerRepository {
         .where((e) => !e.createdAt.isBefore(start) && !e.createdAt.isAfter(end))
         .toList(growable: false);
   }
+
+  Future<int> softDeleteEntriesBySaleId({
+    required String companyId,
+    required String customerId,
+    required String saleId,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    final query = await _refs
+        .customerLedger(companyId, customerId)
+        .where('saleId', isEqualTo: saleId)
+        .get();
+
+    int touched = 0;
+    for (final doc in query.docs) {
+      final data = doc.data();
+      if (data == null) continue;
+      final meta = AuditMeta.fromMap(data);
+      if (meta.isDeleted) continue;
+
+      final deleted = meta.softDelete(modifiedBy: actor, now: now);
+      await doc.reference.set(
+        {
+          ...data,
+          ...deleted.toMap(),
+        },
+        SetOptions(merge: true),
+      );
+      touched++;
+    }
+
+    return touched;
+  }
 }
 
 final customerLedgerRepositoryProvider = Provider<CustomerLedgerRepository>((ref) {

@@ -65,6 +65,7 @@ class SalesListPage extends ConsumerWidget {
     required String customerLabel,
     required String createdByLabel,
     required bool canEdit,
+    required bool canCancel,
   }) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -188,6 +189,78 @@ class SalesListPage extends ConsumerWidget {
                   },
                   child: const Text('Satışı Düzenle'),
                 ),
+              if (canCancel) ...[
+                const SizedBox(height: 8),
+                FilledButton.tonal(
+                  style: FilledButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                  ),
+                  onPressed: () async {
+                    final navigator = Navigator.of(ctx);
+
+                    final confirmed = await showDialog<bool>(
+                      context: ctx,
+                      builder: (context) {
+                        return AlertDialog(
+                          title: const Text('Satışı iptal et'),
+                          content: const Text(
+                            'Bu satış iptal edilecek. Bu işlem geri alınamaz. Devam edilsin mi?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Vazgeç'),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade700,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('İptal Et'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+
+                    if (confirmed != true) return;
+
+                    final companyId = ref.read(activeCompanyIdProvider);
+                    if (companyId == null) return;
+
+                    final ok = await ref
+                        .read(salesRepositoryProvider)
+                        .softDeleteSaleCascade(
+                          companyId: companyId,
+                          sale: sale,
+                        );
+
+                    if (!ctx.mounted) return;
+
+                    if (!ok) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(
+                          content: Text('Satış iptal edilemedi'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+
+                    navigator.pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Satış iptal edildi'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  child: const Text('Satışı İptal Et'),
+                ),
+              ],
             ],
           ),
         );
@@ -269,6 +342,7 @@ class SalesListPage extends ConsumerWidget {
                       customerLabel: customerLabel,
                       createdByLabel: createdByLabel,
                       canEdit: isAdmin,
+                      canCancel: isAdmin,
                     );
                   },
                 ),

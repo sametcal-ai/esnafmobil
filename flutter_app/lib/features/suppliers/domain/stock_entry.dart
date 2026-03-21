@@ -14,6 +14,7 @@ class StockEntry {
   final double unitCost;
   final DateTime createdAt;
   final StockMovementType type;
+  final String? saleId;
   final AuditMeta meta;
 
   const StockEntry({
@@ -25,6 +26,7 @@ class StockEntry {
     required this.unitCost,
     required this.createdAt,
     required this.type,
+    required this.saleId,
     required this.meta,
   });
 
@@ -38,6 +40,7 @@ class StockEntry {
       'unitCost': unitCost,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'type': type.name,
+      'saleId': saleId,
       ...meta.toMap(),
     };
   }
@@ -66,6 +69,7 @@ class StockEntry {
       unitCost: (map['unitCost'] as num).toDouble(),
       createdAt: createdAt,
       type: type,
+      saleId: map['saleId'] as String?,
       meta: meta,
     );
   }
