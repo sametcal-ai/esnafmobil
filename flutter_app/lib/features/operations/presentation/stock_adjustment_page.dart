@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_settings.dart';
+import '../../../core/scanner/barcode_scanner_view.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../company/domain/active_company_provider.dart';
@@ -23,7 +24,64 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
 
   String _query = '';
 
+  Future<void> _openBarcodeScanner() async {
+    var isPopping = false;
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SizedBox(
+          height: 320,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Barkodu kameraya hizalayın',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BarcodeScannerView(
+                    ownerId: 'stock_adjustment_scanner',
+                    enabled: true,
+                    onBarcode: (value) {
+                      if (isPopping) return;
+                      final trimmed = value.trim();
+                      if (trimmed.isEmpty) return;
+
+                      isPopping = true;
+                      Navigator.of(context).pop(trimmed);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || result == null || result.isEmpty) return;
+
+    _queryController.text = result;
+    if (mounted) {
+      FocusScope.of(context).requestFocus(_queryFocusNode);
+    }
+  }
+
   final List<_StockAdjustmentItem> _items = <_StockAdjustmentItem>[];
+
+  void _clearQuery() {
+    _queryController.clear();
+    if (mounted) {
+      FocusScope.of(context).requestFocus(_queryFocusNode);
+    }
+  }
 
   @override
   void initState() {
@@ -55,22 +113,24 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
       builder: (context) {
         return AlertDialog(
           title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Güncel stok: $currentStock'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Yeni miktar',
-                  border: OutlineInputBorder(),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Güncel stok: $currentStock'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Yeni miktar',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -220,9 +280,26 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
               autofocus: true,
               textInputAction: TextInputAction.search,
               keyboardType: TextInputType.text,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Barkod okut / yaz',
-                border: OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: _openBarcodeScanner,
+                      icon: const Icon(Icons.qr_code_scanner_outlined),
+                      tooltip: 'Barkod Oku',
+                    ),
+                    if (_query.trim().isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: _clearQuery,
+                        tooltip: 'Temizle',
+                      ),
+                  ],
+                ),
+                border: const OutlineInputBorder(),
               ),
             ),
           ),
