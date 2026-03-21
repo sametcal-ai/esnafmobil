@@ -41,7 +41,11 @@ final activeCompanyIdProvider = NotifierProvider<ActiveCompanyController, String
 ///
 /// appRouterProvider ve CompanyGatePage gibi yerlerde `ref.watch` edilmesi yeterli;
 /// kendisi UI üretmez, sadece side-effect.
-final activeCompanyResetterProvider = Provider<void>((ref) {
+class ActiveCompanyResetter {
+  const ActiveCompanyResetter();
+}
+
+final activeCompanyResetterProvider = Provider<ActiveCompanyResetter>((ref) {
   ref.listen(authStateProvider, (prev, next) {
     final wasLoggedIn = prev?.asData?.value != null;
     final isLoggedIn = next.asData?.value != null;
@@ -50,4 +54,6 @@ final activeCompanyResetterProvider = Provider<void>((ref) {
       ref.read(activeCompanyIdProvider.notifier).clear();
     }
   });
+
+  return const ActiveCompanyResetter();
 });
