@@ -70,6 +70,12 @@ class DashboardPage extends ConsumerWidget {
     if (isAdmin) {
       menuCards.addAll([
         _DashboardCard(
+          icon: Icons.playlist_add_check_outlined,
+          title: 'İşlemler',
+          color: Colors.brown.shade600,
+          onTap: () => context.pushNamed('operations'),
+        ),
+        _DashboardCard(
           icon: Icons.warning_amber_rounded,
           title: 'Stok Uyarıları',
           color: Colors.red.shade700,

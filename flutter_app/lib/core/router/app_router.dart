@@ -36,6 +36,8 @@ import '../../features/scanner/presentation/barcode_scanner_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
 import '../../features/settings/presentation/system_settings_page.dart';
 import '../../features/alerts/presentation/alerts_page.dart';
+import '../../features/operations/presentation/operations_page.dart';
+import '../../features/operations/presentation/stock_adjustment_page.dart';
 import '../widgets/app_shell_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -252,6 +254,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/alerts',
                 name: 'alerts',
                 builder: (context, state) => const AlertsPage(),
+              ),
+              GoRoute(
+                path: '/operations',
+                name: 'operations',
+                builder: (context, state) => const OperationsPage(),
+              ),
+              GoRoute(
+                path: '/operations/stock-adjustment',
+                name: 'stock_adjustment',
+                builder: (context, state) => const StockAdjustmentPage(),
               ),
             ],
           ),
