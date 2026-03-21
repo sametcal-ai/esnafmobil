@@ -523,15 +523,18 @@ export const onStockEntryCreated = onDocumentCreated(
         { merge: true },
       );
 
-      // Ürün kartındaki cache alanı: lastPurchasePrice sadece stok hareketi ile güncellenir.
-      tx.set(
-        productRef,
-        {
-          lastPurchasePrice: unitCost,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
+      // Ürün kartındaki cache alanı: lastPurchasePrice sadece stok girişleri ile güncellenir.
+      // Satış (outgoing) veya düzeltme amaçlı 0 maliyetli hareketler bu alanı bozmamalı.
+      if (type === 'incoming' && unitCost > 0) {
+        tx.set(
+          productRef,
+          {
+            lastPurchasePrice: unitCost,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
 
       // Incoming stok hareketlerinde, ürün parametresi autoPrice=true ise aktif fiyat listesini güncelle.
       if (type !== 'incoming') return;
