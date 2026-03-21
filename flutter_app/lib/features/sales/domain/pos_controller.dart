@@ -365,6 +365,126 @@ class PosController extends Notifier<PosState> {
     clearCart();
     return saleId;
   }
+
+  Future<bool> updateSale({
+    required Sale originalSale,
+  }) async {
+    if (companyId.isEmpty) return false;
+    if (state.items.isEmpty) return false;
+
+    final actor = currentUserId;
+    if (actor == null || actor.isEmpty) return false;
+
+    final now = DateTime.now();
+
+    final subtotal = state.subtotal;
+    final discount = state.discountAmount;
+    final vat = state.taxAmount;
+    final total = state.total;
+
+    final items = state.items
+        .map(
+          (i) => SaleItem(
+            productId: i.product.id,
+            productName: i.product.name,
+            barcode: i.product.barcode,
+            quantity: i.quantity,
+            unitPrice: i.product.unitPrice,
+            lineTotal: i.lineTotal,
+          ),
+        )
+        .toList(growable: false);
+
+    final touchedMeta = originalSale.meta.touch(
+      modifiedBy: actor,
+      bumpVersion: true,
+      now: now,
+    );
+
+    final updatedSale = Sale(
+      id: originalSale.id,
+      customerId: originalSale.customerId,
+      createdAt: originalSale.createdAt,
+      subtotal: subtotal,
+      discount: discount,
+      vat: vat,
+      total: total,
+      paymentMethod: originalSale.paymentMethod,
+      items: items,
+      meta: touchedMeta,
+    );
+
+    final oldQty = <String, int>{
+      for (final i in originalSale.items) i.productId: i.quantity,
+    };
+
+    final newQty = <String, int>{
+      for (final i in state.items) i.product.id: i.quantity,
+    };
+
+    final productIds = <String>{...oldQty.keys, ...newQty.keys}.toList(growable: false);
+
+    try {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        for (final productId in productIds) {
+          final delta = (newQty[productId] ?? 0) - (oldQty[productId] ?? 0);
+          if (delta == 0) continue;
+
+          if (delta > 0) {
+            final productRef = _refs.productsRef(companyId).doc(productId);
+            final productSnap = await tx.get(productRef);
+            final product = productSnap.data();
+            if (product == null || product.meta.isDeleted) {
+              throw StateError('Product not found');
+            }
+            if (product.stockQuantity < delta) {
+              throw StateError('Insufficient stock');
+            }
+          }
+
+          final stockEntryId = _uuid.v4();
+          final stockMeta = AuditMeta.create(createdBy: actor, now: now);
+          final stockEntry = StockEntry(
+            id: stockEntryId,
+            supplierId: null,
+            supplierName: null,
+            productId: productId,
+            quantity: delta.abs(),
+            unitCost: 0,
+            createdAt: now,
+            type: delta > 0
+                ? StockMovementType.outgoing
+                : StockMovementType.incoming,
+            meta: stockMeta,
+          );
+
+          tx.set(
+            _refs.stockEntries(companyId).doc(stockEntryId),
+            {
+              ...stockEntry.toMap(),
+              'createdAt': Timestamp.fromDate(now),
+            },
+            SetOptions(merge: true),
+          );
+        }
+
+        tx.set(
+          _refs.sales(companyId).doc(originalSale.id),
+          {
+            ...updatedSale.toMap(),
+            'createdAt': Timestamp.fromDate(originalSale.createdAt),
+            'stockProcessedAt': Timestamp.fromDate(now),
+          },
+          SetOptions(merge: true),
+        );
+      });
+    } catch (_) {
+      return false;
+    }
+
+    clearCart();
+    return true;
+  }
 }
 
 final posControllerProvider = NotifierProvider<PosController, PosState>(

@@ -17,6 +17,7 @@ import '../../products/domain/product.dart' as catalog;
 import '../domain/pos_controller.dart';
 import '../domain/pos_models.dart';
 import '../held_sales/held_sales_provider.dart';
+import '../presentation/sale_edit_args.dart';
 import 'product_search.dart';
 
 enum QuickSalePaymentType {
@@ -81,6 +82,9 @@ final quickSalePaymentProvider =
   QuickSalePaymentController.new,
 );
 
+final holdSaleNameDraftProvider = StateProvider<String>((ref) => '');
+final quickSaleCustomerQueryProvider = StateProvider<String>((ref) => '');
+
 final quickSaleCustomersProvider = FutureProvider<List<Customer>>((ref) async {
   final companyId = ref.watch(activeCompanyIdProvider);
   if (companyId == null) return const <Customer>[];
@@ -100,14 +104,16 @@ final quickSaleProductsProvider = StreamProvider<List<catalog.Product>>((ref) {
 });
 
 class QuickSaleScreen extends ConsumerStatefulWidget {
-  const QuickSaleScreen({super.key});
+  final SaleEditArgs? editArgs;
+
+  const QuickSaleScreen({
+    super.key,
+    this.editArgs,
+  });
 
   @override
   ConsumerState<QuickSaleScreen> createState() => _QuickSaleScreenState();
 }
-
-final holdSaleNameDraftProvider = StateProvider<String>((ref) => '');
-final quickSaleCustomerQueryProvider = StateProvider<String>((ref) => '');
 
 class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
   final TextEditingController _barcodeController = TextEditingController();
@@ -129,6 +135,28 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     super.initState();
     _barcodeFocusNode.addListener(_handleFocusChange);
     _barcodeController.addListener(_handleBarcodeTextChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = widget.editArgs;
+      if (args == null) return;
+
+      final posController = ref.read(posControllerProvider.notifier);
+      posController.loadCartItems(
+        args.sale.items
+            .map(
+              (i) => CartItem(
+                product: Product(
+                  id: i.productId,
+                  name: i.productName,
+                  barcode: i.barcode ?? '',
+                  unitPrice: i.unitPrice,
+                ),
+                quantity: i.quantity,
+              ),
+            )
+            .toList(growable: false),
+      );
+    });
   }
 
   void _handleBarcodeTextChanged() {
@@ -331,8 +359,10 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
     final posController = ref.read(posControllerProvider.notifier);
     final productsAsync = ref.watch(quickSaleProductsProvider);
 
+    final isEditing = widget.editArgs != null;
+
     return AppScaffold(
-      title: 'Hızlı Satış',
+      title: isEditing ? 'Satışı Düzenle' : 'Hızlı Satış',
       body: Column(
         children: [
           if (!_isCameraMode) ...[
@@ -567,6 +597,65 @@ class _QuickSaleScreenState extends ConsumerState<QuickSaleScreen> {
             },
             onClear: posState.hasItems ? posController.clearCart : null,
             onComplete: () async {
+              final editingSale = widget.editArgs?.sale;
+              if (editingSale != null) {
+                final oldTotal = editingSale.total;
+                final newTotal = posState.total;
+
+                final ok = await posController.updateSale(
+                  originalSale: editingSale,
+                );
+
+                if (!context.mounted) return;
+
+                if (!ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Satış güncellenemedi'),
+                      behavior: SnackBarBehavior.floating,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+
+                if (editingSale.paymentMethod == 'credit' &&
+                    editingSale.customerId != null) {
+                  final delta = newTotal - oldTotal;
+                  if (delta.abs() > 0.01) {
+                    final companyId = ref.read(activeCompanyIdProvider);
+                    if (companyId != null) {
+                      final customerRepo = ref.read(customerRepositoryProvider);
+                      final customer = await customerRepo.getCustomerById(
+                        companyId,
+                        editingSale.customerId!,
+                      );
+                      if (customer != null) {
+                        final ledgerRepo =
+                            ref.read(customerLedgerRepositoryProvider);
+                        await ledgerRepo.addSaleEntry(
+                          companyId: companyId,
+                          customer: customer,
+                          amount: delta,
+                          note: 'POS satış düzeltme',
+                          saleId: editingSale.id,
+                        );
+                      }
+                    }
+                  }
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Satış güncellendi'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+
+                return;
+              }
+
               await _showPaymentModal(context, ref, posState, posController);
             },
           ),
