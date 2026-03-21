@@ -79,8 +79,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ref.watch(routerRefreshNotifierProvider);
 
   // side-effect provider (logout => activeCompanyId reset)
-  // Redirect callback içinde create etmek yerine router init sırasında aktif et.
-  ref.read(activeCompanyResetterProvider);
+  // Router yaşam döngüsü boyunca aktif kalsın diye `watch` et.
+  ref.watch(activeCompanyResetterProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
