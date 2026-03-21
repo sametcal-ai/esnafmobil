@@ -161,7 +161,10 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
       },
     );
 
-    controller.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+    });
+
     return confirmed;
   }
 
