@@ -30,6 +30,8 @@ import '../../features/customers/presentation/customer_statement_page.dart';
 import '../../features/pricing/presentation/pricing_page.dart';
 import '../../features/sales/quick_sale/quick_sale_screen.dart';
 import '../../features/sales/held_sales/held_sales_tab.dart';
+import '../../features/sales/presentation/sales_list_page.dart';
+import '../../features/sales/presentation/sale_edit_args.dart';
 import '../../features/scanner/presentation/barcode_scanner_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
 import '../../features/settings/presentation/system_settings_page.dart';
@@ -224,6 +226,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => const PricingPage(),
               ),
               GoRoute(
+                path: '/sales-list',
+                name: 'sales_list',
+                builder: (context, state) => const SalesListPage(),
+              ),
+              GoRoute(
                 path: '/users',
                 name: 'users',
                 builder: (context, state) => const UserManagementPage(),
@@ -264,7 +271,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/sales',
                 name: 'sales',
-                builder: (context, state) => const QuickSaleScreen(),
+                builder: (context, state) {
+                  final extra = state.extra;
+                  return QuickSaleScreen(
+                    editArgs: extra is SaleEditArgs ? extra : null,
+                  );
+                },
               ),
               GoRoute(
                 path: '/scan',
