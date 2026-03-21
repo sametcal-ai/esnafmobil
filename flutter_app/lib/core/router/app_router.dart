@@ -78,6 +78,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   // Ancak refresh notifier'ın dispose olmaması için burada watch etmemiz gerekiyor.
   final refreshNotifier = ref.watch(routerRefreshNotifierProvider);
 
+  // side-effect provider (logout => activeCompanyId reset)
+  // Redirect callback içinde create etmek yerine router init sırasında aktif et.
+  ref.read(activeCompanyResetterProvider);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/login',
@@ -332,9 +336,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (context, state) {
-      // side-effect provider (logout => activeCompanyId reset)
-      ref.read(activeCompanyResetterProvider);
-
       final authState = ref.read(authStateProvider);
       // FirebaseAuth initial state is async; redirect sırasında `loading` ise
       // kullanıcıyı login'e geri fırlatmak yerine mevcut lokasyonda kal.
