@@ -4,19 +4,40 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/config/money_formatter.dart';
+import '../../../core/firestore/firestore_refs.dart';
+import '../../../core/firestore/models/company_member.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
+import '../../auth/domain/user.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../sales/data/sales_repository.dart';
+import '../../sales/presentation/sale_edit_args.dart';
 import '../data/customer_ledger_repository.dart';
 import '../data/customer_repository.dart';
 import '../data/customer_statement_pdf_service.dart';
 import '../domain/customer.dart';
 import '../domain/customer_ledger.dart';
 import '../domain/customer_controller.dart';
+
+final _companyMembersMapProvider = StreamProvider<Map<String, CompanyMember>>((ref) {
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) return const Stream<Map<String, CompanyMember>>.empty();
+
+  final refs = ref.watch(firestoreRefsProvider);
+  return refs.members(companyId).snapshots().map((snap) {
+    final map = <String, CompanyMember>{};
+    for (final d in snap.docs) {
+      final m = d.data();
+      map[m.uid] = m;
+    }
+    return map;
+  });
+});
 
 class CustomerStatementPage extends ConsumerStatefulWidget {
   final String customerId;
@@ -25,14 +46,270 @@ class CustomerStatementPage extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<CustomerStatementPage> createState() =>
-      _CustomerStatementPageState();
-}
-
-class _CustomerStatementPageState
+      _CustomerStat</old_code><new_code>class _CustomerStatementPageState
     extends ConsumerState<CustomerStatementPage> {
   Customer? _customer;
   bool _loading = true;
   bool _sharing = false;
+
+  String _paymentLabel(String method) {
+    switch (method) {
+      case 'cash':
+        return 'Nakit';
+      case 'card':
+        return 'Kredi Kartı';
+      case 'credit':
+        return 'Veresiye';
+      case 'split':
+        return 'Parçalı';
+      default:
+        return method;
+    }
+  }
+
+  Future<void> _showSaleDetails(
+    Sale sale, {
+    required String customerLabel,
+    required String createdByLabel,
+    required bool canEdit,
+    required bool canCancel,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Satış Detayı',
+                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Cari: $customerLabel'),
+              const SizedBox(height: 4),
+              Text('Ödeme: ${_paymentLabel(sale.paymentMethod)}'),
+              const SizedBox(height: 4),
+              Text('Kullanıcı: $createdByLabel'),
+              const SizedBox(height: 4),
+              Text('Tarih: ${sale.createdAt}'),
+              const SizedBox(height: 12),
+              const Divider(height: 0),
+              const SizedBox(height: 12),
+              Text(
+                'Ürünler',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: sale.items.length,
+                  separatorBuilder: (_, __) => const Divider(height: 0),
+                  itemBuilder: (context, index) {
+                    final item = sale.items[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        item.productName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text('${item.quantity} x ${formatMoney(item.unitPrice)}'),
+                      trailing: Text(
+                        formatMoney(item.lineTotal),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Divider(height: 0),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Expanded(child: Text('Ara Toplam')),
+                  Text(formatMoney(sale.subtotal)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Expanded(child: Text('İndirim')),
+                  Text(sale.discount <= 0 ? formatMoney(0) : '- ${formatMoney(sale.discount)}'),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Expanded(child: Text('KDV')),
+                  Text(formatMoney(sale.vat)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Toplam',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ),
+                  Text(
+                    formatMoney(sale.total),
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (canEdit)
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    context.goNamed(
+                      'sale_edit',
+                      extra: SaleEditArgs(sale: sale),
+                    );
+                  },
+                  child: const Text('Satışı Düzenle'),
+                ),
+              if (canCancel) ...[
+                const SizedBox(height: 8),
+                FilledButton.tonal(
+                  style: FilledButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                  ),
+                  onPressed: () async {
+                    final navigator = Navigator.of(ctx);
+
+                    final confirmed = await showDialog<bool>(
+                      context: ctx,
+                      builder: (context) {
+                        return AlertDialog(
+                          title: const Text('Satışı iptal et'),
+                          content: const Text(
+                            'Bu satış iptal edilecek. Bu işlem geri alınamaz. Devam edilsin mi?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Vazgeç'),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade700,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('İptal Et'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+
+                    if (confirmed != true) return;
+
+                    final companyId = ref.read(activeCompanyIdProvider);
+                    if (companyId == null) return;
+
+                    final ok = await ref
+                        .read(salesRepositoryProvider)
+                        .softDeleteSaleCascade(
+                          companyId: companyId,
+                          sale: sale,
+                        );
+
+                    if (!ctx.mounted) return;
+
+                    if (!ok) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(
+                          content: Text('Satış iptal edilemedi'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+
+                    navigator.pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Satış iptal edildi'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  child: const Text('Satışı İptal Et'),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openSaleDetailsFromEntry(
+    CustomerLedgerEntry entry, {
+    required String customerLabel,
+    required String createdByLabel,
+    required bool canEdit,
+    required bool canCancel,
+  }) async {
+    final saleId = entry.saleId;
+    if (saleId == null) return;
+
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
+
+    final sale = await ref.read(salesRepositoryProvider).getSaleById(companyId, saleId);
+    if (!mounted) return;
+
+    if (sale == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Satış bulunamadı'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    await _showSaleDetails(
+      sale,
+      customerLabel: customerLabel,
+      createdByLabel: createdByLabel,
+      canEdit: canEdit,
+      canCancel: canCancel,
+    );
+  }
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -274,6 +551,12 @@ class _CustomerStatementPageState
   Widget build(BuildContext context) {
     final customer = _customer;
 
+    final currentUser = ref.watch(currentUserProvider);
+    final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
+
+    final membersAsync = ref.watch(_companyMembersMapProvider);
+    final membersMap = membersAsync.asData?.value ?? const <String, CompanyMember>{};
+
     return AppScaffold(
       title: customer == null ? 'Ekstre' : '${customer.name} - Ekstre',
       actions: [
@@ -381,6 +664,10 @@ class _CustomerStatementPageState
                                     '${entry.createdAt.hour.toString().padLeft(2, '0')}:'
                                     '${entry.createdAt.minute.toString().padLeft(2, '0')}';
 
+                                final createdByLabel = membersMap[entry.meta.createdBy]?.displayName.trim().isNotEmpty == true
+                                    ? membersMap[entry.meta.createdBy]!.displayName
+                                    : entry.meta.createdBy;
+
                                 return Card(
                                   child: ListTile(
                                     leading: Text(
@@ -403,6 +690,15 @@ class _CustomerStatementPageState
                                     trailing: Text(
                                       isSale ? 'Satış' : 'Tahsilat',
                                     ),
+                                    onTap: !isSale || customer == null
+                                        ? null
+                                        : () => _openSaleDetailsFromEntry(
+                                              entry,
+                                              customerLabel: customer.name,
+                                              createdByLabel: createdByLabel,
+                                              canEdit: isAdmin,
+                                              canCancel: isAdmin,
+                                            ),
                                   ),
                                 );
                               },
