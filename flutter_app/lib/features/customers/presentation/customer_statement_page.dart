@@ -68,7 +68,14 @@ class _CustomerStatementPageState
 
   Future<void> _initCustomer() async {
     final companyId = ref.read(activeCompanyIdProvider);
-    if (companyId == null) return;
+    if (companyId == null) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+      return;
+    }
 
     final repo = ref.read(customerRepositoryProvider);
     final customer = await repo.getCustomerById(companyId, widget.customerId);
@@ -88,7 +95,8 @@ class _CustomerStatementPageState
       _customer = customer;
       final now = DateTime.now();
       _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-      _startDate = _endDate!.subtract(const Duration(days: 30));
+      _startDate = DateTime(now.year, now.month, now.day)
+          .subtract(const Duration(days: 30));
       _loading = false;
     });
 
@@ -147,7 +155,14 @@ class _CustomerStatementPageState
     });
 
     final companyId = ref.read(activeCompanyIdProvider);
-    if (companyId == null) return;
+    if (companyId == null) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+      return;
+    }
 
     final ledgerRepo = ref.read(customerLedgerRepositoryProvider);
     final previousBalance =
