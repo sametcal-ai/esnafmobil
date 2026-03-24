@@ -127,13 +127,15 @@ class ProductRepository {
       final snap = await _refs
           .productsRef(companyId)
           .where('barcode', isEqualTo: candidate)
-          .limit(1)
+          .limit(5)
           .get();
 
       if (snap.docs.isEmpty) continue;
-      final product = snap.docs.first.data();
-      if (!product.meta.isDeleted) return product;
-      return null;
+
+      for (final doc in snap.docs) {
+        final product = doc.data();
+        if (!product.meta.isDeleted) return product;
+      }
     }
 
     return null;
