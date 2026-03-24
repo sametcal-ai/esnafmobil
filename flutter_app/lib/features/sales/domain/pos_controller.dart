@@ -33,6 +33,9 @@ class PosController extends Notifier<PosState> {
   late AppSettings _settings;
   late Map<String, double> _activePriceMap;
 
+  bool _hasBuilt = false;
+  String _lastCompanyId = '';
+
   @override
   PosState build() {
     _settings = ref.watch(appSettingsProvider);
@@ -42,7 +45,19 @@ class PosController extends Notifier<PosState> {
     _refs = ref.watch(firestoreRefsProvider);
     _activePriceMap = ref.watch(activePriceListPriceMapProvider);
 
-    return PosState.initial();
+    // activePriceListPriceMapProvider gibi dependency'ler ilk açılışta geç yüklenince
+    // build tekrar çalışıp sepeti sıfırlamasın. Sadece firma değiştiğinde resetle.
+    final shouldReset = !_hasBuilt || _lastCompanyId != companyId;
+    final previous = _hasBuilt ? state : null;
+
+    _hasBuilt = true;
+    _lastCompanyId = companyId;
+
+    if (shouldReset) {
+      return PosState.initial();
+    }
+
+    return previous ?? PosState.initial();
   }
 
   bool hasActivePriceList() {
