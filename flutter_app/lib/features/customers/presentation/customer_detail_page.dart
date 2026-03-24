@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../../core/firestore/firestore_refs.dart';
+import '../../../core/firestore/models/company_member.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
+import '../../auth/domain/user.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../data/customer_repository.dart';
 import '../data/customer_ledger_repository.dart';
@@ -12,6 +16,22 @@ import '../domain/customer.dart';
 import '../domain/customer_controller.dart';
 import '../domain/customer_ledger.dart';
 import '../../sales/data/sales_repository.dart';
+import '../../sales/presentation/sale_details_bottom_sheet.dart';
+
+final _companyMembersMapProvider = StreamProvider<Map<String, CompanyMember>>((ref) {
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) return const Stream<Map<String, CompanyMember>>.empty();
+
+  final refs = ref.watch(firestoreRefsProvider);
+  return refs.members(companyId).snapshots().map((snap) {
+    final map = <String, CompanyMember>{};
+    for (final d in snap.docs) {
+      final m = d.data();
+      map[m.uid] = m;
+    }
+    return map;
+  });
+});
 
 class CustomerDetailPage extends ConsumerStatefulWidget {
   final String customerId;
@@ -168,20 +188,20 @@ class _CustomerDetailPageState extends ConsumerState<CustomerDetailPage> {
   }
 
   Future<void> _showEntryDetails(CustomerLedgerEntry entry) async {
+    final dateString =
+        '${entry.createdAt.day.toString().padLeft(2, '0')}.'
+        '${entry.createdAt.month.toString().padLeft(2, '0')}.'
+        '${entry.createdAt.year} '
+        '${entry.createdAt.hour.toString().padLeft(2, '0')}:'
+        '${entry.createdAt.minute.toString().padLeft(2, '0')}';
+
     final isSale = entry.type == LedgerEntryType.sale;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        final dateString =
-            '${entry.createdAt.day.toString().padLeft(2, '0')}.'
-            '${entry.createdAt.month.toString().padLeft(2, '0')}.'
-            '${entry.createdAt.year} '
-            '${entry.createdAt.hour.toString().padLeft(2, '0')}:'
-            '${entry.createdAt.minute.toString().padLeft(2, '0')}';
-
-        if (!isSale) {
+    if (!isSale) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (context) {
           return Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             child: SafeArea(
@@ -211,100 +231,50 @@ class _CustomerDetailPageState extends ConsumerState<CustomerDetailPage> {
               ),
             ),
           );
-        }
+        },
+      );
+      return;
+    }
 
-       
-            final saleId = entry.saleId;
-        final companyId = ref.read(activeCompanyIdProvider);
+    final saleId = entry.saleId;
+    if (saleId == null) return;
 
-        return FutureBuilder(
-          future: saleId == null || companyId == null
-              ? Future.value(null)
-              : ref.read(salesRepositoryProvider).getSaleById(companyId, saleId),
-          builder: (context, snapshot) {
-            final sale = snapshot.data as dynamic;
+    final companyId = ref.read(activeCompanyIdProvider);
+    if (companyId == null) return;
 
-            final hasItems =
-                sale != null && sale.items is List && sale.items.isNotEmpty;
+    final sale = await ref.read(salesRepositoryProvider).getSaleById(companyId, saleId);
 
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Satış Detayı',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Tarih: $dateString'),
-                    const SizedBox(height: 4),
-                    Text('Tutar: ${formatMoney(entry.amount)}'),
-                    const SizedBox(height: 8),
-                    if (!hasItems)
-                      const Text(
-                        'Bu satış için ürün kalemleri eski kayıtlar için yok.',
-                        style: TextStyle(color: Colors.grey),
-                      )
-                    else ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Ara Toplam: ${formatMoney(sale.subtotal)}',
-                      ),
-                      Text(
-                        'İndirim: -${formatMoney(sale.discount)}',
-                      ),
-                      Text(
-                        'KDV: ${formatMoney(sale.vat)}',
-                      ),
-                      Text(
-                        'Toplam: ${formatMoney(sale.total)}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Ürünler',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Flexible(
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: sale.items.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final item = sale.items[index];
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(item.productName),
-                              subtitle: Text(
-                                '${item.quantity} x ${formatMoney(item.unitPrice)}',
-                              ),
-                              trailing: Text(
-                                formatMoney(item.lineTotal),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+    if (!mounted) return;
+
+    if (sale == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Satış bulunamadı'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final currentUser = ref.read(currentUserProvider);
+    final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
+
+    final membersMap = ref.read(_companyMembersMapProvider).asData?.value ?? const <String, CompanyMember>{};
+    final createdByLabel = membersMap[sale.meta.createdBy]?.displayName.trim().isNotEmpty == true
+        ? membersMap[sale.meta.createdBy]!.displayName
+        : sale.meta.createdBy;
+
+    final customerLabel = _controller?.value.customer.name ?? 'Cari';
+
+    await showSaleDetailsBottomSheet(
+      context,
+      ref,
+      sale,
+      customerLabel: customerLabel,
+      createdByLabel: createdByLabel,
+      canEdit: isAdmin,
+      canCancel: isAdmin,
     );
   }
 
