@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/config/app_settings.dart';
+import '../../../core/config/customer_statement_range_preset.dart';
 
 import '../../auth/domain/current_user_provider.dart';
 import '../../auth/domain/user.dart';
@@ -321,6 +322,64 @@ class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
                           ),
                         ),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Müşteri Ekstresi Varsayılan Tarih Aralığı',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Ekstre ekranı açıldığında tarih alanları bu seçime göre otomatik gelir.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<CustomerStatementRangePreset>(
+                      value: draft.customerStatementRangePreset,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: CustomerStatementRangePreset.weekly,
+                          child: Text('Haftalık (Pazartesi → bugün)'),
+                        ),
+                        DropdownMenuItem(
+                          value: CustomerStatementRangePreset.monthly,
+                          child: Text('Aylık (Ay başı → bugün)'),
+                        ),
+                        DropdownMenuItem(
+                          value: CustomerStatementRangePreset.yearly,
+                          child: Text('Yıllık (Yıl başı → bugün)'),
+                        ),
+                        DropdownMenuItem(
+                          value: CustomerStatementRangePreset.allTime,
+                          child: Text('Tüm zamanlar (01.01.2020 → bugün)'),
+                        ),
+                      ],
+                      onChanged: !isAdmin
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setState(() {
+                                _dirty = true;
+                                _draft = draft.copyWith(
+                                  customerStatementRangePreset: value,
+                                );
+                              });
+                            },
                     ),
                   ],
                 ),
