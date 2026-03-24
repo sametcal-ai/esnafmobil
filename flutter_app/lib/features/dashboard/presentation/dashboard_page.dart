@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/config/app_settings.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../auth/domain/user.dart';
@@ -32,6 +33,7 @@ class DashboardPage extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider);
     final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
 
+    final settings = ref.watch(appSettingsProvider);
     final companyId = ref.watch(activeCompanyIdProvider);
 
     final menuCards = <_DashboardCard>[
@@ -110,15 +112,20 @@ class DashboardPage extends ConsumerWidget {
           double weeklyTotal = 0;
           double monthlyTotal = 0;
 
-          for (final s in sales) {
-            if (s.createdAt.isAfter(dayStart) || s.createdAt.isAtSameMomentAs(dayStart)) {
-              dailyTotal += s.total;
-            }
-            if (s.createdAt.isAfter(weekStart) || s.createdAt.isAtSameMomentAs(weekStart)) {
-              weeklyTotal += s.total;
-            }
-            if (s.createdAt.isAfter(monthStart) || s.createdAt.isAtSameMomentAs(monthStart)) {
-              monthlyTotal += s.total;
+          if (settings.showSalesMetrics) {
+            for (final s in sales) {
+              if (s.createdAt.isAfter(dayStart) ||
+                  s.createdAt.isAtSameMomentAs(dayStart)) {
+                dailyTotal += s.total;
+              }
+              if (s.createdAt.isAfter(weekStart) ||
+                  s.createdAt.isAtSameMomentAs(weekStart)) {
+                weeklyTotal += s.total;
+              }
+              if (s.createdAt.isAfter(monthStart) ||
+                  s.createdAt.isAtSameMomentAs(monthStart)) {
+                monthlyTotal += s.total;
+              }
             }
           }
 
@@ -141,32 +148,35 @@ class DashboardPage extends ConsumerWidget {
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _SalesMetricCard(
-                                  title: 'Günlük',
-                                  value: dailyTotal,
+                          if (settings.showSalesMetrics) ...[
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _SalesMetricCard(
+                                    title: 'Günlük',
+                                    value: dailyTotal,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _SalesMetricCard(
-                                  title: 'Haftalık',
-                                  value: weeklyTotal,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _SalesMetricCard(
+                                    title: 'Haftalık',
+                                    value: weeklyTotal,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _SalesMetricCard(
-                                  title: 'Aylık',
-                                  value: monthlyTotal,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _SalesMetricCard(
+                                    title: 'Aylık',
+                                    value: monthlyTotal,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                          ] else
+                            const SizedBox(height: 12),
                           InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () => context.pushNamed('sales_list'),
