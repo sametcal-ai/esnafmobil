@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/config/money_formatter.dart';
+import '../../../core/config/app_settings.dart';
+import '../../../core/config/customer_statement_range_preset.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../../../core/firestore/firestore_refs.dart';
@@ -60,6 +62,25 @@ class _CustomerStatementPageState
   double _previousBalance = 0;
   List<CustomerLedgerEntry> _entries = const [];
 
+  DateTime _defaultStartDate(
+    DateTime now, {
+    required CustomerStatementRangePreset preset,
+  }) {
+    final dayStart = DateTime(now.year, now.month, now.day);
+
+    switch (preset) {
+      case CustomerStatementRangePreset.weekly:
+        final diff = dayStart.weekday - DateTime.monday;
+        return dayStart.subtract(Duration(days: diff));
+      case CustomerStatementRangePreset.monthly:
+        return DateTime(now.year, now.month, 1);
+      case CustomerStatementRangePreset.yearly:
+        return DateTime(now.year, 1, 1);
+      case CustomerStatementRangePreset.allTime:
+        return DateTime(2020, 1, 1);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -93,10 +114,16 @@ class _CustomerStatementPageState
 
     setState(() {
       _customer = customer;
+
+      final settings = ref.read(appSettingsProvider);
       final now = DateTime.now();
+
       _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-      _startDate = DateTime(now.year, now.month, now.day)
-          .subtract(const Duration(days: 30));
+      _startDate = _defaultStartDate(
+        now,
+        preset: settings.customerStatementRangePreset,
+      );
+
       _loading = false;
     });
 

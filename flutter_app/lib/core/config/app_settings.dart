@@ -10,6 +10,7 @@ import '../../features/company/domain/active_company_provider.dart';
 import '../../features/company/domain/company_memberships_provider.dart';
 import '../firestore/firestore_refs.dart';
 import 'product_search_type.dart';
+import 'customer_statement_range_preset.dart';
 
 @immutable
 class AppSettings {
@@ -30,6 +31,11 @@ class AppSettings {
   /// "api" | "scrap"
   final ProductSearchType productSearchType;
 
+  /// Müşteri ekstresi ekranı açıldığında varsayılan tarih aralığı.
+  /// companies/<id>/settings/system altındaki customerStatementRangePreset alanından okunur.
+  /// "weekly" | "monthly" | "yearly" | "all_time"
+  final CustomerStatementRangePreset customerStatementRangePreset;
+
   const AppSettings({
     required this.barcodeScanDelaySeconds,
     required this.defaultMarginPercent,
@@ -38,6 +44,7 @@ class AppSettings {
     required this.movementsPageSize,
     required this.showSalesMetrics,
     required this.productSearchType,
+    required this.customerStatementRangePreset,
   });
 
   factory AppSettings.initial() {
@@ -50,6 +57,7 @@ class AppSettings {
       movementsPageSize: 25,
       showSalesMetrics: true,
       productSearchType: ProductSearchType.api,
+      customerStatementRangePreset: CustomerStatementRangePreset.weekly,
     );
   }
 
@@ -69,6 +77,9 @@ class AppSettings {
       showSalesMetrics: (map['showSalesMetrics'] as bool?) ?? initial.showSalesMetrics,
       productSearchType:
           productSearchTypeFromString(map['productSearchType']?.toString()),
+      customerStatementRangePreset: customerStatementRangePresetFromString(
+        map['customerStatementRangePreset']?.toString(),
+      ),
     );
   }
 
@@ -81,6 +92,9 @@ class AppSettings {
       'movementsPageSize': movementsPageSize,
       'showSalesMetrics': showSalesMetrics,
       'productSearchType': productSearchTypeToString(productSearchType),
+      'customerStatementRangePreset': customerStatementRangePresetToString(
+        customerStatementRangePreset,
+      ),
     };
   }
 
@@ -92,6 +106,7 @@ class AppSettings {
     int? movementsPageSize,
     bool? showSalesMetrics,
     ProductSearchType? productSearchType,
+    CustomerStatementRangePreset? customerStatementRangePreset,
   }) {
     return AppSettings(
       barcodeScanDelaySeconds:
@@ -103,6 +118,8 @@ class AppSettings {
       movementsPageSize: movementsPageSize ?? this.movementsPageSize,
       showSalesMetrics: showSalesMetrics ?? this.showSalesMetrics,
       productSearchType: productSearchType ?? this.productSearchType,
+      customerStatementRangePreset:
+          customerStatementRangePreset ?? this.customerStatementRangePreset,
     );
   }
 
@@ -115,7 +132,8 @@ class AppSettings {
         other.searchFilterMinChars == searchFilterMinChars &&
         other.movementsPageSize == movementsPageSize &&
         other.showSalesMetrics == showSalesMetrics &&
-        other.productSearchType == productSearchType;
+        other.productSearchType == productSearchType &&
+        other.customerStatementRangePreset == customerStatementRangePreset;
   }
 
   @override
@@ -127,6 +145,7 @@ class AppSettings {
         movementsPageSize,
         showSalesMetrics,
         productSearchType,
+        customerStatementRangePreset,
       );
 }
 
