@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/models/auditable.dart';
+import '../../../core/scanner/barcode_normalizer.dart';
 import '../../auth/domain/current_user_provider.dart';
 import '../domain/product.dart';
 
@@ -106,15 +107,38 @@ class ProductRepository {
     final trimmed = barcode.trim();
     if (trimmed.isEmpty) return null;
 
-    final snap = await _refs
-        .productsRef(companyId)
-        .where('barcode', isEqualTo: trimmed)
-        .limit(1)
-        .get();
+    final normalized = normalizeBarcode(trimmed);
 
-    if (snap.docs.isEmpty) return null;
-    final product = snap.docs.first.data();
-    return product.meta.isDeleted ? null : product;
+    final candidates = <String>{trimmed};
+    if (normalized.isNotEmpty) {
+      candidates.add(normalized);
+
+      // Some scanners emit UPC-A (12) while the DB stores EAN-13 (leading 0),
+      // or vice-versa.
+      if (normalized.length == 13 && normalized.startsWith('0')) {
+        candidates.add(normalized.substring(1));
+      }
+      if (normalized.length == 12) {
+        candidates.add('0$normalized');
+      }
+    }
+
+    for (final candidate in candidates) {
+      final snap = await _refs
+          .productsRef(companyId)
+          .where('barcode', isEqualTo: candidate)
+          .limit(5)
+          .get();
+
+      if (snap.docs.isEmpty) continue;
+
+      for (final doc in snap.docs) {
+        final product = doc.data();
+        if (!product.meta.isDeleted) return product;
+      }
+    }
+
+    return null;
   }
 
   Future<Product> createProduct({
@@ -144,7 +168,7 @@ class ProductRepository {
       id: id,
       name: name,
       brand: brand,
-      barcode: barcode,
+      barcode: normalizeBarcode(barcode),
       imageUrl: imageUrl,
       tags: tags,
       stockQuantity: stockQuantity,
@@ -185,6 +209,7 @@ class ProductRepository {
     // lastPurchasePrice ve salePrice alanları fiyat listesinden türetilen
     // read-only cache olarak kabul edilir. Client update'lerinde korunur.
     final updated = product.copyWith(
+      barcode: normalizeBarcode(product.barcode),
       stockQuantity: existing.stockQuantity,
       lastPurchasePrice: existing.lastPurchasePrice,
       salePrice: existing.salePrice,
