@@ -2,12 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/money_formatter.dart';
+import '../../../core/firestore/firestore_refs.dart';
+import '../../../core/firestore/models/company_member.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
+import '../../auth/domain/user.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../data/customer_ledger_repository.dart';
 import '../data/customer_repository.dart';
 import '../domain/customer.dart';
 import '../domain/customer_ledger.dart';
+
+final _companyMembersMapProvider = StreamProvider<Map<String, CompanyMember>>((ref) {
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) return const Stream<Map<String, CompanyMember>>.empty();
+
+  final refs = ref.watch(firestoreRefsProvider);
+  return refs.members(companyId).snapshots().map((snap) {
+    final map = <String, CompanyMember>{};
+    for (final d in snap.docs) {
+      final m = d.data();
+      map[m.uid] = m;
+    }
+    return map;
+  });
+});
 
 class CustomerCollectionsPage extends ConsumerStatefulWidget {
   final String customerId;
@@ -27,6 +46,14 @@ class _CustomerCollectionsPageState
 
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
+
+  String _formatDateTime(DateTime dt) {
+    return '${dt.day.toString().padLeft(2, '0')}.'
+        '${dt.month.toString().padLeft(2, '0')}.'
+        '${dt.year} '
+        '${dt.hour.toString().padLeft(2, '0')}:'
+        '${dt.minute.toString().padLeft(2, '0')}';
+  }
 
   @override
   void initState() {
@@ -211,9 +238,207 @@ class _CustomerCollectionsPageState
     );
   }
 
+  Future<void> _openEditPaymentDialog(CustomerLedgerEntry entry) async {
+    _amountController.text = entry.amount.toStringAsFixed(2).replaceAll('.', ',');
+    _noteController.text = entry.note ?? '';
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Tahsilatı Düzenle'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _amountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Tutar',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _noteController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Açıklama (opsiyonel)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('İptal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final text = _amountController.text.trim();
+                final amount = double.tryParse(text.replaceAll(',', '.'));
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Geçerli bir tutar girin'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
+
+                final companyId = ref.read(activeCompanyIdProvider);
+                final customer = _customer;
+                if (companyId == null || customer == null) return;
+
+                final note = _noteController.text.trim();
+                await ref.read(customerLedgerRepositoryProvider).updatePaymentEntry(
+                      companyId: companyId,
+                      customerId: customer.id,
+                      entry: entry,
+                      amount: amount,
+                      note: note.isEmpty ? null : note,
+                    );
+
+                if (!mounted) return;
+                Navigator.of(context).pop();
+                await _load();
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showPaymentDetails(
+    CustomerLedgerEntry entry, {
+    required String createdByLabel,
+    required bool canEdit,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Tahsilat Detayı',
+                      style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Tutar: ${formatMoney(entry.amount)}'),
+              const SizedBox(height: 4),
+              Text('Açıklama: ${entry.note ?? '-'}'),
+              const SizedBox(height: 4),
+              Text('Kullanıcı: $createdByLabel'),
+              const SizedBox(height: 4),
+              Text('Tarih: ${_formatDateTime(entry.createdAt)}'),
+              const SizedBox(height: 16),
+              if (canEdit) ...[
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    _openEditPaymentDialog(entry);
+                  },
+                  child: const Text('Tahsilatı Düzenle'),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonal(
+                  style: FilledButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                  ),
+                  onPressed: () async {
+                    final navigator = Navigator.of(ctx);
+
+                    final confirmed = await showDialog<bool>(
+                      context: ctx,
+                      builder: (context) {
+                        return AlertDialog(
+                          title: const Text('Tahsilatı sil'),
+                          content: const Text(
+                            'Bu tahsilat silinecek. Bu işlem geri alınamaz. Devam edilsin mi?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Vazgeç'),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade700,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('Sil'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+
+                    if (confirmed != true) return;
+
+                    final companyId = ref.read(activeCompanyIdProvider);
+                    final customer = _customer;
+                    if (companyId == null || customer == null) return;
+
+                    await ref.read(customerLedgerRepositoryProvider).softDeleteEntry(
+                          companyId: companyId,
+                          customerId: customer.id,
+                          entry: entry,
+                        );
+
+                    if (!ctx.mounted) return;
+                    navigator.pop();
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Tahsilat silindi'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    await _load();
+                  },
+                  child: const Text('Tahsilatı Sil'),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final customer = _customer;
+    final currentUser = ref.watch(currentUserProvider);
+    final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
+
+    final membersAsync = ref.watch(_companyMembersMapProvider);
+    final membersMap = membersAsync.asData?.value ?? const <String, CompanyMember>{};
 
     return AppScaffold(
       title: customer?.name ?? 'Tahsilatlar',
@@ -233,12 +458,11 @@ class _CustomerCollectionsPageState
                               const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final entry = _payments[index];
-                            final dateString =
-                                '${entry.createdAt.day.toString().padLeft(2, '0')}.'
-                                '${entry.createdAt.month.toString().padLeft(2, '0')}.'
-                                '${entry.createdAt.year} '
-                                '${entry.createdAt.hour.toString().padLeft(2, '0')}:'
-                                '${entry.createdAt.minute.toString().padLeft(2, '0')}';
+                            final dateString = _formatDateTime(entry.createdAt);
+
+                            final createdByLabel = membersMap[entry.meta.createdBy]?.displayName.trim().isNotEmpty == true
+                                ? membersMap[entry.meta.createdBy]!.displayName
+                                : entry.meta.createdBy;
 
                             return Card(
                               child: ListTile(
@@ -247,6 +471,13 @@ class _CustomerCollectionsPageState
                                   entry.note ?? 'Tahsilat',
                                 ),
                                 trailing: Text(dateString),
+                                onTap: () async {
+                                  await _showPaymentDetails(
+                                    entry,
+                                    createdByLabel: createdByLabel,
+                                    canEdit: isAdmin,
+                                  );
+                                },
                               ),
                             );
                           },

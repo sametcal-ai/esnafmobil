@@ -179,6 +179,59 @@ class CustomerLedgerRepository {
         .toList(growable: false);
   }
 
+  Future<void> updatePaymentEntry({
+    required String companyId,
+    required String customerId,
+    required CustomerLedgerEntry entry,
+    required double amount,
+    String? note,
+    String? currentUserId,
+  }) async {
+    if (entry.type != LedgerEntryType.payment) {
+      throw StateError('Only payment entries can be updated');
+    }
+
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    final nextMeta = entry.meta.touch(
+      modifiedBy: actor,
+      bumpVersion: true,
+      now: now,
+    );
+
+    await _refs.customerLedger(companyId, customerId).doc(entry.id).set(
+      {
+        'amount': amount,
+        'note': note,
+        ...nextMeta.toMap(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> softDeleteEntry({
+    required String companyId,
+    required String customerId,
+    required CustomerLedgerEntry entry,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    final deleted = entry.meta.softDelete(
+      modifiedBy: actor,
+      now: now,
+    );
+
+    await _refs.customerLedger(companyId, customerId).doc(entry.id).set(
+      {
+        ...deleted.toMap(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<int> softDeleteEntriesBySaleId({
     required String companyId,
     required String customerId,
