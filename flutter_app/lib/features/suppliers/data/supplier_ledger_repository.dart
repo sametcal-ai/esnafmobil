@@ -161,6 +161,59 @@ class SupplierLedgerRepository {
         .where((e) => !e.createdAt.isBefore(start) && !e.createdAt.isAfter(end))
         .toList(growable: false);
   }
+
+  Future<void> updatePaymentEntry({
+    required String companyId,
+    required String supplierId,
+    required SupplierLedgerEntry entry,
+    required double amount,
+    String? note,
+    String? currentUserId,
+  }) async {
+    if (entry.type != SupplierLedgerEntryType.payment) {
+      throw StateError('Only payment entries can be updated');
+    }
+
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    final nextMeta = entry.meta.touch(
+      modifiedBy: actor,
+      bumpVersion: true,
+      now: now,
+    );
+
+    await _refs.supplierLedger(companyId, supplierId).doc(entry.id).set(
+      {
+        'amount': amount,
+        'note': note,
+        ...nextMeta.toMap(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> softDeleteEntry({
+    required String companyId,
+    required String supplierId,
+    required SupplierLedgerEntry entry,
+    String? currentUserId,
+  }) async {
+    final actor = _requireActor(currentUserId);
+    final now = DateTime.now();
+
+    final deleted = entry.meta.softDelete(
+      modifiedBy: actor,
+      now: now,
+    );
+
+    await _refs.supplierLedger(companyId, supplierId).doc(entry.id).set(
+      {
+        ...deleted.toMap(),
+      },
+      SetOptions(merge: true),
+    );
+  }
 }
 
 final supplierLedgerRepositoryProvider = Provider<SupplierLedgerRepository>((ref) {
