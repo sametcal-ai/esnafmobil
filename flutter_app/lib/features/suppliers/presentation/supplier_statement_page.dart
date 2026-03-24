@@ -69,7 +69,8 @@ class _SupplierStatementPageState
       _supplier = supplier;
       final now = DateTime.now();
       _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-      _startDate = _endDate!.subtract(const Duration(days: 30));
+      _startDate = DateTime(now.year, now.month, now.day)
+          .subtract(const Duration(days: 30));
       _loading = false;
     });
 
