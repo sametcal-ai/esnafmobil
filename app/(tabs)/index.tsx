@@ -1,13 +1,23 @@
 import { Image } from 'expo-image';
 import React, { useMemo } from 'react';
-import { FlatList, Platform, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useAuth } from '@/context/AuthContext';
 import type { DashboardMetrics, ProductSalesSummary } from '@/domain/reports';
 import type { StockSnapshot } from '@/domain/inventory';
+
+function formatTry(value: number): string {
+  const n = Number.isFinite(value) ? value : 0;
+  const formatted = n.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${formatted} tl`;
+}
 
 /**
  * In a real app these would come from your offline data store + sync layer.
@@ -29,6 +39,8 @@ const mockDashboard: DashboardMetrics = {
 
 export default function HomeScreen() {
   const metrics = mockDashboard;
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
 
   const bestSellers = useMemo(
     () => metrics.bestSellingProducts.slice(0, 5),
@@ -51,7 +63,7 @@ export default function HomeScreen() {
 
       {/* Top-level KPIs */}
       <ThemedView style={styles.kpiRow}>
-        <KpiCard label="Total Sales" value={metrics.totalRevenue} />
+        {isAdmin ? <KpiCard label="Total Sales" value={metrics.totalRevenue} /> : null}
         <KpiCard label="Total Profit" value={metrics.totalProfit} />
       </ThemedView>
 
@@ -86,7 +98,7 @@ function KpiCard({ label, value }: { label: string; value: number }) {
   return (
     <View style={styles.kpiCard}>
       <ThemedText type="subtitle">{label}</ThemedText>
-      <ThemedText type="title">{value.toFixed(2)}</ThemedText>
+      <ThemedText type="title">{formatTry(value)}</ThemedText>
     </View>
   );
 }
@@ -99,10 +111,8 @@ function BestSellerRow({ product }: { product: ProductSalesSummary }) {
         <ThemedText>{product.quantitySold} units sold</ThemedText>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <ThemedText type="defaultSemiBold">
-          {product.revenue.toFixed(2)}
-        </ThemedText>
-        <ThemedText>Profit {product.profit.toFixed(2)}</ThemedText>
+        <ThemedText type="defaultSemiBold">{formatTry(product.revenue)}</ThemedText>
+        <ThemedText>Profit {formatTry(product.profit)}</ThemedText>
       </View>
     </View>
   );
