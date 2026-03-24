@@ -146,7 +146,7 @@ Future<void> showSaleDetailsBottomSheet(
               FilledButton(
                 onPressed: () {
                   Navigator.of(ctx).pop();
-                  context.goNamed(
+                  context.pushNamed(
                     'sale_edit',
                     extra: SaleEditArgs(sale: sale),
                   );
