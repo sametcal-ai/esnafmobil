@@ -93,10 +93,15 @@ class _CustomerStatementPageState
 
     setState(() {
       _customer = customer;
+
       final now = DateTime.now();
       _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-      _startDate = DateTime(now.year, now.month, now.day)
-          .subtract(const Duration(days: 30));
+
+      // Varsayılan tarih aralığı: içinde bulunduğumuz hafta (Pazartesi başlangıç)
+      final dayStart = DateTime(now.year, now.month, now.day);
+      final diff = dayStart.weekday - DateTime.monday;
+      _startDate = dayStart.subtract(Duration(days: diff));
+
       _loading = false;
     });
 
