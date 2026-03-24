@@ -10,13 +10,33 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/config/money_formatter.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../company/domain/active_company_provider.dart';
+import '../../../core/firestore/firestore_refs.dart';
+import '../../../core/firestore/models/company_member.dart';
+import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
+import '../../auth/domain/user.dart';
 import '../../sales/data/sales_repository.dart';
+import '../../sales/presentation/sale_details_bottom_sheet.dart';
 import '../data/customer_ledger_repository.dart';
 import '../data/customer_repository.dart';
 import '../data/customer_statement_pdf_service.dart';
 import '../domain/customer.dart';
+
 import '../domain/customer_ledger.dart';
-import '../domain/customer_controller.dart';
+
+final _companyMembersMapProvider = StreamProvider<Map<String, CompanyMember>>((ref) {
+  final companyId = ref.watch(activeCompanyIdProvider);
+  if (companyId == null) return const Stream<Map<String, CompanyMember>>.empty();
+
+  final refs = ref.watch(firestoreRefsProvider);
+  return refs.members(companyId).snapshots().map((snap) {
+    final map = <String, CompanyMember>{};
+    for (final d in snap.docs) {
+      final m = d.data();
+      map[m.uid] = m;
+    }
+    return map;
+  });
+});
 
 class CustomerStatementPage extends ConsumerStatefulWidget {
   final String customerId;
@@ -274,6 +294,10 @@ class _CustomerStatementPageState
   Widget build(BuildContext context) {
     final customer = _customer;
 
+    final currentUser = ref.watch(currentUserProvider);
+    final isAdmin = currentUser != null && currentUser.role == UserRole.admin;
+    final membersAsync = ref.watch(_companyMembersMapProvider);
+
     return AppScaffold(
       title: customer == null ? 'Ekstre' : '${customer.name} - Ekstre',
       actions: [
@@ -403,6 +427,47 @@ class _CustomerStatementPageState
                                     trailing: Text(
                                       isSale ? 'Satış' : 'Tahsilat',
                                     ),
+                                    onTap: !isSale
+                                        ? null
+                                        : () async {
+                                            final saleId = entry.saleId;
+                                            if (saleId == null) return;
+
+                                            final companyId = ref.read(activeCompanyIdProvider);
+                                            if (companyId == null) return;
+
+                                            final sale = await ref
+                                                .read(salesRepositoryProvider)
+                                                .getSaleById(companyId, saleId);
+
+                                            if (!mounted) return;
+
+                                            if (sale == null) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Satış bulunamadı'),
+                                                  behavior: SnackBarBehavior.floating,
+                                                  duration: Duration(seconds: 2),
+                                                ),
+                                              );
+                                              return;
+                                            }
+
+                                            final membersMap = membersAsync.asData?.value ?? const <String, CompanyMember>{};
+                                            final createdByLabel = membersMap[sale.meta.createdBy]?.displayName.trim().isNotEmpty == true
+                                                ? membersMap[sale.meta.createdBy]!.displayName
+                                                : sale.meta.createdBy;
+
+                                            await showSaleDetailsBottomSheet(
+                                              context,
+                                              ref,
+                                              sale,
+                                              customerLabel: customer?.name ?? 'Cari',
+                                              createdByLabel: createdByLabel,
+                                              canEdit: isAdmin,
+                                              canCancel: isAdmin,
+                                            );
+                                          },
                                   ),
                                 );
                               },
