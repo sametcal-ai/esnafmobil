@@ -22,6 +22,9 @@ class AppSettings {
   /// Müşteri/ürün hareket listelerinde sayfa başına kayıt sayısı.
   final int movementsPageSize;
 
+  /// Ana sayfadaki satışlar kartında günlük/haftalık/aylık özetleri göster.
+  final bool showSalesMetrics;
+
   /// Ürün bilgi arama yöntemi.
   /// companies/<id>/settings/system altındaki productSearchType alanından okunur.
   /// "api" | "scrap"
@@ -33,6 +36,7 @@ class AppSettings {
     required this.productDefaultMarginPercent,
     required this.searchFilterMinChars,
     required this.movementsPageSize,
+    required this.showSalesMetrics,
     required this.productSearchType,
   });
 
@@ -44,6 +48,7 @@ class AppSettings {
       searchFilterMinChars: 2,
       // Hareket listesi varsayılanı: 25 (5,10,15,...,100 aralığında bir değer)
       movementsPageSize: 25,
+      showSalesMetrics: true,
       productSearchType: ProductSearchType.api,
     );
   }
@@ -61,6 +66,7 @@ class AppSettings {
           (map['searchFilterMinChars'] as num?)?.toInt() ?? initial.searchFilterMinChars,
       movementsPageSize:
           (map['movementsPageSize'] as num?)?.toInt() ?? initial.movementsPageSize,
+      showSalesMetrics: (map['showSalesMetrics'] as bool?) ?? initial.showSalesMetrics,
       productSearchType:
           productSearchTypeFromString(map['productSearchType']?.toString()),
     );
@@ -73,6 +79,7 @@ class AppSettings {
       'productDefaultMarginPercent': productDefaultMarginPercent,
       'searchFilterMinChars': searchFilterMinChars,
       'movementsPageSize': movementsPageSize,
+      'showSalesMetrics': showSalesMetrics,
       'productSearchType': productSearchTypeToString(productSearchType),
     };
   }
@@ -83,6 +90,7 @@ class AppSettings {
     double? productDefaultMarginPercent,
     int? searchFilterMinChars,
     int? movementsPageSize,
+    bool? showSalesMetrics,
     ProductSearchType? productSearchType,
   }) {
     return AppSettings(
@@ -93,6 +101,7 @@ class AppSettings {
           productDefaultMarginPercent ?? this.productDefaultMarginPercent,
       searchFilterMinChars: searchFilterMinChars ?? this.searchFilterMinChars,
       movementsPageSize: movementsPageSize ?? this.movementsPageSize,
+      showSalesMetrics: showSalesMetrics ?? this.showSalesMetrics,
       productSearchType: productSearchType ?? this.productSearchType,
     );
   }
@@ -105,6 +114,7 @@ class AppSettings {
         other.productDefaultMarginPercent == productDefaultMarginPercent &&
         other.searchFilterMinChars == searchFilterMinChars &&
         other.movementsPageSize == movementsPageSize &&
+        other.showSalesMetrics == showSalesMetrics &&
         other.productSearchType == productSearchType;
   }
 
@@ -115,6 +125,7 @@ class AppSettings {
         productDefaultMarginPercent,
         searchFilterMinChars,
         movementsPageSize,
+        showSalesMetrics,
         productSearchType,
       );
 }

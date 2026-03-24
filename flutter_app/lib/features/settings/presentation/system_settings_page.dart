@@ -241,6 +241,43 @@ class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
+                      'Ana Sayfa Satış Özetleri',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Ana menüdeki Satışlar kartında günlük/haftalık/aylık toplamları göster.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Göster'),
+                      value: draft.showSalesMetrics,
+                      onChanged: isAdmin
+                          ? (value) {
+                              setState(() {
+                                _dirty = true;
+                                _draft = draft.copyWith(
+                                  showSalesMetrics: value,
+                                );
+                              });
+                            }
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
                       'Hareket Listesi Kayıt Sayısı',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
