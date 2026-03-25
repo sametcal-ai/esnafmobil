@@ -22,7 +22,7 @@ String paymentMethodLabel(String method) {
   }
 }
 
-Future<void> showSaleDetailsBottomSheet(
+Future<bool> showSaleDetailsBottomSheet(
   BuildContext context,
   WidgetRef ref,
   Sale sale, {
@@ -31,7 +31,7 @@ Future<void> showSaleDetailsBottomSheet(
   required bool canEdit,
   required bool canCancel,
 }) async {
-  await showModalBottomSheet<void>(
+  final updated = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -53,7 +53,7 @@ Future<void> showSaleDetailsBottomSheet(
                   ),
                 ),
                 IconButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
+                  onPressed: () => Navigator.of(ctx).pop(false),
                   icon: const Icon(Icons.close),
                 ),
               ],
@@ -144,12 +144,15 @@ Future<void> showSaleDetailsBottomSheet(
             const SizedBox(height: 16),
             if (canEdit)
               FilledButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  context.pushNamed(
+                onPressed: () async {
+                  final result = await ctx.pushNamed(
                     'sale_edit',
                     extra: SaleEditArgs(sale: sale),
                   );
+
+                  if (!ctx.mounted) return;
+
+                  Navigator.of(ctx).pop(result == true);
                 },
                 child: const Text('Satışı Düzenle'),
               ),
@@ -211,7 +214,7 @@ Future<void> showSaleDetailsBottomSheet(
                     return;
                   }
 
-                  navigator.pop();
+                  navigator.pop(true);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Satış iptal edildi'),
@@ -228,4 +231,6 @@ Future<void> showSaleDetailsBottomSheet(
       );
     },
   );
+
+  return updated == true;
 }

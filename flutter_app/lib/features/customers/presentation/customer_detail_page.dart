@@ -267,7 +267,7 @@ class _CustomerDetailPageState extends ConsumerState<CustomerDetailPage> {
 
     final customerLabel = _controller?.value.customer.name ?? 'Cari';
 
-    await showSaleDetailsBottomSheet(
+    final updated = await showSaleDetailsBottomSheet(
       context,
       ref,
       sale,
@@ -276,6 +276,10 @@ class _CustomerDetailPageState extends ConsumerState<CustomerDetailPage> {
       canEdit: isAdmin,
       canCancel: isAdmin,
     );
+
+    if (updated) {
+      await _controller?.refresh();
+    }
   }
 
   @override
