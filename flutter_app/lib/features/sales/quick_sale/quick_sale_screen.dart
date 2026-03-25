@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_beep/flutter_beep.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/scanner/barcode_scanner_view.dart';
 import '../../../core/config/money_formatter.dart';
@@ -721,6 +722,12 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                           duration: Duration(seconds: 2),
                         ),
                       );
+
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.goNamed('sales_list');
+                      }
 
                       return;
                     }
