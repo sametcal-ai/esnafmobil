@@ -420,25 +420,51 @@ class _CustomerCollectionsPageState
                     final confirmed = await showDialog<bool>(
                       context: ctx,
                       builder: (context) {
-                        return AlertDialog(
-                          title: const Text('Tahsilatı sil'),
-                          content: const Text(
-                            'Bu tahsilat silinecek. Bu işlem geri alınamaz. Devam edilsin mi?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text('Vazgeç'),
-                            ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade700,
-                                foregroundColor: Colors.white,
+                        var isDeleting = false;
+
+                        return StatefulBuilder(
+                          builder: (context, setDialogState) {
+                            return AlertDialog(
+                              title: const Text('Tahsilatı sil'),
+                              content: const Text(
+                                'Bu tahsilat silinecek. Bu işlem geri alınamaz. Devam edilsin mi?',
                               ),
-                              onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text('Sil'),
-                            ),
-                          ],
+                              actions: [
+                                TextButton(
+                                  onPressed: isDeleting
+                                      ? null
+                                      : () => Navigator.of(context).pop(false),
+                                  child: const Text('Vazgeç'),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red.shade700,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: isDeleting
+                                      ? null
+                                      : () {
+                                          setDialogState(() {
+                                            isDeleting = true;
+                                          });
+                                          Navigator.of(context).pop(true);
+                                        },
+                                  child: isDeleting
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.25,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    Colors.white),
+                                          ),
+                                        )
+                                      : const Text('Sil'),
+                                ),
+                              ],
+                            );
+                          },
                         );
                       },
                     );

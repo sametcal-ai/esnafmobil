@@ -431,19 +431,40 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Ödeme Sil'),
-          content: const Text('Silmek istediğinize emin misiniz?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('İptal'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Evet, Sil'),
-            ),
-          ],
+        var isDeleting = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Ödeme Sil'),
+              content: const Text('Silmek istediğinize emin misiniz?'),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () => Navigator.of(context).pop(false),
+                  child: const Text('İptal'),
+                ),
+                ElevatedButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () {
+                          setDialogState(() {
+                            isDeleting = true;
+                          });
+                          Navigator.of(context).pop(true);
+                        },
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.25),
+                        )
+                      : const Text('Evet, Sil'),
+                ),
+              ],
+            );
+          },
         );
       },
     );

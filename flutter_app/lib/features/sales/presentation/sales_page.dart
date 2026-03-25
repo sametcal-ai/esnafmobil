@@ -354,7 +354,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
                         label: 'Clear Cart',
                         isPrimary: false,
                         isExpanded: true,
-                        onPressed: posState.hasItems
+                        onPressed: posState.hasItems && !_isCompletingSale
                             ? posController.clearCart
                             : null,
                       ),
@@ -368,11 +368,13 @@ class _SalesPageState extends ConsumerState<SalesPage> {
                             : 'Hold Sale',
                         isPrimary: false,
                         isExpanded: true,
-                        onPressed: posState.hasItems
-                            ? posController.holdCurrentSale
-                            : (posState.hasHeldItems
-                                ? posController.resumeHeldSale
-                                : null),
+                        onPressed: _isCompletingSale
+                            ? null
+                            : posState.hasItems
+                                ? posController.holdCurrentSale
+                                : (posState.hasHeldItems
+                                    ? posController.resumeHeldSale
+                                    : null),
                       ),
                     ),
                     const SizedBox(width: 8),

@@ -999,28 +999,30 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                         const SizedBox(height: 12),
                         ToggleButtons(
                           isSelected: [!isSplitPayment, isSplitPayment],
-                          onPressed: (index) {
-                            setModalState(() {
-                              isSplitPayment = index == 1;
+                          onPressed: modalIsCompleting
+                              ? null
+                              : (index) {
+                                  setModalState(() {
+                                    isSplitPayment = index == 1;
 
-                              if (isSplitPayment) {
-                                splitCashEnabled = true;
-                                splitCardEnabled = false;
-                                splitCreditEnabled = false;
+                                    if (isSplitPayment) {
+                                      splitCashEnabled = true;
+                                      splitCardEnabled = false;
+                                      splitCreditEnabled = false;
 
-                                splitCardAmountController.clear();
-                                ref
-                                    .read(quickSalePaymentProvider.notifier)
-                                    .setCustomer(null);
-                                ref
-                                    .read(quickSaleCustomerQueryProvider.notifier)
-                                    .state = '';
+                                      splitCardAmountController.clear();
+                                      ref
+                                          .read(quickSalePaymentProvider.notifier)
+                                          .setCustomer(null);
+                                      ref
+                                          .read(quickSaleCustomerQueryProvider.notifier)
+                                          .state = '';
 
-                                cashReceivedController.clear();
-                                cashReceived = 0;
-                              }
-                            });
-                          },
+                                      cashReceivedController.clear();
+                                      cashReceived = 0;
+                                    }
+                                  });
+                                },
                           children: const [
                             Padding(
                               padding: EdgeInsets.symmetric(horizontal: 12),
@@ -1038,12 +1040,14 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                             value: QuickSalePaymentType.cash,
                             groupValue: paymentState.type,
                             title: const Text('Nakit'),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              ref
-                                  .read(quickSalePaymentProvider.notifier)
-                                  .setType(value);
-                            },
+                            onChanged: modalIsCompleting
+                                ? null
+                                : (value) {
+                                    if (value == null) return;
+                                    ref
+                                        .read(quickSalePaymentProvider.notifier)
+                                        .setType(value);
+                                  },
                           ),
                           if (paymentState.type == QuickSalePaymentType.cash) ...[
                             Padding(
@@ -1053,6 +1057,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                 children: [
                                   TextField(
                                     controller: cashReceivedController,
+                                    enabled: !modalIsCompleting,
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
                                       decimal: true,
@@ -1061,11 +1066,14 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                       labelText: 'Müşteriden alınan',
                                       border: OutlineInputBorder(),
                                     ),
-                                    onChanged: (value) {
-                                      setModalState(() {
-                                        cashReceived = _parseMoneyInput(value);
-                                      });
-                                    },
+                                    onChanged: modalIsCompleting
+                                        ? null
+                                        : (value) {
+                                            setModalState(() {
+                                              cashReceived =
+                                                  _parseMoneyInput(value);
+                                            });
+                                          },
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
@@ -1091,23 +1099,27 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                             value: QuickSalePaymentType.card,
                             groupValue: paymentState.type,
                             title: const Text('Kredi Kartı'),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              ref
-                                  .read(quickSalePaymentProvider.notifier)
-                                  .setType(value);
-                            },
+                            onChanged: modalIsCompleting
+                                ? null
+                                : (value) {
+                                    if (value == null) return;
+                                    ref
+                                        .read(quickSalePaymentProvider.notifier)
+                                        .setType(value);
+                                  },
                           ),
                           RadioListTile<QuickSalePaymentType>(
                             value: QuickSalePaymentType.credit,
                             groupValue: paymentState.type,
                             title: const Text('Veresiye'),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              ref
-                                  .read(quickSalePaymentProvider.notifier)
-                                  .setType(value);
-                            },
+                            onChanged: modalIsCompleting
+                                ? null
+                                : (value) {
+                                    if (value == null) return;
+                                    ref
+                                        .read(quickSalePaymentProvider.notifier)
+                                        .setType(value);
+                                  },
                           ),
                           if (paymentState.type == QuickSalePaymentType.credit) ...[
                             const SizedBox(height: 8),
@@ -1126,6 +1138,10 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                       TextEditingValue(text: draftQuery),
                                   displayStringForOption: (c) => c.name,
                                   optionsBuilder: (value) {
+                                    if (modalIsCompleting) {
+                                      return const Iterable<Customer>.empty();
+                                    }
+
                                     final query =
                                         value.text.trim().toLowerCase();
                                     if (query.isEmpty) {
@@ -1140,6 +1156,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                     });
                                   },
                                   onSelected: (customer) {
+                                    if (modalIsCompleting) return;
                                     ref
                                         .read(quickSalePaymentProvider.notifier)
                                         .setCustomer(customer);
@@ -1153,14 +1170,18 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                     return TextField(
                                       controller: textController,
                                       focusNode: focusNode,
+                                      enabled: !modalIsCompleting,
                                       autofocus: true,
                                       textInputAction: TextInputAction.done,
-                                      onChanged: (value) {
-                                        ref
-                                            .read(quickSaleCustomerQueryProvider
-                                                .notifier)
-                                            .state = value;
-                                      },
+                                      onChanged: modalIsCompleting
+                                          ? null
+                                          : (value) {
+                                              ref
+                                                  .read(
+                                                      quickSaleCustomerQueryProvider
+                                                          .notifier)
+                                                  .state = value;
+                                            },
                                       decoration: const InputDecoration(
                                         labelText: 'Müşteri ara / seç',
                                         border: OutlineInputBorder(),
@@ -1198,15 +1219,17 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                           CheckboxListTile(
                             value: splitCashEnabled,
                             title: const Text('Nakit'),
-                            onChanged: (value) {
-                              setModalState(() {
-                                splitCashEnabled = value ?? false;
-                                if (!splitCashEnabled) {
-                                  cashReceivedController.clear();
-                                  cashReceived = 0;
-                                }
-                              });
-                            },
+                            onChanged: modalIsCompleting
+                                ? null
+                                : (value) {
+                                    setModalState(() {
+                                      splitCashEnabled = value ?? false;
+                                      if (!splitCashEnabled) {
+                                        cashReceivedController.clear();
+                                        cashReceived = 0;
+                                      }
+                                    });
+                                  },
                           ),
                           if (splitCashEnabled) ...[
                             Padding(
@@ -1216,6 +1239,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                 children: [
                                   TextField(
                                     controller: cashReceivedController,
+                                    enabled: !modalIsCompleting,
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
                                       decimal: true,
@@ -1224,11 +1248,14 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                       labelText: 'Müşteriden alınan',
                                       border: OutlineInputBorder(),
                                     ),
-                                    onChanged: (value) {
-                                      setModalState(() {
-                                        cashReceived = _parseMoneyInput(value);
-                                      });
-                                    },
+                                    onChanged: modalIsCompleting
+                                        ? null
+                                        : (value) {
+                                            setModalState(() {
+                                              cashReceived =
+                                                  _parseMoneyInput(value);
+                                            });
+                                          },
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
@@ -1428,7 +1455,9 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: modalIsCompleting
+                              ? null
+                              : () => Navigator.of(context).pop(),
                           child: const Text('Vazgeç'),
                         ),
                       ],
@@ -1843,8 +1872,18 @@ class _BottomTotalsBar extends StatelessWidget {
                     backgroundColor: Colors.orange.shade600,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: canHold ? onHold : null,
-                  child: const Icon(Icons.pause),
+                  onPressed: canHold && !isCompleting ? onHold : null,
+                  child: isCompleting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.pause),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1856,7 +1895,7 @@ class _BottomTotalsBar extends StatelessWidget {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    onPressed: onClear,
+                    onPressed: isCompleting ? null : onClear,
                     child: const Text('Sepeti Temizle'),
                   ),
                 )
