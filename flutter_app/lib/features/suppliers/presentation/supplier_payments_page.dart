@@ -170,6 +170,7 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
       context: context,
       builder: (context) {
         var selectedMethod = 'Nakit';
+        var isSaving = false;
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -197,17 +198,21 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
                           ),
                         ],
                         selected: {selectedMethod},
-                        onSelectionChanged: (selection) {
-                          setDialogState(() {
-                            selectedMethod = selection.first;
-                          });
-                        },
+                        onSelectionChanged: isSaving
+                            ? null
+                            : (selection) {
+                                setDialogState(() {
+                                  selectedMethod = selection.first;
+                                });
+                              },
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _amountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      enabled: !isSaving,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Tutar',
                         border: OutlineInputBorder(),
@@ -216,6 +221,7 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _noteController,
+                      enabled: !isSaving,
                       maxLines: 2,
                       decoration: const InputDecoration(
                         labelText: 'Açıklama (opsiyonel)',
@@ -227,15 +233,29 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: isSaving ? null : () => Navigator.of(context).pop(),
                   child: const Text('İptal'),
                 ),
                 ElevatedButton(
-                  onPressed: () => _addPayment(
-                    context,
-                    selectedMethod: selectedMethod,
-                  ),
-                  child: const Text('Kaydet'),
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            isSaving = true;
+                          });
+
+                          await _addPayment(
+                            context,
+                            selectedMethod: selectedMethod,
+                          );
+
+                          if (!context.mounted) return;
+
+                          setDialogState(() {
+                            isSaving = false;
+                          });
+                        },
+                  child: Text(isSaving ? 'İşleniyor...' : 'Kaydet'),
                 ),
               ],
             );
@@ -307,6 +327,7 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
       context: context,
       builder: (context) {
         var selectedMethod = parsed.method;
+        var isSaving = false;
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -334,17 +355,21 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
                           ),
                         ],
                         selected: {selectedMethod},
-                        onSelectionChanged: (selection) {
-                          setDialogState(() {
-                            selectedMethod = selection.first;
-                          });
-                        },
+                        onSelectionChanged: isSaving
+                            ? null
+                            : (selection) {
+                                setDialogState(() {
+                                  selectedMethod = selection.first;
+                                });
+                              },
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _amountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      enabled: !isSaving,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Tutar',
                         border: OutlineInputBorder(),
@@ -353,6 +378,7 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _noteController,
+                      enabled: !isSaving,
                       maxLines: 2,
                       decoration: const InputDecoration(
                         labelText: 'Açıklama (opsiyonel)',
@@ -364,16 +390,30 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: isSaving ? null : () => Navigator.of(context).pop(),
                   child: const Text('İptal'),
                 ),
                 ElevatedButton(
-                  onPressed: () => _updatePayment(
-                    context,
-                    entry,
-                    selectedMethod: selectedMethod,
-                  ),
-                  child: const Text('Kaydet'),
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            isSaving = true;
+                          });
+
+                          await _updatePayment(
+                            context,
+                            entry,
+                            selectedMethod: selectedMethod,
+                          );
+
+                          if (!context.mounted) return;
+
+                          setDialogState(() {
+                            isSaving = false;
+                          });
+                        },
+                  child: Text(isSaving ? 'İşleniyor...' : 'Kaydet'),
                 ),
               ],
             );
