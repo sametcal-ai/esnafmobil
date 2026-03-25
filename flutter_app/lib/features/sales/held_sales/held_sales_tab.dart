@@ -19,6 +19,11 @@ class HeldSalesTab extends ConsumerWidget {
       title: 'Bekleyen Satışlar',
       body: heldSalesAsync.when(
         data: (heldSales) {
+          // Not: Karttaki satış "takeSale" ile silinince stream güncelleniyor.
+          // Eğer tek satış varsa liste boşalıyor ve item context'i unmount olabiliyor.
+          // Bu yüzden navigasyon için page context'ini kullan.
+          final pageContext = context;
+
           return heldSales.isEmpty
               ? const Center(
                   child: Text('Bekleyen satış yok'),
@@ -32,12 +37,12 @@ class HeldSalesTab extends ConsumerWidget {
                     childAspectRatio: 1.1,
                   ),
                   itemCount: heldSales.length,
-                  itemBuilder: (context, index) {
+                  itemBuilder: (itemContext, index) {
                     final sale = heldSales[index];
                     return HeldSaleCard(
                       sale: sale,
-                      onTap: () => _openSale(context, ref, sale.id),
-                      onLongPress: () => _showMenu(context, ref, sale.id),
+                      onTap: () => _openSale(pageContext, ref, sale.id),
+                      onLongPress: () => _showMenu(pageContext, ref, sale.id),
                     );
                   },
                 );
