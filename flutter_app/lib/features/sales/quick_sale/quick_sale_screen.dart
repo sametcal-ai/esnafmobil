@@ -415,330 +415,343 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
         children: [
           Column(
             children: [
-          if (!_isCameraMode) ...[
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _barcodeController,
-                      focusNode: _barcodeFocusNode,
-                      autofocus: true,
-                      onSubmitted: _onBarcodeSubmitted,
-                      textInputAction: TextInputAction.done,
-                      keyboardType: TextInputType.text,
-                      decoration: const InputDecoration(
-                        labelText: 'Barkod okut / yaz',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: _barcodeController.clear,
-                    icon: const Icon(Icons.clear),
-                    tooltip: 'Temizle',
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: productsAsync.when(
-                data: (products) {
-                  final suggestions = filterProductsForQuickSale(
-                    products,
-                    _productSearchQuery,
-                  );
-
-                  if (suggestions.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    clipBehavior: Clip.antiAlias,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 260),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: suggestions.length,
-                        separatorBuilder: (_, __) => const Divider(height: 0),
-                        itemBuilder: (context, index) {
-                          final p = suggestions[index];
-                          final subtitleParts = <String>[];
-                          if (p.brand.trim().isNotEmpty) {
-                            subtitleParts.add(p.brand.trim());
-                          }
-                          if (p.tags.isNotEmpty) {
-                            subtitleParts
-                                .add("Etiket: ${p.tags.join(', ')}");
-                          }
-                          if (p.barcode.trim().isNotEmpty) {
-                            subtitleParts.add('Barkod: ${p.barcode.trim()}');
-                          }
-
-                          return ListTile(
-                            title: Text(
-                              p.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: subtitleParts.isEmpty
-                                ? null
-                                : Text(
-                                    subtitleParts.join(' • '),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                            onTap: () => _addProductToCart(p),
-                          );
-                        },
-                      ),
-                    ),
-                  );
-                },
-                loading: () => const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: LinearProgressIndicator(),
-                ),
-                error: (_, __) => const SizedBox.shrink(),
-              ),
-            ),
-          ],
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    label: _isCameraMode ? 'Kamerayı Kapat' : 'Kameradan Oku',
-                    isPrimary: false,
-                    isExpanded: true,
-                    onPressed: () {
-                      setState(() {
-                        _isCameraMode = !_isCameraMode;
-                      });
-                      if (_isCameraMode) {
-                        FocusScope.of(context).unfocus();
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.all(12),
-              child: SizedBox(
-                height: 220,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: BarcodeScannerView(
-                    ownerId: 'quick_sale_camera',
-                    enabled: _isCameraMode,
-                    onBarcode: (value) async {
-                      if (!_isCameraMode) return;
-                      await _handleBarcode(value, fromCamera: true);
-                    },
-                  ),
-                ),
-              ),
-            ),
-            crossFadeState: _isCameraMode
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
-          ),
-          const Divider(height: 0),
-          Expanded(
-            child: posState.items.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Ürün okutun',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: posState.items.length,
-                    itemBuilder: (context, index) {
-                      final item = posState.items[index];
-                      return Dismissible(
-                        key: ValueKey(item.product.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          color: Colors.red.shade400,
-                          child: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.white,
+              if (!_isCameraMode) ...[
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _barcodeController,
+                          focusNode: _barcodeFocusNode,
+                          autofocus: true,
+                          onSubmitted: _onBarcodeSubmitted,
+                          textInputAction: TextInputAction.done,
+                          keyboardType: TextInputType.text,
+                          decoration: const InputDecoration(
+                            labelText: 'Barkod okut / yaz',
+                            border: OutlineInputBorder(),
                           ),
                         ),
-                        onDismissed: (_) => posController.removeItem(item),
-                        child: Card(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          child: ListTile(
-                            title: Text(
-                              item.product.name,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: item.product.missingPriceListPrice
-                                    ? Colors.red.shade700
-                                    : null,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${item.quantity} x ${formatMoney(item.product.unitPrice)} = ${formatMoney(item.lineTotal)}',
-                              style: item.product.missingPriceListPrice
-                                  ? TextStyle(color: Colors.red.shade700)
-                                  : null,
-                            ),
-                            trailing: SizedBox(
-                              width: 170,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                        Icons.remove_circle_outline),
-                                    iconSize: 28,
-                                    onPressed: () =>
-                                        posController.decrementItem(item),
-                                  ),
-                                  Text(
-                                    item.quantity.toString(),
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add_circle_outline),
-                                    iconSize: 28,
-                                    onPressed: () =>
-                                        posController.incrementItem(item),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            onLongPress: () => posController.removeItem(item),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: _barcodeController.clear,
+                        icon: const Icon(Icons.clear),
+                        tooltip: 'Temizle',
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: productsAsync.when(
+                    data: (products) {
+                      final suggestions = filterProductsForQuickSale(
+                        products,
+                        _productSearchQuery,
+                      );
+
+                      if (suggestions.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        clipBehavior: Clip.antiAlias,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 260),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: suggestions.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 0),
+                            itemBuilder: (context, index) {
+                              final p = suggestions[index];
+                              final subtitleParts = <String>[];
+                              if (p.brand.trim().isNotEmpty) {
+                                subtitleParts.add(p.brand.trim());
+                              }
+                              if (p.tags.isNotEmpty) {
+                                subtitleParts
+                                    .add("Etiket: ${p.tags.join(', ')}");
+                              }
+                              if (p.barcode.trim().isNotEmpty) {
+                                subtitleParts.add(
+                                  'Barkod: ${p.barcode.trim()}',
+                                );
+                              }
+
+                              return ListTile(
+                                title: Text(
+                                  p.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: subtitleParts.isEmpty
+                                    ? null
+                                    : Text(
+                                        subtitleParts.join(' • '),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                onTap: () => _addProductToCart(p),
+                              );
+                            },
                           ),
                         ),
                       );
                     },
+                    loading: () => const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: LinearProgressIndicator(),
+                    ),
+                    error: (_, __) => const SizedBox.shrink(),
                   ),
-          ),
-          _BottomTotalsBar(
-                  total: posState.total,
-                  canHold: posState.hasItems,
-                  canComplete: posState.hasItems,
-                  isCompleting: _isCompletingSale,
-                  onHold: () async {
-                    final saved =
-                        await _showHoldSaleDialog(context, ref, posState);
-                    if (!mounted) return;
-                    if (saved) {
-                      posController.clearCart();
-                    }
-                  },
-                  onClear: posState.hasItems ? posController.clearCart : null,
-                  onComplete: () async {
-                    if (_isCompletingSale) return;
-
-                    setState(() {
-                      _isCompletingSale = true;
-                    });
-
-                    try {
-                      final editingSale = widget.editArgs?.sale;
-                      if (editingSale != null) {
-                        final oldTotal = editingSale.total;
-                        final newTotal = posState.total;
-
-                        final ok = await posController.updateSale(
-                          originalSale: editingSale,
-                        );
-
-                        if (!context.mounted) return;
-
-                        if (!ok) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Satış güncellenemedi'),
-                              behavior: SnackBarBehavior.floating,
-                              duration: Duration(seconds: 2),
+                ),
+              ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(
+                        label:
+                            _isCameraMode ? 'Kamerayı Kapat' : 'Kameradan Oku',
+                        isPrimary: false,
+                        isExpanded: true,
+                        onPressed: () {
+                          setState(() {
+                            _isCameraMode = !_isCameraMode;
+                          });
+                          if (_isCameraMode) {
+                            FocusScope.of(context).unfocus();
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SizedBox(
+                    height: 220,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: BarcodeScannerView(
+                        ownerId: 'quick_sale_camera',
+                        enabled: _isCameraMode,
+                        onBarcode: (value) async {
+                          if (!_isCameraMode) return;
+                          await _handleBarcode(value, fromCamera: true);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                crossFadeState: _isCameraMode
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 200),
+              ),
+              const Divider(height: 0),
+              Expanded(
+                child: posState.items.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Ürün okutun',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: posState.items.length,
+                        itemBuilder: (context, index) {
+                          final item = posState.items[index];
+                          return Dismissible(
+                            key: ValueKey(item.product.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              color: Colors.red.shade400,
+                              child: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.white,
+                              ),
+                            ),
+                            onDismissed: (_) =>
+                                posController.removeItem(item),
+                            child: Card(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              child: ListTile(
+                                title: Text(
+                                  item.product.name,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: item.product.missingPriceListPrice
+                                        ? Colors.red.shade700
+                                        : null,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${item.quantity} x ${formatMoney(item.product.unitPrice)} = ${formatMoney(item.lineTotal)}',
+                                  style: item.product.missingPriceListPrice
+                                      ? TextStyle(color: Colors.red.shade700)
+                                      : null,
+                                ),
+                                trailing: SizedBox(
+                                  width: 170,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.remove_circle_outline,
+                                        ),
+                                        iconSize: 28,
+                                        onPressed: () =>
+                                            posController.decrementItem(item),
+                                      ),
+                                      Text(
+                                        item.quantity.toString(),
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.add_circle_outline,
+                                        ),
+                                        iconSize: 28,
+                                        onPressed: () =>
+                                            posController.incrementItem(item),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                onLongPress: () =>
+                                    posController.removeItem(item),
+                              ),
                             ),
                           );
-                          return;
-                        }
+                        },
+                      ),
+              ),
+              _BottomTotalsBar(
+                total: posState.total,
+                canHold: posState.hasItems,
+                canComplete: posState.hasItems,
+                isCompleting: _isCompletingSale,
+                onHold: () async {
+                  final saved =
+                      await _showHoldSaleDialog(context, ref, posState);
+                  if (!mounted) return;
+                  if (saved) {
+                    posController.clearCart();
+                  }
+                },
+                onClear: posState.hasItems ? posController.clearCart : null,
+                onComplete: () async {
+                  if (_isCompletingSale) return;
 
-                        if (editingSale.paymentMethod == 'credit' &&
-                            editingSale.customerId != null) {
-                          final delta = newTotal - oldTotal;
-                          if (delta.abs() > 0.01) {
-                            final companyId = ref.read(activeCompanyIdProvider);
-                            if (companyId != null) {
-                              final customerRepo =
-                                  ref.read(customerRepositoryProvider);
-                              final customer = await customerRepo.getCustomerById(
-                                companyId,
-                                editingSale.customerId!,
-                              );
-                              if (customer != null) {
-                                final ledgerRepo =
-                                    ref.read(customerLedgerRepositoryProvider);
-                                await ledgerRepo.addSaleEntry(
-                                  companyId: companyId,
-                                  customer: customer,
-                                  amount: delta,
-                                  note: 'POS satış düzeltme',
-                                  saleId: editingSale.id,
-                                );
-                              }
-                            }
-                          }
-                        }
+                  setState(() {
+                    _isCompletingSale = true;
+                  });
 
+                  try {
+                    final editingSale = widget.editArgs?.sale;
+                    if (editingSale != null) {
+                      final oldTotal = editingSale.total;
+                      final newTotal = posState.total;
+
+                      final ok = await posController.updateSale(
+                        originalSale: editingSale,
+                      );
+
+                      if (!context.mounted) return;
+
+                      if (!ok) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Satış güncellendi'),
+                            content: Text('Satış güncellenemedi'),
                             behavior: SnackBarBehavior.floating,
                             duration: Duration(seconds: 2),
                           ),
                         );
-
                         return;
                       }
 
-                      await _showPaymentModal(
-                          context, ref, posState, posController);
-                    } finally {
-                      if (mounted) {
-                        setState(() {
-                          _isCompletingSale = false;
-                        });
+                      if (editingSale.paymentMethod == 'credit' &&
+                          editingSale.customerId != null) {
+                        final delta = newTotal - oldTotal;
+                        if (delta.abs() > 0.01) {
+                          final companyId = ref.read(activeCompanyIdProvider);
+                          if (companyId != null) {
+                            final customerRepo =
+                                ref.read(customerRepositoryProvider);
+                            final customer = await customerRepo.getCustomerById(
+                              companyId,
+                              editingSale.customerId!,
+                            );
+                            if (customer != null) {
+                              final ledgerRepo = ref
+                                  .read(customerLedgerRepositoryProvider);
+                              await ledgerRepo.addSaleEntry(
+                                companyId: companyId,
+                                customer: customer,
+                                amount: delta,
+                                note: 'POS satış düzeltme',
+                                saleId: editingSale.id,
+                              );
+                            }
+                          }
+                        }
                       }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Satış güncellendi'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+
+                      return;
                     }
-                  },
-                ),
-              ],
-            ),
-            if (_isCompletingSale) ...[
-              const ModalBarrier(
-                dismissible: false,
-                color: Colors.black38,
-              ),
-              const Center(
-                child: CircularProgressIndicator(),
+
+                    await _showPaymentModal(
+                      context,
+                      ref,
+                      posState,
+                      posController,
+                    );
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _isCompletingSale = false;
+                      });
+                    }
+                  }
+                },
               ),
             ],
+          ),
+          if (_isCompletingSale) ...[
+            const ModalBarrier(
+              dismissible: false,
+              color: Colors.black38,
+            ),
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
