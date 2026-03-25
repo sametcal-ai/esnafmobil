@@ -57,6 +57,20 @@ class HeldSalesTab extends ConsumerWidget {
     final companyId = ref.read(activeCompanyIdProvider);
     if (companyId == null) return;
 
+    final posState = ref.read(posControllerProvider);
+    if (posState.hasItems) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sepette ürün olduğu için satış yüklenemedi'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     final repo = ref.read(heldSalesRepositoryProvider);
     final sale = await repo.takeSale(companyId, id);
     if (sale == null) return;
