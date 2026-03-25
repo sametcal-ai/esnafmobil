@@ -984,10 +984,10 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                         bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
                       ),
                       child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                         Row(
                           children: [
                             Expanded(
@@ -1478,8 +1478,9 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                           child: const Text('Vazgeç'),
                         ),
                       ],
+                        ),
+                      ),
                     ),
-                  ),
                     if (modalIsCompleting) ...[
                       const Positioned.fill(
                         child: ModalBarrier(
