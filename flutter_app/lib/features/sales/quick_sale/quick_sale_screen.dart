@@ -411,8 +411,10 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
 
     return AppScaffold(
       title: isEditing ? 'Satışı Düzenle' : 'Hızlı Satış',
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           if (!_isCameraMode) ...[
             Padding(
               padding: const EdgeInsets.all(12),
@@ -632,98 +634,111 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                   ),
           ),
           _BottomTotalsBar(
-            total: posState.total,
-            canHold: posState.hasItems,
-            canComplete: posState.hasItems,
-            isCompleting: _isCompletingSale,
-            onHold: () async {
-              final saved =
-                  await _showHoldSaleDialog(context, ref, posState);
-              if (!mounted) return;
-              if (saved) {
-                posController.clearCart();
-              }
-            },
-            onClear: posState.hasItems ? posController.clearCart : null,
-            onComplete: () async {
-              if (_isCompletingSale) return;
+                  total: posState.total,
+                  canHold: posState.hasItems,
+                  canComplete: posState.hasItems,
+                  isCompleting: _isCompletingSale,
+                  onHold: () async {
+                    final saved =
+                        await _showHoldSaleDialog(context, ref, posState);
+                    if (!mounted) return;
+                    if (saved) {
+                      posController.clearCart();
+                    }
+                  },
+                  onClear: posState.hasItems ? posController.clearCart : null,
+                  onComplete: () async {
+                    if (_isCompletingSale) return;
 
-              setState(() {
-                _isCompletingSale = true;
-              });
+                    setState(() {
+                      _isCompletingSale = true;
+                    });
 
-              try {
-                final editingSale = widget.editArgs?.sale;
-                if (editingSale != null) {
-                  final oldTotal = editingSale.total;
-                  final newTotal = posState.total;
+                    try {
+                      final editingSale = widget.editArgs?.sale;
+                      if (editingSale != null) {
+                        final oldTotal = editingSale.total;
+                        final newTotal = posState.total;
 
-                  final ok = await posController.updateSale(
-                    originalSale: editingSale,
-                  );
-
-                  if (!context.mounted) return;
-
-                  if (!ok) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Satış güncellenemedi'),
-                        behavior: SnackBarBehavior.floating,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    return;
-                  }
-
-                  if (editingSale.paymentMethod == 'credit' &&
-                      editingSale.customerId != null) {
-                    final delta = newTotal - oldTotal;
-                    if (delta.abs() > 0.01) {
-                      final companyId = ref.read(activeCompanyIdProvider);
-                      if (companyId != null) {
-                        final customerRepo =
-                            ref.read(customerRepositoryProvider);
-                        final customer = await customerRepo.getCustomerById(
-                          companyId,
-                          editingSale.customerId!,
+                        final ok = await posController.updateSale(
+                          originalSale: editingSale,
                         );
-                        if (customer != null) {
-                          final ledgerRepo =
-                              ref.read(customerLedgerRepositoryProvider);
-                          await ledgerRepo.addSaleEntry(
-                            companyId: companyId,
-                            customer: customer,
-                            amount: delta,
-                            note: 'POS satış düzeltme',
-                            saleId: editingSale.id,
+
+                        if (!context.mounted) return;
+
+                        if (!ok) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Satış güncellenemedi'),
+                              behavior: SnackBarBehavior.floating,
+                              duration: Duration(seconds: 2),
+                            ),
                           );
+                          return;
                         }
+
+                        if (editingSale.paymentMethod == 'credit' &&
+                            editingSale.customerId != null) {
+                          final delta = newTotal - oldTotal;
+                          if (delta.abs() > 0.01) {
+                            final companyId = ref.read(activeCompanyIdProvider);
+                            if (companyId != null) {
+                              final customerRepo =
+                                  ref.read(customerRepositoryProvider);
+                              final customer = await customerRepo.getCustomerById(
+                                companyId,
+                                editingSale.customerId!,
+                              );
+                              if (customer != null) {
+                                final ledgerRepo =
+                                    ref.read(customerLedgerRepositoryProvider);
+                                await ledgerRepo.addSaleEntry(
+                                  companyId: companyId,
+                                  customer: customer,
+                                  amount: delta,
+                                  note: 'POS satış düzeltme',
+                                  saleId: editingSale.id,
+                                );
+                              }
+                            }
+                          }
+                        }
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Satış güncellendi'),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+
+                        return;
+                      }
+
+                      await _showPaymentModal(
+                          context, ref, posState, posController);
+                    } finally {
+                      if (mounted) {
+                        setState(() {
+                          _isCompletingSale = false;
+                        });
                       }
                     }
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Satış güncellendi'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-
-                  return;
-                }
-
-                await _showPaymentModal(context, ref, posState, posController);
-              } finally {
-                if (mounted) {
-                  setState(() {
-                    _isCompletingSale = false;
-                  });
-                }
-              }
-            },
-          ),
-        ],
+                  },
+                ),
+              ],
+            ),
+            if (_isCompletingSale) ...[
+              const ModalBarrier(
+                dismissible: false,
+                color: Colors.black38,
+              ),
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -959,14 +974,16 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                 final splitRemaining = posState.total - splitTotal;
                 final splitCashChange = cashReceived - splitCashApplied;
 
-                return Padding(
-                  padding: EdgeInsets.only(
-                    left: 16,
-                    right: 16,
-                    top: 16,
-                    bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
-                  ),
-                  child: SingleChildScrollView(
+                return Stack(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        top: 16,
+                        bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+                      ),
+                      child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1463,6 +1480,18 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                       ],
                     ),
                   ),
+                    if (modalIsCompleting) ...[
+                      const Positioned.fill(
+                        child: ModalBarrier(
+                          dismissible: false,
+                          color: Colors.black26,
+                        ),
+                      ),
+                      const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    ],
+                  ],
                 );
               },
             );

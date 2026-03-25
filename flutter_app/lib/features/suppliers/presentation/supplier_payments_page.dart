@@ -174,89 +174,105 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Ödeme Ekle'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                            value: 'Nakit',
-                            label: Text('Nakit'),
+            return Stack(
+              children: [
+                AlertDialog(
+                  title: const Text('Ödeme Ekle'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'Nakit',
+                                label: Text('Nakit'),
+                              ),
+                              ButtonSegment(
+                                value: 'K.Kartı',
+                                label: Text('K.Kartı'),
+                              ),
+                              ButtonSegment(
+                                value: 'Havale',
+                                label: Text('Havale'),
+                              ),
+                            ],
+                            selected: {selectedMethod},
+                            onSelectionChanged: isSaving
+                                ? null
+                                : (selection) {
+                                    setDialogState(() {
+                                      selectedMethod = selection.first;
+                                    });
+                                  },
                           ),
-                          ButtonSegment(
-                            value: 'K.Kartı',
-                            label: Text('K.Kartı'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _amountController,
+                          enabled: !isSaving,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Tutar',
+                            border: OutlineInputBorder(),
                           ),
-                          ButtonSegment(
-                            value: 'Havale',
-                            label: Text('Havale'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _noteController,
+                          enabled: !isSaving,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Açıklama (opsiyonel)',
+                            border: OutlineInputBorder(),
                           ),
-                        ],
-                        selected: {selectedMethod},
-                        onSelectionChanged: isSaving
-                            ? null
-                            : (selection) {
-                                setDialogState(() {
-                                  selectedMethod = selection.first;
-                                });
-                              },
-                      ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _amountController,
-                      enabled: !isSaving,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Tutar',
-                        border: OutlineInputBorder(),
-                      ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed:
+                          isSaving ? null : () => Navigator.of(context).pop(),
+                      child: const Text('İptal'),
                     ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _noteController,
-                      enabled: !isSaving,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Açıklama (opsiyonel)',
-                        border: OutlineInputBorder(),
-                      ),
+                    ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              setDialogState(() {
+                                isSaving = true;
+                              });
+
+                              await _addPayment(
+                                context,
+                                selectedMethod: selectedMethod,
+                              );
+
+                              if (!context.mounted) return;
+
+                              setDialogState(() {
+                                isSaving = false;
+                              });
+                            },
+                      child: Text(isSaving ? 'İşleniyor...' : 'Kaydet'),
                     ),
                   ],
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSaving ? null : () => Navigator.of(context).pop(),
-                  child: const Text('İptal'),
-                ),
-                ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          setDialogState(() {
-                            isSaving = true;
-                          });
-
-                          await _addPayment(
-                            context,
-                            selectedMethod: selectedMethod,
-                          );
-
-                          if (!context.mounted) return;
-
-                          setDialogState(() {
-                            isSaving = false;
-                          });
-                        },
-                  child: Text(isSaving ? 'İşleniyor...' : 'Kaydet'),
-                ),
+                if (isSaving) ...[
+                  const Positioned.fill(
+                    child: ModalBarrier(
+                      dismissible: false,
+                      color: Colors.black26,
+                    ),
+                  ),
+                  const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ],
               ],
             );
           },
@@ -331,90 +347,106 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Ödeme Düzenle'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                            value: 'Nakit',
-                            label: Text('Nakit'),
+            return Stack(
+              children: [
+                AlertDialog(
+                  title: const Text('Ödeme Düzenle'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'Nakit',
+                                label: Text('Nakit'),
+                              ),
+                              ButtonSegment(
+                                value: 'K.Kartı',
+                                label: Text('K.Kartı'),
+                              ),
+                              ButtonSegment(
+                                value: 'Havale',
+                                label: Text('Havale'),
+                              ),
+                            ],
+                            selected: {selectedMethod},
+                            onSelectionChanged: isSaving
+                                ? null
+                                : (selection) {
+                                    setDialogState(() {
+                                      selectedMethod = selection.first;
+                                    });
+                                  },
                           ),
-                          ButtonSegment(
-                            value: 'K.Kartı',
-                            label: Text('K.Kartı'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _amountController,
+                          enabled: !isSaving,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Tutar',
+                            border: OutlineInputBorder(),
                           ),
-                          ButtonSegment(
-                            value: 'Havale',
-                            label: Text('Havale'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _noteController,
+                          enabled: !isSaving,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Açıklama (opsiyonel)',
+                            border: OutlineInputBorder(),
                           ),
-                        ],
-                        selected: {selectedMethod},
-                        onSelectionChanged: isSaving
-                            ? null
-                            : (selection) {
-                                setDialogState(() {
-                                  selectedMethod = selection.first;
-                                });
-                              },
-                      ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _amountController,
-                      enabled: !isSaving,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Tutar',
-                        border: OutlineInputBorder(),
-                      ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed:
+                          isSaving ? null : () => Navigator.of(context).pop(),
+                      child: const Text('İptal'),
                     ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _noteController,
-                      enabled: !isSaving,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Açıklama (opsiyonel)',
-                        border: OutlineInputBorder(),
-                      ),
+                    ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              setDialogState(() {
+                                isSaving = true;
+                              });
+
+                              await _updatePayment(
+                                context,
+                                entry,
+                                selectedMethod: selectedMethod,
+                              );
+
+                              if (!context.mounted) return;
+
+                              setDialogState(() {
+                                isSaving = false;
+                              });
+                            },
+                      child: Text(isSaving ? 'İşleniyor...' : 'Kaydet'),
                     ),
                   ],
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSaving ? null : () => Navigator.of(context).pop(),
-                  child: const Text('İptal'),
-                ),
-                ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          setDialogState(() {
-                            isSaving = true;
-                          });
-
-                          await _updatePayment(
-                            context,
-                            entry,
-                            selectedMethod: selectedMethod,
-                          );
-
-                          if (!context.mounted) return;
-
-                          setDialogState(() {
-                            isSaving = false;
-                          });
-                        },
-                  child: Text(isSaving ? 'İşleniyor...' : 'Kaydet'),
-                ),
+                if (isSaving) ...[
+                  const Positioned.fill(
+                    child: ModalBarrier(
+                      dismissible: false,
+                      color: Colors.black26,
+                    ),
+                  ),
+                  const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ],
               ],
             );
           },
@@ -471,12 +503,24 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
 
     if (confirmed != true) return;
 
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
     final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
     await ledgerRepo.softDeleteEntry(
       companyId: companyId,
       supplierId: supplier.id,
       entry: entry,
     );
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
 
     if (!mounted) return;
     await _load();

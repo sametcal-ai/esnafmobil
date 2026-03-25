@@ -291,8 +291,10 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
 
     return AppScaffold(
       title: 'Stok Düzenleme',
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
@@ -443,6 +445,17 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
               onPressed: _items.isEmpty || _isCompleting ? null : _complete,
             ),
           ),
+        ],
+      ),
+          if (_isCompleting) ...[
+            const ModalBarrier(
+              dismissible: false,
+              color: Colors.black38,
+            ),
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+          ],
         ],
       ),
     );

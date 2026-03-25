@@ -124,8 +124,10 @@ class _SalesPageState extends ConsumerState<SalesPage> {
 
     return AppScaffold(
       title: 'Sales',
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           if (!_isCameraMode)
             Padding(
               padding: const EdgeInsets.all(12),
@@ -490,6 +492,17 @@ class _SalesPageState extends ConsumerState<SalesPage> {
               ],
             ),
           ),
+        ],
+      ),
+          if (_isCompletingSale) ...[
+            const ModalBarrier(
+              dismissible: false,
+              color: Colors.black38,
+            ),
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+          ],
         ],
       ),
     );
