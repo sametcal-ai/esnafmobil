@@ -500,7 +500,7 @@ class _CustomerStatementPageState
                                                 ? membersMap[sale.meta.createdBy]!.displayName
                                                 : sale.meta.createdBy;
 
-                                            await showSaleDetailsBottomSheet(
+                                            final updated = await showSaleDetailsBottomSheet(
                                               context,
                                               ref,
                                               sale,
@@ -509,6 +509,10 @@ class _CustomerStatementPageState
                                               canEdit: isAdmin,
                                               canCancel: isAdmin,
                                             );
+
+                                            if (updated) {
+                                              await _loadStatement();
+                                            }
                                           },
                                   ),
                                 );

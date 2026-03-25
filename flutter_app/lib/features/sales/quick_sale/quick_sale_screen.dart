@@ -724,7 +724,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                       );
 
                       if (context.canPop()) {
-                        context.pop();
+                        context.pop(true);
                       } else {
                         context.goNamed('sales_list');
                       }
