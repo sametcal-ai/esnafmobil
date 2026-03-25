@@ -6,6 +6,7 @@ import '../../../core/config/money_formatter.dart';
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/firestore/models/company_member.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../../core/widgets/app_loading_dialog.dart';
 import '../../company/domain/active_company_provider.dart';
 import '../data/supplier_ledger_repository.dart';
 import '../data/supplier_repository.dart';
@@ -503,26 +504,16 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
 
     if (confirmed != true) return;
 
-    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(),
+    await runWithLoadingDialog<void>(
+      context,
+      () => ledgerRepo.softDeleteEntry(
+        companyId: companyId,
+        supplierId: supplier.id,
+        entry: entry,
       ),
     );
-
-    final ledgerRepo = ref.read(supplierLedgerRepositoryProvider);
-    await ledgerRepo.softDeleteEntry(
-      companyId: companyId,
-      supplierId: supplier.id,
-      entry: entry,
-    );
-
-    if (rootNavigator.canPop()) {
-      rootNavigator.pop();
-    }
 
     if (!mounted) return;
     await _load();
