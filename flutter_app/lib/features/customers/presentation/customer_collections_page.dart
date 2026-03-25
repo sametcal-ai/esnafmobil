@@ -507,6 +507,9 @@ class _CustomerCollectionsPageState
                     final customer = _customer;
                     if (companyId == null || customer == null) return;
 
+                    final rootNavigator =
+                        Navigator.of(this.context, rootNavigator: true);
+
                     showDialog<void>(
                       context: this.context,
                       barrierDismissible: false,
@@ -523,8 +526,8 @@ class _CustomerCollectionsPageState
                           entry: entry,
                         );
 
-                    if (this.context.mounted) {
-                      Navigator.of(this.context).pop();
+                    if (rootNavigator.canPop()) {
+                      rootNavigator.pop();
                     }
 
                     if (!ctx.mounted) return;

@@ -503,6 +503,8 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
 
     if (confirmed != true) return;
 
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -518,8 +520,8 @@ class _SupplierPaymentsPageState extends ConsumerState<SupplierPaymentsPage> {
       entry: entry,
     );
 
-    if (mounted) {
-      Navigator.of(context).pop();
+    if (rootNavigator.canPop()) {
+      rootNavigator.pop();
     }
 
     if (!mounted) return;
