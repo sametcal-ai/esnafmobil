@@ -143,6 +143,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
 
   bool _isCameraMode = false;
   bool _suppressBarcodeRefocus = false;
+  bool _isCompletingSale = false;
 
   String _productSearchQuery = '';
 
@@ -410,8 +411,10 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
 
     return AppScaffold(
       title: isEditing ? 'Satışı Düzenle' : 'Hızlı Satış',
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           if (!_isCameraMode) ...[
             Padding(
               padding: const EdgeInsets.all(12),
@@ -631,82 +634,111 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                   ),
           ),
           _BottomTotalsBar(
-            total: posState.total,
-            canHold: posState.hasItems,
-            canComplete: posState.hasItems,
-            onHold: () async {
-              final saved =
-                  await _showHoldSaleDialog(context, ref, posState);
-              if (!mounted) return;
-              if (saved) {
-                posController.clearCart();
-              }
-            },
-            onClear: posState.hasItems ? posController.clearCart : null,
-            onComplete: () async {
-              final editingSale = widget.editArgs?.sale;
-              if (editingSale != null) {
-                final oldTotal = editingSale.total;
-                final newTotal = posState.total;
+                  total: posState.total,
+                  canHold: posState.hasItems,
+                  canComplete: posState.hasItems,
+                  isCompleting: _isCompletingSale,
+                  onHold: () async {
+                    final saved =
+                        await _showHoldSaleDialog(context, ref, posState);
+                    if (!mounted) return;
+                    if (saved) {
+                      posController.clearCart();
+                    }
+                  },
+                  onClear: posState.hasItems ? posController.clearCart : null,
+                  onComplete: () async {
+                    if (_isCompletingSale) return;
 
-                final ok = await posController.updateSale(
-                  originalSale: editingSale,
-                );
+                    setState(() {
+                      _isCompletingSale = true;
+                    });
 
-                if (!context.mounted) return;
+                    try {
+                      final editingSale = widget.editArgs?.sale;
+                      if (editingSale != null) {
+                        final oldTotal = editingSale.total;
+                        final newTotal = posState.total;
 
-                if (!ok) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Satış güncellenemedi'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                  return;
-                }
-
-                if (editingSale.paymentMethod == 'credit' &&
-                    editingSale.customerId != null) {
-                  final delta = newTotal - oldTotal;
-                  if (delta.abs() > 0.01) {
-                    final companyId = ref.read(activeCompanyIdProvider);
-                    if (companyId != null) {
-                      final customerRepo = ref.read(customerRepositoryProvider);
-                      final customer = await customerRepo.getCustomerById(
-                        companyId,
-                        editingSale.customerId!,
-                      );
-                      if (customer != null) {
-                        final ledgerRepo =
-                            ref.read(customerLedgerRepositoryProvider);
-                        await ledgerRepo.addSaleEntry(
-                          companyId: companyId,
-                          customer: customer,
-                          amount: delta,
-                          note: 'POS satış düzeltme',
-                          saleId: editingSale.id,
+                        final ok = await posController.updateSale(
+                          originalSale: editingSale,
                         );
+
+                        if (!context.mounted) return;
+
+                        if (!ok) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Satış güncellenemedi'),
+                              behavior: SnackBarBehavior.floating,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (editingSale.paymentMethod == 'credit' &&
+                            editingSale.customerId != null) {
+                          final delta = newTotal - oldTotal;
+                          if (delta.abs() > 0.01) {
+                            final companyId = ref.read(activeCompanyIdProvider);
+                            if (companyId != null) {
+                              final customerRepo =
+                                  ref.read(customerRepositoryProvider);
+                              final customer = await customerRepo.getCustomerById(
+                                companyId,
+                                editingSale.customerId!,
+                              );
+                              if (customer != null) {
+                                final ledgerRepo =
+                                    ref.read(customerLedgerRepositoryProvider);
+                                await ledgerRepo.addSaleEntry(
+                                  companyId: companyId,
+                                  customer: customer,
+                                  amount: delta,
+                                  note: 'POS satış düzeltme',
+                                  saleId: editingSale.id,
+                                );
+                              }
+                            }
+                          }
+                        }
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Satış güncellendi'),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+
+                        return;
+                      }
+
+                      await _showPaymentModal(
+                          context, ref, posState, posController);
+                    } finally {
+                      if (mounted) {
+                        setState(() {
+                          _isCompletingSale = false;
+                        });
                       }
                     }
-                  }
-                }
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Satış güncellendi'),
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-
-                return;
-              }
-
-              await _showPaymentModal(context, ref, posState, posController);
-            },
-          ),
-        ],
+                  },
+                ),
+              ],
+            ),
+            if (_isCompletingSale) ...[
+              const ModalBarrier(
+                dismissible: false,
+                color: Colors.black38,
+              ),
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -901,6 +933,8 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
 
     final splitCardAmountController = TextEditingController();
 
+    bool modalIsCompleting = false;
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -940,14 +974,16 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                 final splitRemaining = posState.total - splitTotal;
                 final splitCashChange = cashReceived - splitCashApplied;
 
-                return Padding(
-                  padding: EdgeInsets.only(
-                    left: 16,
-                    right: 16,
-                    top: 16,
-                    bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
-                  ),
-                  child: SingleChildScrollView(
+                return Stack(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        top: 16,
+                        bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+                      ),
+                      child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -980,28 +1016,30 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                         const SizedBox(height: 12),
                         ToggleButtons(
                           isSelected: [!isSplitPayment, isSplitPayment],
-                          onPressed: (index) {
-                            setModalState(() {
-                              isSplitPayment = index == 1;
+                          onPressed: modalIsCompleting
+                              ? null
+                              : (index) {
+                                  setModalState(() {
+                                    isSplitPayment = index == 1;
 
-                              if (isSplitPayment) {
-                                splitCashEnabled = true;
-                                splitCardEnabled = false;
-                                splitCreditEnabled = false;
+                                    if (isSplitPayment) {
+                                      splitCashEnabled = true;
+                                      splitCardEnabled = false;
+                                      splitCreditEnabled = false;
 
-                                splitCardAmountController.clear();
-                                ref
-                                    .read(quickSalePaymentProvider.notifier)
-                                    .setCustomer(null);
-                                ref
-                                    .read(quickSaleCustomerQueryProvider.notifier)
-                                    .state = '';
+                                      splitCardAmountController.clear();
+                                      ref
+                                          .read(quickSalePaymentProvider.notifier)
+                                          .setCustomer(null);
+                                      ref
+                                          .read(quickSaleCustomerQueryProvider.notifier)
+                                          .state = '';
 
-                                cashReceivedController.clear();
-                                cashReceived = 0;
-                              }
-                            });
-                          },
+                                      cashReceivedController.clear();
+                                      cashReceived = 0;
+                                    }
+                                  });
+                                },
                           children: const [
                             Padding(
                               padding: EdgeInsets.symmetric(horizontal: 12),
@@ -1019,12 +1057,14 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                             value: QuickSalePaymentType.cash,
                             groupValue: paymentState.type,
                             title: const Text('Nakit'),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              ref
-                                  .read(quickSalePaymentProvider.notifier)
-                                  .setType(value);
-                            },
+                            onChanged: modalIsCompleting
+                                ? null
+                                : (value) {
+                                    if (value == null) return;
+                                    ref
+                                        .read(quickSalePaymentProvider.notifier)
+                                        .setType(value);
+                                  },
                           ),
                           if (paymentState.type == QuickSalePaymentType.cash) ...[
                             Padding(
@@ -1034,6 +1074,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                 children: [
                                   TextField(
                                     controller: cashReceivedController,
+                                    enabled: !modalIsCompleting,
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
                                       decimal: true,
@@ -1042,11 +1083,14 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                       labelText: 'Müşteriden alınan',
                                       border: OutlineInputBorder(),
                                     ),
-                                    onChanged: (value) {
-                                      setModalState(() {
-                                        cashReceived = _parseMoneyInput(value);
-                                      });
-                                    },
+                                    onChanged: modalIsCompleting
+                                        ? null
+                                        : (value) {
+                                            setModalState(() {
+                                              cashReceived =
+                                                  _parseMoneyInput(value);
+                                            });
+                                          },
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
@@ -1072,23 +1116,27 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                             value: QuickSalePaymentType.card,
                             groupValue: paymentState.type,
                             title: const Text('Kredi Kartı'),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              ref
-                                  .read(quickSalePaymentProvider.notifier)
-                                  .setType(value);
-                            },
+                            onChanged: modalIsCompleting
+                                ? null
+                                : (value) {
+                                    if (value == null) return;
+                                    ref
+                                        .read(quickSalePaymentProvider.notifier)
+                                        .setType(value);
+                                  },
                           ),
                           RadioListTile<QuickSalePaymentType>(
                             value: QuickSalePaymentType.credit,
                             groupValue: paymentState.type,
                             title: const Text('Veresiye'),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              ref
-                                  .read(quickSalePaymentProvider.notifier)
-                                  .setType(value);
-                            },
+                            onChanged: modalIsCompleting
+                                ? null
+                                : (value) {
+                                    if (value == null) return;
+                                    ref
+                                        .read(quickSalePaymentProvider.notifier)
+                                        .setType(value);
+                                  },
                           ),
                           if (paymentState.type == QuickSalePaymentType.credit) ...[
                             const SizedBox(height: 8),
@@ -1107,6 +1155,10 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                       TextEditingValue(text: draftQuery),
                                   displayStringForOption: (c) => c.name,
                                   optionsBuilder: (value) {
+                                    if (modalIsCompleting) {
+                                      return const Iterable<Customer>.empty();
+                                    }
+
                                     final query =
                                         value.text.trim().toLowerCase();
                                     if (query.isEmpty) {
@@ -1121,6 +1173,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                     });
                                   },
                                   onSelected: (customer) {
+                                    if (modalIsCompleting) return;
                                     ref
                                         .read(quickSalePaymentProvider.notifier)
                                         .setCustomer(customer);
@@ -1134,14 +1187,18 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                     return TextField(
                                       controller: textController,
                                       focusNode: focusNode,
+                                      enabled: !modalIsCompleting,
                                       autofocus: true,
                                       textInputAction: TextInputAction.done,
-                                      onChanged: (value) {
-                                        ref
-                                            .read(quickSaleCustomerQueryProvider
-                                                .notifier)
-                                            .state = value;
-                                      },
+                                      onChanged: modalIsCompleting
+                                          ? null
+                                          : (value) {
+                                              ref
+                                                  .read(
+                                                      quickSaleCustomerQueryProvider
+                                                          .notifier)
+                                                  .state = value;
+                                            },
                                       decoration: const InputDecoration(
                                         labelText: 'Müşteri ara / seç',
                                         border: OutlineInputBorder(),
@@ -1179,15 +1236,17 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                           CheckboxListTile(
                             value: splitCashEnabled,
                             title: const Text('Nakit'),
-                            onChanged: (value) {
-                              setModalState(() {
-                                splitCashEnabled = value ?? false;
-                                if (!splitCashEnabled) {
-                                  cashReceivedController.clear();
-                                  cashReceived = 0;
-                                }
-                              });
-                            },
+                            onChanged: modalIsCompleting
+                                ? null
+                                : (value) {
+                                    setModalState(() {
+                                      splitCashEnabled = value ?? false;
+                                      if (!splitCashEnabled) {
+                                        cashReceivedController.clear();
+                                        cashReceived = 0;
+                                      }
+                                    });
+                                  },
                           ),
                           if (splitCashEnabled) ...[
                             Padding(
@@ -1197,6 +1256,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                 children: [
                                   TextField(
                                     controller: cashReceivedController,
+                                    enabled: !modalIsCompleting,
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
                                       decimal: true,
@@ -1205,11 +1265,14 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                                       labelText: 'Müşteriden alınan',
                                       border: OutlineInputBorder(),
                                     ),
-                                    onChanged: (value) {
-                                      setModalState(() {
-                                        cashReceived = _parseMoneyInput(value);
-                                      });
-                                    },
+                                    onChanged: modalIsCompleting
+                                        ? null
+                                        : (value) {
+                                            setModalState(() {
+                                              cashReceived =
+                                                  _parseMoneyInput(value);
+                                            });
+                                          },
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
@@ -1364,25 +1427,43 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          onPressed: () async {
-                            final ok = await _completeSaleFromModal(
-                              context,
-                              ref,
-                              posState,
-                              posController,
-                              isSplitPayment: isSplitPayment,
-                              cashReceived: cashReceived,
-                              splitCashEnabled: splitCashEnabled,
-                              splitCardEnabled: splitCardEnabled,
-                              splitCreditEnabled: splitCreditEnabled,
-                              splitCardAmount:
-                                  _parseMoneyInput(splitCardAmountController.text),
-                            );
-                            if (ok && context.mounted) {
-                              Navigator.of(context).pop();
-                            }
-                          },
-                          child: const Text('Satışı Tamamla'),
+                          onPressed: modalIsCompleting
+                              ? null
+                              : () async {
+                                  setModalState(() {
+                                    modalIsCompleting = true;
+                                  });
+
+                                  final ok = await _completeSaleFromModal(
+                                    context,
+                                    ref,
+                                    posState,
+                                    posController,
+                                    isSplitPayment: isSplitPayment,
+                                    cashReceived: cashReceived,
+                                    splitCashEnabled: splitCashEnabled,
+                                    splitCardEnabled: splitCardEnabled,
+                                    splitCreditEnabled: splitCreditEnabled,
+                                    splitCardAmount: _parseMoneyInput(
+                                        splitCardAmountController.text),
+                                  );
+
+                                  if (!context.mounted) return;
+
+                                  if (ok) {
+                                    Navigator.of(context).pop();
+                                    return;
+                                  }
+
+                                  setModalState(() {
+                                    modalIsCompleting = false;
+                                  });
+                                },
+                          child: Text(
+                            modalIsCompleting
+                                ? 'İşleniyor...'
+                                : 'Satışı Tamamla',
+                          ),
                         ),
                         const SizedBox(height: 8),
                         ElevatedButton(
@@ -1391,12 +1472,26 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: modalIsCompleting
+                              ? null
+                              : () => Navigator.of(context).pop(),
                           child: const Text('Vazgeç'),
                         ),
                       ],
                     ),
                   ),
+                    if (modalIsCompleting) ...[
+                      const Positioned.fill(
+                        child: ModalBarrier(
+                          dismissible: false,
+                          color: Colors.black26,
+                        ),
+                      ),
+                      const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    ],
+                  ],
                 );
               },
             );
@@ -1742,6 +1837,7 @@ class _BottomTotalsBar extends StatelessWidget {
   final double total;
   final bool canHold;
   final bool canComplete;
+  final bool isCompleting;
   final VoidCallback onHold;
   final VoidCallback? onClear;
   final VoidCallback onComplete;
@@ -1750,6 +1846,7 @@ class _BottomTotalsBar extends StatelessWidget {
     required this.total,
     required this.canHold,
     required this.canComplete,
+    required this.isCompleting,
     required this.onHold,
     required this.onClear,
     required this.onComplete,
@@ -1804,8 +1901,18 @@ class _BottomTotalsBar extends StatelessWidget {
                     backgroundColor: Colors.orange.shade600,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: canHold ? onHold : null,
-                  child: const Icon(Icons.pause),
+                  onPressed: canHold && !isCompleting ? onHold : null,
+                  child: isCompleting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.pause),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1817,7 +1924,7 @@ class _BottomTotalsBar extends StatelessWidget {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    onPressed: onClear,
+                    onPressed: isCompleting ? null : onClear,
                     child: const Text('Sepeti Temizle'),
                   ),
                 )
@@ -1834,8 +1941,8 @@ class _BottomTotalsBar extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              onPressed: canComplete ? onComplete : null,
-              child: const Text('Satışı Tamamla'),
+              onPressed: canComplete && !isCompleting ? onComplete : null,
+              child: Text(isCompleting ? 'İşleniyor...' : 'Satışı Tamamla'),
             ),
           ),
         ],

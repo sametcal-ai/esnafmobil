@@ -33,7 +33,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
   final FocusNode _barcodeFocusNode = FocusNode();
   bool _isCameraMode = false;
 
-  
+  bool _isCompletingSale = false;
 
   PaymentType _paymentType = PaymentType.cash;
   List<Customer> _customers = const [];
@@ -124,8 +124,10 @@ class _SalesPageState extends ConsumerState<SalesPage> {
 
     return AppScaffold(
       title: 'Sales',
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           if (!_isCameraMode)
             Padding(
               padding: const EdgeInsets.all(12),
@@ -354,7 +356,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
                         label: 'Clear Cart',
                         isPrimary: false,
                         isExpanded: true,
-                        onPressed: posState.hasItems
+                        onPressed: posState.hasItems && !_isCompletingSale
                             ? posController.clearCart
                             : null,
                       ),
@@ -368,28 +370,44 @@ class _SalesPageState extends ConsumerState<SalesPage> {
                             : 'Hold Sale',
                         isPrimary: false,
                         isExpanded: true,
-                        onPressed: posState.hasItems
-                            ? posController.holdCurrentSale
-                            : (posState.hasHeldItems
-                                ? posController.resumeHeldSale
-                                : null),
+                        onPressed: _isCompletingSale
+                            ? null
+                            : posState.hasItems
+                                ? posController.holdCurrentSale
+                                : (posState.hasHeldItems
+                                    ? posController.resumeHeldSale
+                                    : null),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 3,
                       child: AppButton(
-                        label: _paymentType == PaymentType.cash
-                            ? 'Satışı Tamamla (Nakit)'
-                            : 'Satışı Tamamla (Veresiye)',
+                        label: _isCompletingSale
+                            ? 'İşleniyor...'
+                            : _paymentType == PaymentType.cash
+                                ? 'Satışı Tamamla (Nakit)'
+                                : 'Satışı Tamamla (Veresiye)',
                         isExpanded: true,
-                        onPressed: posState.hasItems
+                        onPressed: posState.hasItems && !_isCompletingSale
                             ? () async {
-                                await _handleCompleteSale(
-                                  context,
-                                  posState,
-                                  posController,
-                                );
+                                setState(() {
+                                  _isCompletingSale = true;
+                                });
+
+                                try {
+                                  await _handleCompleteSale(
+                                    context,
+                                    posState,
+                                    posController,
+                                  );
+                                } finally {
+                                  if (mounted) {
+                                    setState(() {
+                                      _isCompletingSale = false;
+                                    });
+                                  }
+                                }
                               }
                             : null,
                       ),
@@ -474,6 +492,17 @@ class _SalesPageState extends ConsumerState<SalesPage> {
               ],
             ),
           ),
+        ],
+      ),
+          if (_isCompletingSale) ...[
+            const ModalBarrier(
+              dismissible: false,
+              color: Colors.black38,
+            ),
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+          ],
         ],
       ),
     );

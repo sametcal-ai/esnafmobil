@@ -162,74 +162,109 @@ class _CustomerCollectionsPageState
       context: context,
       builder: (context) {
         var selectedMethod = 'Nakit';
+        var isSaving = false;
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Tahsilat Ekle'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                            value: 'Nakit',
-                            label: Text('Nakit'),
+            return Stack(
+              children: [
+                AlertDialog(
+                  title: const Text('Tahsilat Ekle'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'Nakit',
+                                label: Text('Nakit'),
+                              ),
+                              ButtonSegment(
+                                value: 'K.Kartı',
+                                label: Text('K.Kartı'),
+                              ),
+                              ButtonSegment(
+                                value: 'Havale',
+                                label: Text('Havale'),
+                              ),
+                            ],
+                            selected: {selectedMethod},
+                            onSelectionChanged: isSaving
+                                ? null
+                                : (selection) {
+                                    setDialogState(() {
+                                      selectedMethod = selection.first;
+                                    });
+                                  },
                           ),
-                          ButtonSegment(
-                            value: 'K.Kartı',
-                            label: Text('K.Kartı'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _amountController,
+                          enabled: !isSaving,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Tutar',
+                            border: OutlineInputBorder(),
                           ),
-                          ButtonSegment(
-                            value: 'Havale',
-                            label: Text('Havale'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _noteController,
+                          enabled: !isSaving,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Açıklama (opsiyonel)',
+                            border: OutlineInputBorder(),
                           ),
-                        ],
-                        selected: {selectedMethod},
-                        onSelectionChanged: (selection) {
-                          setDialogState(() {
-                            selectedMethod = selection.first;
-                          });
-                        },
-                      ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _amountController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Tutar',
-                        border: OutlineInputBorder(),
-                      ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed:
+                          isSaving ? null : () => Navigator.of(context).pop(),
+                      child: const Text('İptal'),
                     ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _noteController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Açıklama (opsiyonel)',
-                        border: OutlineInputBorder(),
-                      ),
+                    ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              setDialogState(() {
+                                isSaving = true;
+                              });
+
+                              await _addCollection(
+                                context,
+                                selectedMethod: selectedMethod,
+                              );
+
+                              if (!context.mounted) return;
+
+                              setDialogState(() {
+                                isSaving = false;
+                              });
+                            },
+                      child: Text(isSaving ? 'İşleniyor...' : 'Kaydet'),
                     ),
                   ],
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('İptal'),
-                ),
-                ElevatedButton(
-                  onPressed: () => _addCollection(
-                    context,
-                    selectedMethod: selectedMethod,
+                if (isSaving) ...[
+                  const Positioned.fill(
+                    child: ModalBarrier(
+                      dismissible: false,
+                      color: Colors.black26,
+                    ),
                   ),
-                  child: const Text('Kaydet'),
-                ),
+                  const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ],
               ],
             );
           },
@@ -245,71 +280,113 @@ class _CustomerCollectionsPageState
     await showDialog<void>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Tahsilatı Düzenle'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        var isSaving = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Stack(
               children: [
-                TextField(
-                  controller: _amountController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Tutar',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _noteController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Açıklama (opsiyonel)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('İptal'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final text = _amountController.text.trim();
-                final amount = double.tryParse(text.replaceAll(',', '.'));
-                if (amount == null || amount <= 0) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Geçerli bir tutar girin'),
-                      behavior: SnackBarBehavior.floating,
+                AlertDialog(
+                  title: const Text('Tahsilatı Düzenle'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: _amountController,
+                          enabled: !isSaving,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Tutar',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _noteController,
+                          enabled: !isSaving,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Açıklama (opsiyonel)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                  return;
-                }
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed:
+                          isSaving ? null : () => Navigator.of(context).pop(),
+                      child: const Text('İptal'),
+                    ),
+                    ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              setDialogState(() {
+                                isSaving = true;
+                              });
 
-                final companyId = ref.read(activeCompanyIdProvider);
-                final customer = _customer;
-                if (companyId == null || customer == null) return;
+                              final text = _amountController.text.trim();
+                              final amount =
+                                  double.tryParse(text.replaceAll(',', '.'));
+                              if (amount == null || amount <= 0) {
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Geçerli bir tutar girin'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                                setDialogState(() {
+                                  isSaving = false;
+                                });
+                                return;
+                              }
 
-                final note = _noteController.text.trim();
-                await ref.read(customerLedgerRepositoryProvider).updatePaymentEntry(
-                      companyId: companyId,
-                      customerId: customer.id,
-                      entry: entry,
-                      amount: amount,
-                      note: note.isEmpty ? null : note,
-                    );
+                              final companyId = ref.read(activeCompanyIdProvider);
+                              final customer = _customer;
+                              if (companyId == null || customer == null) {
+                                setDialogState(() {
+                                  isSaving = false;
+                                });
+                                return;
+                              }
 
-                if (!mounted) return;
-                Navigator.of(context).pop();
-                await _load();
-              },
-              child: const Text('Kaydet'),
-            ),
-          ],
+                              final note = _noteController.text.trim();
+                              await ref
+                                  .read(customerLedgerRepositoryProvider)
+                                  .updatePaymentEntry(
+                                    companyId: companyId,
+                                    customerId: customer.id,
+                                    entry: entry,
+                                    amount: amount,
+                                    note: note.isEmpty ? null : note,
+                                  );
+
+                              if (!mounted) return;
+                              Navigator.of(context).pop();
+                              await _load();
+                            },
+                      child: Text(isSaving ? 'İşleniyor...' : 'Kaydet'),
+                    ),
+                  ],
+                ),
+                if (isSaving) ...[
+                  const Positioned.fill(
+                    child: ModalBarrier(
+                      dismissible: false,
+                      color: Colors.black26,
+                    ),
+                  ),
+                  const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ],
+              ],
+            );
+          },
         );
       },
     );
@@ -375,25 +452,51 @@ class _CustomerCollectionsPageState
                     final confirmed = await showDialog<bool>(
                       context: ctx,
                       builder: (context) {
-                        return AlertDialog(
-                          title: const Text('Tahsilatı sil'),
-                          content: const Text(
-                            'Bu tahsilat silinecek. Bu işlem geri alınamaz. Devam edilsin mi?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text('Vazgeç'),
-                            ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade700,
-                                foregroundColor: Colors.white,
+                        var isDeleting = false;
+
+                        return StatefulBuilder(
+                          builder: (context, setDialogState) {
+                            return AlertDialog(
+                              title: const Text('Tahsilatı sil'),
+                              content: const Text(
+                                'Bu tahsilat silinecek. Bu işlem geri alınamaz. Devam edilsin mi?',
                               ),
-                              onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text('Sil'),
-                            ),
-                          ],
+                              actions: [
+                                TextButton(
+                                  onPressed: isDeleting
+                                      ? null
+                                      : () => Navigator.of(context).pop(false),
+                                  child: const Text('Vazgeç'),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red.shade700,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: isDeleting
+                                      ? null
+                                      : () {
+                                          setDialogState(() {
+                                            isDeleting = true;
+                                          });
+                                          Navigator.of(context).pop(true);
+                                        },
+                                  child: isDeleting
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.25,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    Colors.white),
+                                          ),
+                                        )
+                                      : const Text('Sil'),
+                                ),
+                              ],
+                            );
+                          },
                         );
                       },
                     );
@@ -404,11 +507,25 @@ class _CustomerCollectionsPageState
                     final customer = _customer;
                     if (companyId == null || customer == null) return;
 
-                    await ref.read(customerLedgerRepositoryProvider).softDeleteEntry(
+                    showDialog<void>(
+                      context: this.context,
+                      barrierDismissible: false,
+                      builder: (_) => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+
+                    await ref
+                        .read(customerLedgerRepositoryProvider)
+                        .softDeleteEntry(
                           companyId: companyId,
                           customerId: customer.id,
                           entry: entry,
                         );
+
+                    if (this.context.mounted) {
+                      Navigator.of(this.context).pop();
+                    }
 
                     if (!ctx.mounted) return;
                     navigator.pop();
