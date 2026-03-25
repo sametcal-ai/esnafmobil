@@ -5,6 +5,7 @@ import '../../../core/config/money_formatter.dart';
 import '../../../core/firestore/firestore_refs.dart';
 import '../../../core/firestore/models/company_member.dart';
 import '../../../core/widgets/app_scaffold.dart';
+import '../../../core/widgets/app_loading_dialog.dart';
 import '../../auth/domain/current_user_provider.dart' show currentUserProvider;
 import '../../auth/domain/user.dart';
 import '../../company/domain/active_company_provider.dart';
@@ -507,25 +508,16 @@ class _CustomerCollectionsPageState
                     final customer = _customer;
                     if (companyId == null || customer == null) return;
 
-                    showDialog<void>(
-                      context: this.context,
-                      barrierDismissible: false,
-                      builder: (_) => const Center(
-                        child: CircularProgressIndicator(),
-                      ),
+                    await runWithLoadingDialog<void>(
+                      this.context,
+                      () => ref
+                          .read(customerLedgerRepositoryProvider)
+                          .softDeleteEntry(
+                            companyId: companyId,
+                            customerId: customer.id,
+                            entry: entry,
+                          ),
                     );
-
-                    await ref
-                        .read(customerLedgerRepositoryProvider)
-                        .softDeleteEntry(
-                          companyId: companyId,
-                          customerId: customer.id,
-                          entry: entry,
-                        );
-
-                    if (this.context.mounted) {
-                      Navigator.of(this.context).pop();
-                    }
 
                     if (!ctx.mounted) return;
                     navigator.pop();
