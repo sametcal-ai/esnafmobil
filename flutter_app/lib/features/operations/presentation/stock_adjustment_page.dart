@@ -23,6 +23,7 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
   final FocusNode _queryFocusNode = FocusNode();
 
   String _query = '';
+  bool _isCompleting = false;
 
   Future<void> _openBarcodeScanner() async {
     var isPopping = false;
@@ -213,45 +214,62 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
   }
 
   Future<void> _complete() async {
-    if (_items.isEmpty) return;
+    if (_items.isEmpty || _isCompleting) return;
+
+    setState(() {
+      _isCompleting = true;
+    });
 
     final companyId = ref.read(activeCompanyIdProvider);
-    if (companyId == null) return;
+    if (companyId == null) {
+      setState(() {
+        _isCompleting = false;
+      });
+      return;
+    }
 
     final stockRepo = ref.read(stockEntryRepositoryProvider);
 
     final items = List<_StockAdjustmentItem>.from(_items);
 
-    for (final item in items) {
-      if (item.currentStock == item.newStock) {
-        continue;
+    try {
+      for (final item in items) {
+        if (item.currentStock == item.newStock) {
+          continue;
+        }
+
+        if (item.currentStock > item.newStock) {
+          final diff = item.currentStock - item.newStock;
+          await stockRepo.createSystemOutgoingEntry(
+            companyId: companyId,
+            productId: item.productId,
+            quantity: diff,
+            supplierName: 'system',
+          );
+        } else {
+          final diff = item.newStock - item.currentStock;
+          await stockRepo.createSystemIncomingEntry(
+            companyId: companyId,
+            productId: item.productId,
+            quantity: diff,
+            unitCost: item.lastPurchasePrice,
+            supplierName: 'system',
+          );
+        }
       }
 
-      if (item.currentStock > item.newStock) {
-        final diff = item.currentStock - item.newStock;
-        await stockRepo.createSystemOutgoingEntry(
-          companyId: companyId,
-          productId: item.productId,
-          quantity: diff,
-          supplierName: 'system',
-        );
-      } else {
-        final diff = item.newStock - item.currentStock;
-        await stockRepo.createSystemIncomingEntry(
-          companyId: companyId,
-          productId: item.productId,
-          quantity: diff,
-          unitCost: item.lastPurchasePrice,
-          supplierName: 'system',
-        );
+      if (!mounted) return;
+
+      setState(() {
+        _items.clear();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCompleting = false;
+        });
       }
     }
-
-    if (!mounted) return;
-
-    setState(() {
-      _items.clear();
-    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -419,10 +437,10 @@ class _StockAdjustmentPageState extends ConsumerState<StockAdjustmentPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: AppButton(
-              label: 'İşlemi Tamamla',
+              label: _isCompleting ? 'İşleniyor...' : 'İşlemi Tamamla',
               isPrimary: true,
               isExpanded: true,
-              onPressed: _items.isEmpty ? null : _complete,
+              onPressed: _items.isEmpty || _isCompleting ? null : _complete,
             ),
           ),
         ],

@@ -33,7 +33,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
   final FocusNode _barcodeFocusNode = FocusNode();
   bool _isCameraMode = false;
 
-  
+  bool _isCompletingSale = false;
 
   PaymentType _paymentType = PaymentType.cash;
   List<Customer> _customers = const [];
@@ -379,17 +379,31 @@ class _SalesPageState extends ConsumerState<SalesPage> {
                     Expanded(
                       flex: 3,
                       child: AppButton(
-                        label: _paymentType == PaymentType.cash
-                            ? 'Satışı Tamamla (Nakit)'
-                            : 'Satışı Tamamla (Veresiye)',
+                        label: _isCompletingSale
+                            ? 'İşleniyor...'
+                            : _paymentType == PaymentType.cash
+                                ? 'Satışı Tamamla (Nakit)'
+                                : 'Satışı Tamamla (Veresiye)',
                         isExpanded: true,
-                        onPressed: posState.hasItems
+                        onPressed: posState.hasItems && !_isCompletingSale
                             ? () async {
-                                await _handleCompleteSale(
-                                  context,
-                                  posState,
-                                  posController,
-                                );
+                                setState(() {
+                                  _isCompletingSale = true;
+                                });
+
+                                try {
+                                  await _handleCompleteSale(
+                                    context,
+                                    posState,
+                                    posController,
+                                  );
+                                } finally {
+                                  if (mounted) {
+                                    setState(() {
+                                      _isCompletingSale = false;
+                                    });
+                                  }
+                                }
                               }
                             : null,
                       ),

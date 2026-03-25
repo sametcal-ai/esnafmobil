@@ -143,6 +143,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
 
   bool _isCameraMode = false;
   bool _suppressBarcodeRefocus = false;
+  bool _isCompletingSale = false;
 
   String _productSearchQuery = '';
 
@@ -634,6 +635,7 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
             total: posState.total,
             canHold: posState.hasItems,
             canComplete: posState.hasItems,
+            isCompleting: _isCompletingSale,
             onHold: () async {
               final saved =
                   await _showHoldSaleDialog(context, ref, posState);
@@ -644,66 +646,81 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
             },
             onClear: posState.hasItems ? posController.clearCart : null,
             onComplete: () async {
-              final editingSale = widget.editArgs?.sale;
-              if (editingSale != null) {
-                final oldTotal = editingSale.total;
-                final newTotal = posState.total;
+              if (_isCompletingSale) return;
 
-                final ok = await posController.updateSale(
-                  originalSale: editingSale,
-                );
+              setState(() {
+                _isCompletingSale = true;
+              });
 
-                if (!context.mounted) return;
+              try {
+                final editingSale = widget.editArgs?.sale;
+                if (editingSale != null) {
+                  final oldTotal = editingSale.total;
+                  final newTotal = posState.total;
 
-                if (!ok) {
+                  final ok = await posController.updateSale(
+                    originalSale: editingSale,
+                  );
+
+                  if (!context.mounted) return;
+
+                  if (!ok) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Satış güncellenemedi'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (editingSale.paymentMethod == 'credit' &&
+                      editingSale.customerId != null) {
+                    final delta = newTotal - oldTotal;
+                    if (delta.abs() > 0.01) {
+                      final companyId = ref.read(activeCompanyIdProvider);
+                      if (companyId != null) {
+                        final customerRepo =
+                            ref.read(customerRepositoryProvider);
+                        final customer = await customerRepo.getCustomerById(
+                          companyId,
+                          editingSale.customerId!,
+                        );
+                        if (customer != null) {
+                          final ledgerRepo =
+                              ref.read(customerLedgerRepositoryProvider);
+                          await ledgerRepo.addSaleEntry(
+                            companyId: companyId,
+                            customer: customer,
+                            amount: delta,
+                            note: 'POS satış düzeltme',
+                            saleId: editingSale.id,
+                          );
+                        }
+                      }
+                    }
+                  }
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Satış güncellenemedi'),
+                      content: Text('Satış güncellendi'),
                       behavior: SnackBarBehavior.floating,
                       duration: Duration(seconds: 2),
                     ),
                   );
+
                   return;
                 }
 
-                if (editingSale.paymentMethod == 'credit' &&
-                    editingSale.customerId != null) {
-                  final delta = newTotal - oldTotal;
-                  if (delta.abs() > 0.01) {
-                    final companyId = ref.read(activeCompanyIdProvider);
-                    if (companyId != null) {
-                      final customerRepo = ref.read(customerRepositoryProvider);
-                      final customer = await customerRepo.getCustomerById(
-                        companyId,
-                        editingSale.customerId!,
-                      );
-                      if (customer != null) {
-                        final ledgerRepo =
-                            ref.read(customerLedgerRepositoryProvider);
-                        await ledgerRepo.addSaleEntry(
-                          companyId: companyId,
-                          customer: customer,
-                          amount: delta,
-                          note: 'POS satış düzeltme',
-                          saleId: editingSale.id,
-                        );
-                      }
-                    }
-                  }
+                await _showPaymentModal(context, ref, posState, posController);
+              } finally {
+                if (mounted) {
+                  setState(() {
+                    _isCompletingSale = false;
+                  });
                 }
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Satış güncellendi'),
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-
-                return;
               }
-
-              await _showPaymentModal(context, ref, posState, posController);
             },
           ),
         ],
@@ -900,6 +917,8 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
     bool splitCreditEnabled = false;
 
     final splitCardAmountController = TextEditingController();
+
+    bool modalIsCompleting = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1364,25 +1383,43 @@ class _PosScreenState extends ConsumerState<_PosScreen> {
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          onPressed: () async {
-                            final ok = await _completeSaleFromModal(
-                              context,
-                              ref,
-                              posState,
-                              posController,
-                              isSplitPayment: isSplitPayment,
-                              cashReceived: cashReceived,
-                              splitCashEnabled: splitCashEnabled,
-                              splitCardEnabled: splitCardEnabled,
-                              splitCreditEnabled: splitCreditEnabled,
-                              splitCardAmount:
-                                  _parseMoneyInput(splitCardAmountController.text),
-                            );
-                            if (ok && context.mounted) {
-                              Navigator.of(context).pop();
-                            }
-                          },
-                          child: const Text('Satışı Tamamla'),
+                          onPressed: modalIsCompleting
+                              ? null
+                              : () async {
+                                  setModalState(() {
+                                    modalIsCompleting = true;
+                                  });
+
+                                  final ok = await _completeSaleFromModal(
+                                    context,
+                                    ref,
+                                    posState,
+                                    posController,
+                                    isSplitPayment: isSplitPayment,
+                                    cashReceived: cashReceived,
+                                    splitCashEnabled: splitCashEnabled,
+                                    splitCardEnabled: splitCardEnabled,
+                                    splitCreditEnabled: splitCreditEnabled,
+                                    splitCardAmount: _parseMoneyInput(
+                                        splitCardAmountController.text),
+                                  );
+
+                                  if (!context.mounted) return;
+
+                                  if (ok) {
+                                    Navigator.of(context).pop();
+                                    return;
+                                  }
+
+                                  setModalState(() {
+                                    modalIsCompleting = false;
+                                  });
+                                },
+                          child: Text(
+                            modalIsCompleting
+                                ? 'İşleniyor...'
+                                : 'Satışı Tamamla',
+                          ),
                         ),
                         const SizedBox(height: 8),
                         ElevatedButton(
@@ -1742,6 +1779,7 @@ class _BottomTotalsBar extends StatelessWidget {
   final double total;
   final bool canHold;
   final bool canComplete;
+  final bool isCompleting;
   final VoidCallback onHold;
   final VoidCallback? onClear;
   final VoidCallback onComplete;
@@ -1750,6 +1788,7 @@ class _BottomTotalsBar extends StatelessWidget {
     required this.total,
     required this.canHold,
     required this.canComplete,
+    required this.isCompleting,
     required this.onHold,
     required this.onClear,
     required this.onComplete,
@@ -1834,8 +1873,8 @@ class _BottomTotalsBar extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              onPressed: canComplete ? onComplete : null,
-              child: const Text('Satışı Tamamla'),
+              onPressed: canComplete && !isCompleting ? onComplete : null,
+              child: Text(isCompleting ? 'İşleniyor...' : 'Satışı Tamamla'),
             ),
           ),
         ],
